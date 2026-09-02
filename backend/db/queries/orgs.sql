@@ -1,0 +1,72 @@
+-- name: CreateOrg :one
+INSERT INTO orgs (name, kra_pin_enc, kra_pin_hash, vat_registered, locale)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: GetOrg :one
+SELECT * FROM orgs WHERE id = $1;
+
+-- name: GetOrgByPINHash :one
+SELECT * FROM orgs WHERE kra_pin_hash = $1;
+
+-- name: ListOrgs :many
+SELECT * FROM orgs ORDER BY created_at DESC LIMIT $1;
+
+-- name: UpdateOrgFiscalProfile :exec
+UPDATE orgs SET fiscal_profile = $2 WHERE id = $1;
+
+-- name: CreateUser :one
+INSERT INTO users (msisdn_enc, msisdn_hash, name, locale)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (msisdn_hash) DO UPDATE SET name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name)
+RETURNING *;
+
+-- name: GetUser :one
+SELECT * FROM users WHERE id = $1;
+
+-- name: GetUserByMSISDNHash :one
+SELECT * FROM users WHERE msisdn_hash = $1;
+
+-- name: CreateMembership :one
+INSERT INTO memberships (org_id, user_id, role, is_default)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (org_id, user_id) DO UPDATE SET role = EXCLUDED.role
+RETURNING *;
+
+-- name: ListMembershipsForUser :many
+SELECT m.*, o.name AS org_name
+FROM memberships m JOIN orgs o ON o.id = m.org_id
+WHERE m.user_id = $1
+ORDER BY m.is_default DESC, o.name;
+
+-- name: CreateSession :one
+INSERT INTO sessions (user_id, token_hash, csrf_token, expires_at, user_agent, ip)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: GetSessionByTokenHash :one
+SELECT s.*, u.name AS user_name, u.locale AS user_locale
+FROM sessions s JOIN users u ON u.id = s.user_id
+WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now();
+
+-- name: RevokeSession :exec
+UPDATE sessions SET revoked_at = now() WHERE id = $1;
+
+-- name: CreateOTP :one
+INSERT INTO otp_codes (msisdn_hash, code_hash, expires_at)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: LatestOTP :one
+SELECT * FROM otp_codes
+WHERE msisdn_hash = $1 AND consumed_at IS NULL AND expires_at > now()
+ORDER BY created_at DESC LIMIT 1;
+
+-- name: CountRecentOTPs :one
+SELECT count(*) FROM otp_codes WHERE msisdn_hash = $1 AND created_at > now() - interval '1 hour';
+
+-- name: BumpOTPAttempts :exec
+UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1;
+
+-- name: ConsumeOTP :exec
+UPDATE otp_codes SET consumed_at = now() WHERE id = $1;
