@@ -1,0 +1,134 @@
+# CiftPay — UX Flows & Screen Inventory
+
+Companion to [`design-system.md`](design-system.md) (how it looks) and [`api.md`](api.md) (what each screen calls). Screens are listed with route, purpose, data, primary action, and empty/error states. Mobile-first; desktop adds a left rail.
+
+## 1. Information architecture
+
+```
+/login                         (auth)         phone → OTP
+/onboarding/*                  (auth)         business → PIN → shortcode → verify → default item
+/today                         (merchant)     ▸ default after login
+/payments                      (merchant)
+/payments/[id]                 (merchant)     sheet on mobile, drawer on desktop
+/invoices                      (merchant)
+/invoices/[id]                 (merchant)     receipt facsimile
+/attention                     (merchant)
+/items                         (merchant)     ("More" tab)
+/settings/*                    (merchant)     ("More" tab)
+/clients                       (accountant)   org list → switches into merchant routes with X-Org-Id
+/ops                           (admin)
+/r/[code]                      public         no shell, no auth, no JS
+/p/[ref]                       public         request-to-pay page (Phase 2)
+```
+
+Bottom navigation (mobile): **Today · Payments · Invoices · Attention · More**. "More" opens Items, Settings, Reports (Phase 2), Help, Language, Sign out.
+
+## 2. Onboarding (target ≤ 3 minutes, 5 steps)
+
+The progress indicator is a receipt printing line by line: each completed step appends a mono line to a `ReceiptCard` at the top of the screen ("PHONE  +2547•••345  ✓"). The final step prints the total line "YOU'RE LIVE".
+
+| Step | Screen | User does | System does | Failure copy |
+|---|---|---|---|---|
+| 1 | `/login` | Enters phone (`+254` prefilled) | `POST /auth/otp/request` | "We couldn't text that number. Check it and try again." |
+| 2 | `/login` (OTP) | Enters 6 digits; auto-submit on 6th | `POST /auth/otp/verify` → cookie | "That code didn't match. 2 tries left." |
+| 3 | `/onboarding/business` | Business name, KRA PIN (uppercase, 11 chars), VAT registered? toggle | Format check client-side; `POST /orgs` → iTax lookup returns taxpayer name shown for confirmation | "KRA doesn't recognise this PIN. Check it on iTax." |
+| 4 | `/onboarding/shortcode` | Picks Till / Paybill / Pochi, enters number, label | `POST /shortcodes` then `POST /shortcodes/{id}/verify` → "We've sent KES 1 to your phone from Till 512345. Approve it." Poll `GET /shortcodes/{id}` until `verified_at` | "No approval yet. Check your phone or tap Resend." / `409`: "This till is already on CiftPay under another business. Contact support." |
+| 5 | `/onboarding/item` | Chooses a default item from 6 suggested (e.g. "Groceries", "Hardware", "Services") or types one; tax category defaults to B if VAT registered else D | `POST /items`, `PATCH /shortcodes/{id}` with `default_item_id` | — |
+| done | `/today` | Sees "You're live. Your next M-Pesa payment becomes a KRA invoice." toast | — | — |
+
+Skippable: step 4 verify (can verify later; Attention will nag), step 5 (auto-invoice off until set).
+
+## 3. Daily loop (merchant)
+
+### 3.1 Today — `/today`
+- **Header:** "Today" + date in mono.
+- **Hero:** total received today (`Money`, `--t-2xl/3xl`), under it three `StatusChip` counts: `N sent to KRA`, `N pending`, `N need attention` (last one links to `/attention`).
+- **Live strip:** a `ReceiptCard` that appends a line per payment as it lands (polling every 15 s in Phase 0/1; SSE in Phase 2). Each line: time · masked phone · amount.
+- **Last 5 payments** list → `/payments`.
+- **Primary action:** `Record a sale` (ochre-emphasised primary button, fixed above BottomNav) → opens `Sheet` with item picker + quantity + optional buyer phone/PIN → `POST /sales` (Phase 2 STK; in Phase 1 it records a cash sale to be fiscalised without a payment link).
+- **Empty:** "No M-Pesa payments yet today. The next one shows up here on its own."
+
+### 3.2 Payments — `/payments`
+- Filter tabs: All · Unmatched · Cash sales · Matched · Reversed.
+- Row: time, masked phone + payer name, BillRef (mono, muted), `Money`, `StatusChip`.
+- Tap → `Sheet` detail: raw Daraja facts (TransID, shortcode, time), link to invoice if any.
+- **Unmatched row action:** `Convert to invoice` → item picker (multi-line), buyer PIN optional → `POST /payments/{id}/convert` → invoice `QUEUED` → toast "Invoice going to KRA".
+- Also: `Mark as not a sale` (Phase 2: refunds, own transfers).
+- **Empty:** per tab; Unmatched: "Nothing needs matching. Payments on verified tills are invoiced automatically."
+
+### 3.3 Invoices — `/invoices`
+- Filter tabs: All · Sent to KRA · Pending · Failed · Credit notes.
+- Row: KRA invoice no. (mono) or "—" while pending, buyer (masked phone / PIN / name), `Money`, `StatusChip`, time.
+- Detail `/invoices/[id]`: `ReceiptCard` facsimile identical to the public page, `Stamp` per state, actions: `Resend to buyer` (`POST /invoices/{id}/resend`), `Share link`, `Download PDF` (Phase 2), `Issue credit note` (Phase 2). Failed: shows KRA/vendor message in plain words and one fix action.
+- **Print reveal** animation when a pending invoice becomes ACKED while open.
+
+### 3.4 Attention — `/attention`
+A single list, grouped, each item has exactly one button:
+
+| Group | Item | Button |
+|---|---|---|
+| Failed invoices | "KRA rejected KES 2,400 — item code missing" | `Fix item` → picker → `POST /invoices/{id}/retry` |
+| Unmatched payments | "KES 1,250 from 0712•••345, no BillRef" | `Convert` |
+| Unverified shortcodes | "Till 512345 not verified" | `Verify now` |
+| Pending > 10 min | "KES 800 waiting for KRA for 14 min" | `View` (no action; informational, uses ochre) |
+| Plan limit (Phase 2) | "27 of 30 free invoices used" | `Upgrade` |
+
+Badge on the BottomNav shows the count of *actionable* items only.
+**Empty:** "Nothing needs your attention." (ledger-green stamp "ALL CLEAR" on a small receipt).
+
+### 3.5 Items — `/items`
+- List: name, KRA class code (mono), tax category chip (A/B/C/D/E), price.
+- `Add item` → `Sheet`: name, search KRA classification (`GET /items/codes?q=` → `LookupItemCodes`), tax category (explained in one line each: "B — 16 % VAT, most goods"), unit, default price (optional).
+- Set as default for a shortcode from the item row menu.
+
+### 3.6 Settings — `/settings`
+Sections (each its own route under `/settings/*`): Business (name, PIN masked, VAT status), Shortcodes (list with verify state, add, set default item, toggle auto-invoice), Receipt (footer text, show phone? language default), Language (EN/SW), Plan (Phase 2), Team (Phase 2), Sign out.
+
+## 4. Buyer receipt — `/r/[code]` (public)
+
+Server-rendered HTML only, ≤ 30 KB, works on Opera Mini.
+
+1. `ReceiptCard` centred at 360 px: merchant name (Fraunces), KRA PIN, "KRA INVOICE No." + number (mono), date/time EAT, lines (`Leader`), subtotal / VAT by category / total, buyer PIN if present (masked), QR (SVG) bottom-left, `Stamp` top-right: **KRA VERIFIED** (green) / **PENDING KRA** (ochre, with "Refresh in a minute") / **CANCELLED** (red, credit note reference).
+2. Under the card: `Save to phone` (uses Web Share where available, else a plain `<a download>` to `/r/[code].pdf` in Phase 2), `Add my KRA PIN` (Phase 2).
+3. Footer: "Issued through CiftPay. Issue your own eTIMS receipts — ciftpay.co.ke" + privacy notice link. UTM on the link.
+4. Not found: a receipt with "NO SUCH RECEIPT" stamp and "Check the code in your SMS."
+
+## 5. Accountant portal — `/clients`
+
+- List of client orgs (memberships with role `accountant`): name, health chips (unmatched N · failed N · VAT due KES X), last payment time.
+- Tap → sets `X-Org-Id` in the API client and routes to that org's `/today`; `TopBar` shows the org name in mono and a back-to-clients link; `OrgSwitcher` in the rail.
+- `Export all` (Phase 2) → one ZIP of VAT packs.
+
+## 6. Admin — `/ops`
+
+- Search org by name/PIN hash/shortcode; org detail with feature flags and adapter.
+- Dead-letter queue: invoices in `NEEDS_REVIEW` across orgs (admin role bypasses nothing — the UI iterates orgs the admin has memberships for; the platform admin role gets a membership on every org via a periodic job).
+- Re-queue, view `fiscal_submissions` request/response, mark resolved.
+
+## 7. Notifications the buyer receives
+
+| Event | Channel | EN | SW |
+|---|---|---|---|
+| Invoice ACKED | SMS | "Receipt: KES 2,400 to WANJIRU GROCERIES. KRA invoice 0012345678. View/save: ciftpay.co.ke/r/7KQ2M9" | "Risiti: KES 2,400 kwa WANJIRU GROCERIES. Invoice ya KRA 0012345678. Tazama: ciftpay.co.ke/r/7KQ2M9" |
+| Pending > 5 min | SMS | "Your receipt for KES 2,400 to WANJIRU GROCERIES is being registered with KRA. Link: ciftpay.co.ke/r/7KQ2M9" | "Risiti yako ya KES 2,400 kwa WANJIRU GROCERIES inasajiliwa KRA. Kiungo: ciftpay.co.ke/r/7KQ2M9" |
+| Credit note | SMS | "Receipt KRA 0012345678 was cancelled by WANJIRU GROCERIES. Details: ciftpay.co.ke/r/7KQ2M9" | … |
+
+One SMS ≤ 160 GSM-7 characters; merchant names are truncated at 24 chars.
+
+## 8. Offline behaviour (PWA)
+
+- App shell, fonts, icons precached. Opening offline shows the last cached Today with a hairline banner "Offline — showing what we had at 14:02".
+- `Record a sale` works offline: stored in IndexedDB queue, shown in the live strip with a `pending sync` chip; synced on reconnect; conflicts are impossible because the client generates the sale `ref`.
+- Payments and invoices lists are read-only offline.
+
+## 9. Edge cases and how the UI handles them
+
+| Case | Behaviour |
+|---|---|
+| Duplicate Daraja callback | Nothing visible; `webhook_duplicates_total` metric increments |
+| Reversal after ACKED (Phase 2) | Invoice shows `CANCELLED` stamp with linked credit note; Attention item "Confirm credit note sent" |
+| Buyer PIN invalid format | Inline error "KRA PINs look like A123456789B"; never submitted |
+| Shortcode claimed by another org | `409` → copy in §2; support link |
+| KRA down for > 1 h | Attention shows one grouped item "KRA is unavailable — 14 invoices waiting. We'll keep trying."; buyers already got the pending SMS |
+| Swahili overflow | Receipt lines wrap at 32 mono chars; merchant name truncates with "…" |
+| Month boundary in reports (Phase 2) | Period picker uses Africa/Nairobi; a note shows "Includes payments until 23:59 EAT on the 31st" |
