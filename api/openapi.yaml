@@ -1,0 +1,1538 @@
+openapi: 3.1.0
+info:
+  title: CiftPay API
+  version: 1.0.0
+  description: |
+    CiftPay turns M-Pesa payments into KRA eTIMS invoices.
+
+    Conventions:
+    - All money values are integer **cents** (`amount_cents`). KES 2,400.00 = 240000.
+    - All timestamps are RFC 3339 UTC.
+    - Authenticated endpoints use the `ciftpay_session` HttpOnly cookie plus `X-CSRF-Token` on non-GET.
+    - The active organisation is the caller's default membership or the `X-Org-Id` header.
+    - Errors use the envelope in `#/components/schemas/Error`.
+    - Personal data (MSISDN, KRA PIN) is returned masked unless stated otherwise.
+  contact:
+    name: CiftPay Engineering
+servers:
+  - url: http://localhost:8080/v1
+    description: Local development
+  - url: https://api.ciftpay.co.ke/v1
+    description: Production
+
+tags:
+  - name: auth
+  - name: orgs
+  - name: shortcodes
+  - name: payments
+  - name: items
+  - name: sales
+  - name: invoices
+  - name: reports
+  - name: public
+  - name: webhooks
+  - name: system
+
+security:
+  - sessionCookie: []
+
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      operationId: getHealth
+      security: []
+      summary: Liveness and dependency health
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: A dependency is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /auth/otp/request:
+    post:
+      tags: [auth]
+      operationId: requestOtp
+      security: []
+      summary: Send a one-time code to a phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [msisdn]
+              properties:
+                msisdn:
+                  $ref: "#/components/schemas/Msisdn"
+                locale:
+                  $ref: "#/components/schemas/Locale"
+      responses:
+        "202":
+          description: Code sent (or silently not sent for unknown numbers in prod)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [expires_in_seconds]
+                properties:
+                  expires_in_seconds:
+                    type: integer
+                    example: 300
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /auth/otp/verify:
+    post:
+      tags: [auth]
+      operationId: verifyOtp
+      security: []
+      summary: Exchange a one-time code for a session cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [msisdn, code]
+              properties:
+                msisdn:
+                  $ref: "#/components/schemas/Msisdn"
+                code:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+      responses:
+        "200":
+          description: Session created. Sets `ciftpay_session` cookie.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Revoke the current session
+      responses:
+        "204":
+          description: Logged out
+
+  /orgs:
+    get:
+      tags: [orgs]
+      operationId: listOrgs
+      summary: Organisations the caller is a member of
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrgMembership"
+    post:
+      tags: [orgs]
+      operationId: createOrg
+      summary: Create an organisation (business) with its KRA PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgCreate"
+      responses:
+        "201":
+          description: Created; caller becomes `owner`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /orgs/current:
+    get:
+      tags: [orgs]
+      operationId: getCurrentOrg
+      summary: The active organisation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
+
+  /shortcodes:
+    get:
+      tags: [shortcodes]
+      operationId: listShortcodes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Shortcode"
+    post:
+      tags: [shortcodes]
+      operationId: createShortcode
+      summary: Register a Till, Paybill or Pochi for the active org
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShortcodeCreate"
+      responses:
+        "201":
+          description: Created (unverified)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shortcode"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /shortcodes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [shortcodes]
+      operationId: getShortcode
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shortcode"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [shortcodes]
+      operationId: updateShortcode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShortcodeUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shortcode"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /shortcodes/{id}/verify:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [shortcodes]
+      operationId: verifyShortcode
+      summary: Start the control check (KES 1 STK push to the caller's phone)
+      description: |
+        Sends a KES 1 STK push against this shortcode to the MSISDN of the current user.
+        Verification completes asynchronously when the STK callback arrives; poll `GET /shortcodes/{id}`.
+      responses:
+        "202":
+          description: STK push sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkout_request_id]
+                properties:
+                  checkout_request_id:
+                    type: string
+        "409":
+          description: Shortcode already verified by another organisation (`shortcode_claimed`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /payments:
+    get:
+      tags: [payments]
+      operationId: listPayments
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/PaymentStatus"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Payment"
+                  next_cursor:
+                    type: [string, "null"]
+
+  /payments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [payments]
+      operationId: getPayment
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /payments/{id}/convert:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [payments]
+      operationId: convertPayment
+      summary: Turn an unmatched payment into a sale and queue its invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/SaleLineInput"
+                buyer_pin:
+                  $ref: "#/components/schemas/KraPin"
+                buyer_name:
+                  type: string
+      responses:
+        "201":
+          description: Invoice queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "409":
+          description: Payment already converted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /items:
+    get:
+      tags: [items]
+      operationId: listItems
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Item"
+    post:
+      tags: [items]
+      operationId: createItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /items/codes:
+    get:
+      tags: [items]
+      operationId: searchItemCodes
+      summary: Search KRA item classification codes
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ItemCode"
+
+  /sales:
+    get:
+      tags: [sales]
+      operationId: listSales
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, paid, void]
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Sale"
+                  next_cursor:
+                    type: [string, "null"]
+    post:
+      tags: [sales]
+      operationId: createSale
+      summary: Record a sale (open request-to-pay, or cash already received)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /invoices:
+    get:
+      tags: [invoices]
+      operationId: listInvoices
+      parameters:
+        - name: state
+          in: query
+          schema:
+            $ref: "#/components/schemas/InvoiceState"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Invoice"
+                  next_cursor:
+                    type: [string, "null"]
+
+  /invoices/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [invoices]
+      operationId: getInvoice
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceDetail"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /invoices/{id}/retry:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [invoices]
+      operationId: retryInvoice
+      summary: Re-queue an invoice in NEEDS_REVIEW, optionally with corrected lines or buyer PIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lines:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/SaleLineInput"
+                buyer_pin:
+                  $ref: "#/components/schemas/KraPin"
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "409":
+          description: Invoice is not in a retryable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /invoices/{id}/resend:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [invoices]
+      operationId: resendReceipt
+      summary: Re-send the buyer receipt (SMS/WhatsApp)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                msisdn:
+                  $ref: "#/components/schemas/Msisdn"
+      responses:
+        "202":
+          description: Queued
+        default:
+          $ref: "#/components/responses/Error"
+
+  /attention:
+    get:
+      tags: [invoices]
+      operationId: listAttention
+      summary: Everything that needs a human action, grouped
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attention"
+
+  /reports/today:
+    get:
+      tags: [reports]
+      operationId: getToday
+      summary: Today's totals for the active org (Africa/Nairobi day)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodaySummary"
+
+  /reports/vat:
+    get:
+      tags: [reports]
+      operationId: getVatReport
+      parameters:
+        - name: period
+          in: query
+          required: true
+          description: Month in `YYYY-MM`, Africa/Nairobi
+          schema:
+            type: string
+            pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VatReport"
+
+  /r/{code}:
+    get:
+      tags: [public]
+      operationId: getPublicReceipt
+      security: []
+      summary: Public receipt lookup by receipt code
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9A-HJKMNP-TV-Z]{6,8}$"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicReceipt"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /webhooks/mpesa/c2b/validation/{token}:
+    post:
+      tags: [webhooks]
+      operationId: mpesaC2bValidation
+      security: []
+      summary: Daraja C2B validation callback
+      parameters:
+        - $ref: "#/components/parameters/WebhookToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DarajaC2B"
+      responses:
+        "200":
+          description: Always accepts; CiftPay never rejects a payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DarajaResult"
+
+  /webhooks/mpesa/c2b/confirmation/{token}:
+    post:
+      tags: [webhooks]
+      operationId: mpesaC2bConfirmation
+      security: []
+      summary: Daraja C2B confirmation callback (the money has moved)
+      parameters:
+        - $ref: "#/components/parameters/WebhookToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DarajaC2B"
+      responses:
+        "200":
+          description: Accepted (idempotent on TransID)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DarajaResult"
+
+  /webhooks/mpesa/stk/{token}:
+    post:
+      tags: [webhooks]
+      operationId: mpesaStkCallback
+      security: []
+      summary: Daraja STK push result callback
+      parameters:
+        - $ref: "#/components/parameters/WebhookToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DarajaStkCallback"
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DarajaResult"
+
+  /webhooks/at/delivery:
+    post:
+      tags: [webhooks]
+      operationId: atDeliveryReport
+      security: []
+      summary: Africa's Talking SMS delivery report
+      parameters:
+        - name: X-AT-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                status:
+                  type: string
+                phoneNumber:
+                  type: string
+                networkCode:
+                  type: string
+                failureReason:
+                  type: string
+      responses:
+        "200":
+          description: Accepted
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ciftpay_session
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    From:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    WebhookToken:
+      name: token
+      in: path
+      required: true
+      description: Shared secret path segment (`DARAJA_WEBHOOK_TOKEN`)
+      schema:
+        type: string
+
+  responses:
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code, snake_case
+              examples: [validation_failed, not_found, shortcode_claimed, rate_limited, unauthenticated, forbidden, conflict, internal]
+            message:
+              type: string
+              description: Human-readable, safe to show to users
+            details:
+              type: object
+              additionalProperties: true
+            request_id:
+              type: string
+
+    Health:
+      type: object
+      required: [status, db, queue]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        db:
+          type: string
+          enum: [ok, error]
+        queue:
+          type: string
+          enum: [ok, error]
+        version:
+          type: string
+
+    Msisdn:
+      type: string
+      description: Kenyan mobile number in E.164 without plus, e.g. 254712345678
+      pattern: "^254[17][0-9]{8}$"
+      example: "254712345678"
+
+    MaskedMsisdn:
+      type: string
+      description: First 4 and last 3 digits, e.g. 2547•••••345
+      example: "2547•••••345"
+
+    KraPin:
+      type: string
+      pattern: "^[AP][0-9]{9}[A-Z]$"
+      example: "A123456789B"
+
+    MaskedKraPin:
+      type: string
+      example: "A•••••••••B"
+
+    Locale:
+      type: string
+      enum: [en, sw]
+      default: en
+
+    Role:
+      type: string
+      enum: [owner, staff, accountant, admin]
+
+    TaxCategory:
+      type: string
+      description: A exempt · B 16 % · C 0 % export · D non-VAT · E 8 %
+      enum: [A, B, C, D, E]
+
+    Session:
+      type: object
+      required: [user_id, csrf_token, expires_at, orgs]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        csrf_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        orgs:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgMembership"
+
+    OrgMembership:
+      type: object
+      required: [org_id, name, role, is_default]
+      properties:
+        org_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        is_default:
+          type: boolean
+
+    OrgCreate:
+      type: object
+      required: [name, kra_pin]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        kra_pin:
+          $ref: "#/components/schemas/KraPin"
+        vat_registered:
+          type: boolean
+          default: false
+        locale:
+          $ref: "#/components/schemas/Locale"
+
+    Org:
+      type: object
+      required: [id, name, kra_pin_masked, vat_registered, locale, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kra_pin_masked:
+          $ref: "#/components/schemas/MaskedKraPin"
+        kra_pin_verified_at:
+          type: [string, "null"]
+          format: date-time
+        vat_registered:
+          type: boolean
+        locale:
+          $ref: "#/components/schemas/Locale"
+        fiscal_adapter:
+          type: string
+          enum: [mock, vendor, oscu]
+        created_at:
+          type: string
+          format: date-time
+
+    ShortcodeKind:
+      type: string
+      enum: [till, paybill, pochi]
+
+    ShortcodeCreate:
+      type: object
+      required: [kind, shortcode]
+      properties:
+        kind:
+          $ref: "#/components/schemas/ShortcodeKind"
+        shortcode:
+          type: string
+          pattern: "^[0-9]{5,7}$"
+        label:
+          type: string
+        default_item_id:
+          type: string
+          format: uuid
+        auto_invoice:
+          type: boolean
+          default: true
+
+    ShortcodeUpdate:
+      type: object
+      properties:
+        label:
+          type: string
+        default_item_id:
+          type: [string, "null"]
+          format: uuid
+        auto_invoice:
+          type: boolean
+
+    Shortcode:
+      type: object
+      required: [id, kind, shortcode, auto_invoice, verified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/ShortcodeKind"
+        shortcode:
+          type: string
+        label:
+          type: string
+        default_item_id:
+          type: [string, "null"]
+          format: uuid
+        auto_invoice:
+          type: boolean
+        verified:
+          type: boolean
+        verified_at:
+          type: [string, "null"]
+          format: date-time
+
+    PaymentStatus:
+      type: string
+      enum: [matched, cash_sale, unmatched, reversed, partial]
+
+    Payment:
+      type: object
+      required: [id, trans_id, amount_cents, payer_msisdn_masked, paid_at, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        shortcode_id:
+          type: string
+          format: uuid
+        trans_id:
+          type: string
+          example: "RKTQDM7W6S"
+        amount_cents:
+          type: integer
+          format: int64
+        payer_msisdn_masked:
+          $ref: "#/components/schemas/MaskedMsisdn"
+        payer_name:
+          type: string
+        bill_ref:
+          type: string
+        paid_at:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        match_rule:
+          type: [string, "null"]
+          enum: [bill_ref, stk_window, auto_invoice, manual, null]
+        sale_id:
+          type: [string, "null"]
+          format: uuid
+        invoice_id:
+          type: [string, "null"]
+          format: uuid
+
+    ItemCode:
+      type: object
+      required: [code, description]
+      properties:
+        code:
+          type: string
+          example: "5020230500"
+        description:
+          type: string
+        default_tax_category:
+          $ref: "#/components/schemas/TaxCategory"
+
+    ItemCreate:
+      type: object
+      required: [name, etims_class_code, tax_category]
+      properties:
+        name:
+          type: string
+        etims_class_code:
+          type: string
+        tax_category:
+          $ref: "#/components/schemas/TaxCategory"
+        unit:
+          type: string
+          default: PCS
+        price_cents:
+          type: [integer, "null"]
+          format: int64
+
+    Item:
+      allOf:
+        - $ref: "#/components/schemas/ItemCreate"
+        - type: object
+          required: [id, is_active]
+          properties:
+            id:
+              type: string
+              format: uuid
+            is_active:
+              type: boolean
+
+    SaleLineInput:
+      type: object
+      required: [item_id, qty]
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        qty:
+          type: number
+          exclusiveMinimum: 0
+        unit_price_cents:
+          type: integer
+          format: int64
+          description: Overrides the item's default price (VAT-inclusive)
+        description:
+          type: string
+
+    SaleLine:
+      type: object
+      required: [description, qty, unit_price_cents, tax_category, line_total_cents, line_tax_cents]
+      properties:
+        item_id:
+          type: [string, "null"]
+          format: uuid
+        description:
+          type: string
+        qty:
+          type: number
+        unit_price_cents:
+          type: integer
+          format: int64
+        tax_category:
+          $ref: "#/components/schemas/TaxCategory"
+        line_total_cents:
+          type: integer
+          format: int64
+        line_tax_cents:
+          type: integer
+          format: int64
+
+    SaleCreate:
+      type: object
+      required: [kind, lines]
+      properties:
+        kind:
+          type: string
+          enum: [open, cash]
+          description: "`open` awaits a payment (BillRef = ref); `cash` was already paid outside CiftPay's view"
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SaleLineInput"
+        buyer_msisdn:
+          $ref: "#/components/schemas/Msisdn"
+        buyer_pin:
+          $ref: "#/components/schemas/KraPin"
+        buyer_name:
+          type: string
+        client_ref:
+          type: string
+          description: Client-generated idempotency key (offline queue)
+
+    Sale:
+      type: object
+      required: [id, ref, kind, status, lines, subtotal_cents, tax_cents, total_cents, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ref:
+          type: string
+          example: "CP-7KQ2M9"
+        kind:
+          type: string
+          enum: [open, cash]
+        status:
+          type: string
+          enum: [open, paid, void]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLine"
+        subtotal_cents:
+          type: integer
+          format: int64
+        tax_cents:
+          type: integer
+          format: int64
+        total_cents:
+          type: integer
+          format: int64
+        invoice_id:
+          type: [string, "null"]
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: [string, "null"]
+          format: date-time
+
+    InvoiceState:
+      type: string
+      enum: [DRAFT, QUEUED, SUBMITTED, ACKED, FAILED_RETRYABLE, FAILED_TERMINAL, NEEDS_REVIEW]
+
+    Invoice:
+      type: object
+      required: [id, kind, state, receipt_code, total_cents, tax_cents, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE]
+        parent_invoice_id:
+          type: [string, "null"]
+          format: uuid
+        sale_id:
+          type: string
+          format: uuid
+        payment_id:
+          type: [string, "null"]
+          format: uuid
+        state:
+          $ref: "#/components/schemas/InvoiceState"
+        attempt:
+          type: integer
+        receipt_code:
+          type: string
+          example: "7KQ2M9"
+        receipt_url:
+          type: string
+          format: uri
+        kra_invoice_no:
+          type: [string, "null"]
+        buyer_pin_masked:
+          type: [string, "null"]
+        buyer_msisdn_masked:
+          type: [string, "null"]
+        total_cents:
+          type: integer
+          format: int64
+        tax_cents:
+          type: integer
+          format: int64
+        last_error:
+          type: [string, "null"]
+          description: Plain-language explanation when FAILED_* or NEEDS_REVIEW
+        created_at:
+          type: string
+          format: date-time
+        submitted_at:
+          type: [string, "null"]
+          format: date-time
+        acked_at:
+          type: [string, "null"]
+          format: date-time
+
+    InvoiceDetail:
+      allOf:
+        - $ref: "#/components/schemas/Invoice"
+        - type: object
+          required: [lines, seller]
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: "#/components/schemas/SaleLine"
+            seller:
+              $ref: "#/components/schemas/Seller"
+            kra_qr_payload:
+              type: [string, "null"]
+            submissions:
+              type: array
+              items:
+                $ref: "#/components/schemas/FiscalSubmission"
+
+    FiscalSubmission:
+      type: object
+      required: [attempt, adapter, classification, started_at]
+      properties:
+        attempt:
+          type: integer
+        adapter:
+          type: string
+        classification:
+          type: string
+          enum: [ok, retryable, terminal]
+        error:
+          type: [string, "null"]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: [string, "null"]
+          format: date-time
+
+    Seller:
+      type: object
+      required: [name, kra_pin]
+      properties:
+        name:
+          type: string
+        kra_pin:
+          type: string
+          description: Seller PIN is public information on a tax invoice
+
+    PublicReceipt:
+      type: object
+      required: [receipt_code, state, seller, lines, subtotal_cents, tax_cents, total_cents, issued_at]
+      properties:
+        receipt_code:
+          type: string
+        state:
+          type: string
+          enum: [verified, pending, cancelled]
+        kind:
+          type: string
+          enum: [INVOICE, CREDIT_NOTE]
+        seller:
+          $ref: "#/components/schemas/Seller"
+        kra_invoice_no:
+          type: [string, "null"]
+        kra_qr_payload:
+          type: [string, "null"]
+        buyer_pin_masked:
+          type: [string, "null"]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLine"
+        vat_by_category:
+          type: array
+          items:
+            type: object
+            required: [category, taxable_cents, tax_cents]
+            properties:
+              category:
+                $ref: "#/components/schemas/TaxCategory"
+              taxable_cents:
+                type: integer
+                format: int64
+              tax_cents:
+                type: integer
+                format: int64
+        subtotal_cents:
+          type: integer
+          format: int64
+        tax_cents:
+          type: integer
+          format: int64
+        total_cents:
+          type: integer
+          format: int64
+        issued_at:
+          type: string
+          format: date-time
+        credit_note_of:
+          type: [string, "null"]
+          description: KRA invoice number of the cancelled invoice
+
+    Attention:
+      type: object
+      required: [failed_invoices, unmatched_payments, unverified_shortcodes, pending_long, actionable_count]
+      properties:
+        failed_invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        unmatched_payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        unverified_shortcodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Shortcode"
+        pending_long:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        actionable_count:
+          type: integer
+
+    TodaySummary:
+      type: object
+      required: [date, received_cents, payments_count, invoices_acked, invoices_pending, attention_count, recent_payments]
+      properties:
+        date:
+          type: string
+          format: date
+        received_cents:
+          type: integer
+          format: int64
+        payments_count:
+          type: integer
+        invoices_acked:
+          type: integer
+        invoices_pending:
+          type: integer
+        attention_count:
+          type: integer
+        recent_payments:
+          type: array
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/Payment"
+
+    VatReport:
+      type: object
+      required: [period, by_category, invoices_count, credit_notes_count, output_vat_cents]
+      properties:
+        period:
+          type: string
+        by_category:
+          type: array
+          items:
+            type: object
+            required: [category, taxable_cents, tax_cents, count]
+            properties:
+              category:
+                $ref: "#/components/schemas/TaxCategory"
+              taxable_cents:
+                type: integer
+                format: int64
+              tax_cents:
+                type: integer
+                format: int64
+              count:
+                type: integer
+        invoices_count:
+          type: integer
+        credit_notes_count:
+          type: integer
+        output_vat_cents:
+          type: integer
+          format: int64
+
+    DarajaC2B:
+      type: object
+      description: Safaricom Daraja C2B validation/confirmation payload (verbatim field names)
+      required: [TransactionType, TransID, TransTime, TransAmount, BusinessShortCode, MSISDN]
+      properties:
+        TransactionType:
+          type: string
+          example: "Pay Bill"
+        TransID:
+          type: string
+          example: "RKTQDM7W6S"
+        TransTime:
+          type: string
+          description: YYYYMMDDHHmmss in EAT
+          example: "20260902141530"
+        TransAmount:
+          type: string
+          example: "2400.00"
+        BusinessShortCode:
+          type: string
+          example: "600988"
+        BillRefNumber:
+          type: string
+        InvoiceNumber:
+          type: string
+        OrgAccountBalance:
+          type: string
+        ThirdPartyTransID:
+          type: string
+        MSISDN:
+          type: string
+          description: Plain or hashed depending on Daraja product
+        FirstName:
+          type: string
+        MiddleName:
+          type: string
+        LastName:
+          type: string
+
+    DarajaStkCallback:
+      type: object
+      required: [Body]
+      properties:
+        Body:
+          type: object
+          required: [stkCallback]
+          properties:
+            stkCallback:
+              type: object
+              required: [MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc]
+              properties:
+                MerchantRequestID:
+                  type: string
+                CheckoutRequestID:
+                  type: string
+                ResultCode:
+                  type: integer
+                ResultDesc:
+                  type: string
+                CallbackMetadata:
+                  type: object
+                  properties:
+                    Item:
+                      type: array
+                      items:
+                        type: object
+                        required: [Name]
+                        properties:
+                          Name:
+                            type: string
+                          Value:
+                            oneOf:
+                              - type: string
+                              - type: number
+
+    DarajaResult:
+      type: object
+      required: [ResultCode, ResultDesc]
+      properties:
+        ResultCode:
+          type: integer
+          example: 0
+        ResultDesc:
+          type: string
+          example: "Accepted"
