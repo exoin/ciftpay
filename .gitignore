@@ -1,0 +1,26 @@
+# secrets and local config
+.env
+.env.local
+*.pem
+
+# go
+/backend/bin/
+*.test
+*.out
+coverage.out
+
+# node / next
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+/web/playwright-report/
+/web/test-results/
+/web/src/lib/api/schema.d.ts
+
+# tooling
+.DS_Store
+*.log
+/tmp/
+\n# ide\n.idea/
