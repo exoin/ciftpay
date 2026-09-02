@@ -1,0 +1,22 @@
+# Placeholder Fly.io configuration for the worker binary.
+# fly deploy -c deploy/fly.worker.toml
+# The worker exposes no HTTP service; it polls the River queue in Postgres.
+
+app = "ciftpay-worker"
+primary_region = "jnb"
+
+[build]
+  dockerfile = "../backend/Dockerfile"
+  build-target = "worker"
+
+[env]
+  APP_ENV = "production"
+  FISCAL_ADAPTER = "vendor"
+  WORKER_CONCURRENCY = "8"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[deploy]
+  strategy = "rolling"
