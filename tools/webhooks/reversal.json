@@ -1,0 +1,15 @@
+{
+  "TransactionType": "Reversal",
+  "TransID": "SLJ9R4V5W6",
+  "TransTime": "20260902134500",
+  "TransAmount": "2400.00",
+  "BusinessShortCode": "600123",
+  "BillRefNumber": "",
+  "InvoiceNumber": "",
+  "OrgAccountBalance": "145830.00",
+  "ThirdPartyTransID": "SLJ7X2K91Q",
+  "MSISDN": "254708374149",
+  "FirstName": "MARY",
+  "MiddleName": "WANJIKU",
+  "LastName": "KAMAU"
+}
