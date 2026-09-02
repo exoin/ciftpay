@@ -1,0 +1,77 @@
+name: go-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/go-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/go-ci.yml"
+
+concurrency:
+  group: go-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgres://ciftpay:ciftpay@localhost:5432/ciftpay?sslmode=disable
+      MASTER_KEY_B64: ZGV2LW1hc3Rlci1rZXktMzItYnl0ZXMtZm9yLWRldiE=
+      SESSION_SECRET: ci-session-secret
+      HASH_PEPPER: ci-hash-pepper
+      FISCAL_ADAPTER: mock
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: backend/go.sum
+
+      - name: Create application role and database
+        run: |
+          psql "postgres://postgres:postgres@localhost:5432/postgres" \
+            -f ../tools/postgres/init.sql
+
+      - name: go build
+        run: go build ./...
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: migrate
+        run: go run ./cmd/ciftctl migrate
+
+      - name: go test
+        run: go test -race -count=1 ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61
+          working-directory: backend
