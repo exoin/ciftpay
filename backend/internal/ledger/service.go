@@ -97,25 +97,35 @@ func (s *Service) IngestC2B(ctx context.Context, in C2BInput) (C2BResult, error)
 	if err != nil {
 		return res, err
 	}
-	res.OrgID = sc.OrgID
+	return s.ProcessStoredC2B(ctx, *eventID, sc, in)
+}
 
-	// 2. Tenant-scoped: payment, sale, invoice, job.
-	err = s.DB.WithOrg(ctx, sc.OrgID, func(ctx context.Context, tx db.Tx) error {
+// ProcessStoredC2B runs the tenant-scoped half of IngestC2B for a webhook
+// event that is already stored: payment, sale, invoice and job in one
+// transaction, then the event is marked processed. The reconcile job uses it
+// to finish events whose first attempt died mid-way.
+func (s *Service) ProcessStoredC2B(ctx context.Context, eventID uuid.UUID, sc gen.ResolveShortcodeRow, in C2BInput) (C2BResult, error) {
+	res := C2BResult{OrgID: sc.OrgID}
+	err := s.DB.WithOrg(ctx, sc.OrgID, func(ctx context.Context, tx db.Tx) error {
 		if in.Kind == "reversal" {
-			return s.applyReversal(ctx, tx, sc, in, eventID, &res)
+			return s.applyReversal(ctx, tx, sc, in, &eventID, &res)
 		}
-		return s.applyPayment(ctx, tx, sc, in, eventID, &res)
+		return s.applyPayment(ctx, tx, sc, in, &eventID, &res)
 	})
-	if err != nil {
-		_ = s.DB.WithIngest(ctx, func(ctx context.Context, tx db.Tx) error {
-			return tx.MarkWebhookProcessed(ctx, gen.MarkWebhookProcessedParams{ID: *eventID, Error: db.Ptr(err.Error())})
-		})
-		return res, err
+	if errors.Is(err, ErrDuplicate) {
+		// The payment row already exists (previous attempt committed the
+		// tenant transaction but not the processed mark).
+		res.Duplicate, err = true, nil
 	}
 	_ = s.DB.WithIngest(ctx, func(ctx context.Context, tx db.Tx) error {
-		return tx.MarkWebhookProcessed(ctx, gen.MarkWebhookProcessedParams{ID: *eventID})
+		if err != nil {
+			// Keep processed_at NULL so ReconcilePayments retries it; record why.
+			_, e := tx.Tx.Exec(ctx, "UPDATE webhook_events SET error = $2 WHERE id = $1", eventID, err.Error())
+			return e
+		}
+		return tx.MarkWebhookProcessed(ctx, gen.MarkWebhookProcessedParams{ID: eventID})
 	})
-	return res, nil
+	return res, err
 }
 
 func (s *Service) applyPayment(ctx context.Context, tx db.Tx, sc gen.ResolveShortcodeRow, in C2BInput, eventID *uuid.UUID, res *C2BResult) error {

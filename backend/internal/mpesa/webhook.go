@@ -81,15 +81,7 @@ func (h *Webhooks) confirmation(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusBadRequest, DarajaAck{ResultCode: 1, ResultDesc: err.Error()})
 		return
 	}
-	amount, _ := ParseAmount(p.TransAmount)
-	paidAt, _ := ParseTransTime(p.TransTime)
-	in := ledger.C2BInput{
-		Kind: "c2b_confirmation", TransID: p.TransID, ShortCode: p.BusinessShortCode, AmountCents: amount,
-		MSISDN: p.MSISDN, PayerName: p.PayerName(), BillRef: p.BillRefNumber, PaidAt: paidAt, Raw: raw,
-	}
-	if p.IsReversal() {
-		in.Kind, in.OriginalID = "reversal", p.ThirdPartyTransID
-	}
+	in := ToC2BInput(p, raw)
 	res, err := h.Ingest.IngestC2B(r.Context(), in)
 	switch {
 	case errors.Is(err, ledger.ErrUnknownShortcode):
@@ -100,7 +92,7 @@ func (h *Webhooks) confirmation(w http.ResponseWriter, r *http.Request) {
 		// reconcile job picks up unprocessed events.
 	default:
 		h.Log.Info("c2b ingested", "trans_id", p.TransID, "org", res.OrgID, "status", res.Status, "rule", res.Rule,
-			"duplicate", res.Duplicate, "amount_cents", amount, plog.Redact("msisdn", p.MSISDN))
+			"duplicate", res.Duplicate, "amount_cents", in.AmountCents, plog.Redact("msisdn", p.MSISDN))
 	}
 	httpx.JSON(w, http.StatusOK, Accepted)
 }
@@ -130,6 +122,20 @@ func (h *Webhooks) stk(w http.ResponseWriter, r *http.Request) {
 		h.Log.Error("stk ingest failed", "err", err, "checkout", res.CheckoutRequestID)
 	}
 	httpx.JSON(w, http.StatusOK, Accepted)
+}
+
+// ToC2BInput normalises a validated Daraja payload for the ledger.
+func ToC2BInput(p C2BPayload, raw json.RawMessage) ledger.C2BInput {
+	amount, _ := ParseAmount(p.TransAmount)
+	paidAt, _ := ParseTransTime(p.TransTime)
+	in := ledger.C2BInput{
+		Kind: "c2b_confirmation", TransID: p.TransID, ShortCode: p.BusinessShortCode, AmountCents: amount,
+		MSISDN: p.MSISDN, PayerName: p.PayerName(), BillRef: p.BillRefNumber, PaidAt: paidAt, Raw: raw,
+	}
+	if p.IsReversal() {
+		in.Kind, in.OriginalID = "reversal", p.ThirdPartyTransID
+	}
+	return in
 }
 
 func decodeBody(r *http.Request, v any) error {
