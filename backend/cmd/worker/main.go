@@ -1,0 +1,71 @@
+// Command worker runs the River job workers: fiscal.submit_invoice,
+// notify.send_receipt and the periodic mpesa.reconcile_payments sweep.
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/riverqueue/river"
+
+	"github.com/ciftpay/ciftpay/internal/boot"
+	"github.com/ciftpay/ciftpay/internal/fiscal"
+	"github.com/ciftpay/ciftpay/internal/ledger"
+	"github.com/ciftpay/ciftpay/internal/mpesa"
+	"github.com/ciftpay/ciftpay/internal/notify"
+	"github.com/ciftpay/ciftpay/internal/platform/jobs"
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "worker:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	d, err := boot.Load(ctx)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
+	provider, err := boot.FiscalProvider(d.Cfg.Fiscal)
+	if err != nil {
+		return err
+	}
+
+	// The workers enqueue follow-up jobs (receipt after ack) through the same
+	// River client they run under, so build the client in two steps.
+	workers := river.NewWorkers()
+	jc, err := jobs.New(d.DB.Pool, workers)
+	if err != nil {
+		return err
+	}
+	ledgerSvc := ledger.New(d.DB, jc, d.Keys, d.Log)
+	submitter := fiscal.NewSubmitter(d.DB, jc, d.Keys, provider, d.Log)
+	notifier := d.Notifier()
+	reconciler := mpesa.NewReconciler(d.DB, ledgerSvc, d.Log)
+
+	river.AddWorker(workers, &fiscal.Worker{S: submitter})
+	river.AddWorker(workers, &notify.Worker{S: notifier})
+	river.AddWorker(workers, &mpesa.Worker{R: reconciler})
+
+	if err := jc.Start(ctx); err != nil {
+		return err
+	}
+	d.Log.Info("worker started", "env", d.Cfg.AppEnv, "fiscal_adapter", provider.Name(), "mock_fail_mode", d.Cfg.Fiscal.MockFailMode)
+	<-ctx.Done()
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	d.Log.Info("worker draining")
+	return jc.Stop(stopCtx)
+}

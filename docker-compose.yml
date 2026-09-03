@@ -74,7 +74,12 @@ services:
 
   web:
     build:
-      context: ./web
+      # Root context so the image can regenerate the TS client from api/openapi.yaml.
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+        NEXT_PUBLIC_WEB_BASE_URL: http://localhost:3000
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080

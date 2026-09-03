@@ -1,0 +1,19 @@
+# Root build context is used by web/Dockerfile (needs api/openapi.yaml + web/).
+.git
+.idea
+.junie
+docs
+deploy
+tools
+backend
+web/node_modules
+web/.next
+web/out
+web/coverage
+web/test-results
+web/playwright-report
+web/public/sw.js
+web/public/sw.js.map
+web/public/swe-worker-*.js
+.env
+.env.local
