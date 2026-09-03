@@ -404,8 +404,26 @@ END $$;
 CREATE POLICY mpesa_shortcodes_ingest ON mpesa_shortcodes
   FOR SELECT USING (current_scope() = 'ingest');
 
+-- STK callbacks carry no shortcode, only the CheckoutRequestID CiftPay issued;
+-- the ingest path may read stk_requests to find the org before scoping.
+CREATE POLICY stk_requests_ingest ON stk_requests
+  FOR SELECT USING (current_scope() = 'ingest');
+
+-- Africa's Talking delivery reports carry only the provider message id; the
+-- ingest path may flip the matching notification to 'delivered'.
+CREATE POLICY notifications_delivery ON notifications
+  FOR UPDATE USING (current_scope() = 'ingest') WITH CHECK (current_scope() = 'ingest');
+
 CREATE POLICY invoices_public_receipt ON invoices
   FOR SELECT USING (receipt_code = current_receipt_code());
+
+-- GetInvoiceByReceiptCode joins sales for the sale ref.
+CREATE POLICY sales_public_receipt ON sales
+  FOR SELECT USING (
+    current_receipt_code() IS NOT NULL AND id IN (
+      SELECT sale_id FROM invoices WHERE receipt_code = current_receipt_code()
+    )
+  );
 
 CREATE POLICY sale_items_public_receipt ON sale_items
   FOR SELECT USING (

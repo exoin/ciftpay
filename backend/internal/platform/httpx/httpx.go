@@ -171,7 +171,7 @@ func RateLimit(limit int, window time.Duration, key func(*http.Request) string) 
 			retry := time.Until(b.reset)
 			mu.Unlock()
 			if over {
-				w.Header().Set("Retry-After", strings.TrimSuffix((retry / time.Second * time.Second).String(), "0s"))
+				w.Header().Set("Retry-After", strings.TrimSuffix((retry/time.Second*time.Second).String(), "0s"))
 				Fail(w, http.StatusTooManyRequests, "rate_limited", "Too many requests, slow down")
 				return
 			}

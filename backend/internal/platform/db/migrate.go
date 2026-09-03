@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/stdlib"
@@ -46,7 +47,7 @@ func (d *DB) Version(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	v, err := goose.GetDBVersionContext(ctx, sqlDB)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, err
 	}
 	return v, nil
