@@ -1,0 +1,89 @@
+/*
+ * Standalone styles for the public receipt document (/r/<code>), which ships
+ * no JavaScript and no app CSS. Paper background, grain, and the few layout
+ * rules the page needs. tokens.css + fonts.css + receipt.css are inlined
+ * before this file by the route handler.
+ */
+* {
+  box-sizing: border-box;
+}
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--paper);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 0.04 0'/></filter><rect width='240' height='240' filter='url(%23g)'/></svg>");
+  background-size: 240px 240px;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-variant-numeric: tabular-nums;
+}
+a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+:focus-visible {
+  outline: 2px solid var(--ochre);
+  outline-offset: 2px;
+}
+.doc {
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: var(--receipt-w);
+  min-height: 100dvh;
+  padding: var(--s-6) var(--s-4);
+}
+.doc-lead {
+  margin: var(--s-5) 0 0;
+  max-width: 60ch;
+  text-align: center;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-2);
+}
+.doc-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch);
+  margin-top: var(--s-5);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-2);
+  background: var(--paper-2);
+  font-weight: 500;
+  text-decoration: none;
+}
+.doc-save:hover {
+  background: var(--paper-3);
+}
+.doc-foot {
+  margin-top: var(--s-7);
+  text-align: center;
+  font-size: var(--t-sm);
+  color: var(--muted);
+}
+.doc-404 {
+  padding: var(--s-6) var(--s-5);
+}
+.doc-404 h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--t-xl);
+  line-height: var(--lh-xl);
+}
+.doc-404 p {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}

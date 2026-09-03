@@ -1,0 +1,152 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@import "./fonts.css";
+@import "./receipt.css";
+
+/* Expose tokens to Tailwind utilities: bg-paper, text-ink, font-mono, rounded-r2 … */
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-hairline: var(--hairline);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-green: var(--ledger-green);
+  --color-green-2: var(--ledger-green-2);
+  --color-ochre: var(--ochre);
+  --color-red: var(--kra-red);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad-bg: var(--bad-bg);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  --text-xs: var(--t-xs);
+  --text-xs--line-height: var(--lh-xs);
+  --text-sm: var(--t-sm);
+  --text-sm--line-height: var(--lh-sm);
+  --text-base: var(--t-md);
+  --text-base--line-height: var(--lh-md);
+  --text-lg: var(--t-lg);
+  --text-lg--line-height: var(--lh-lg);
+  --text-xl: var(--t-xl);
+  --text-xl--line-height: var(--lh-xl);
+  --text-2xl: var(--t-2xl);
+  --text-2xl--line-height: var(--lh-2xl);
+  --text-3xl: var(--t-3xl);
+  --text-3xl--line-height: var(--lh-3xl);
+
+  --radius-r1: var(--r-1);
+  --radius-r2: var(--r-2);
+  --radius-r3: var(--r-3);
+
+  --ease-out: var(--ease-out);
+}
+
+@layer base {
+  html {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* §5 Paper grain: feTurbulence noise at 4 % opacity, tiled 240 px. */
+  body {
+    min-height: 100dvh;
+    background-color: var(--paper);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0 0.06 0 0 0 0.04 0'/></filter><rect width='240' height='240' filter='url(%23g)'/></svg>");
+    background-size: 240px 240px;
+    font-size: var(--t-md);
+    line-height: var(--lh-md);
+  }
+
+  /* §3 Rule: every element that can hold a number is tabular. */
+  * {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-variation-settings: "SOFT" 50;
+    letter-spacing: 0;
+  }
+
+  h1 {
+    font-size: var(--t-xl);
+    line-height: var(--lh-xl);
+  }
+  h2 {
+    font-size: var(--t-lg);
+    line-height: var(--lh-lg);
+  }
+
+  a {
+    color: inherit;
+    text-underline-offset: 2px;
+  }
+
+  /* §4 Keyboard focus: 2 px ochre outline offset 2 px, everywhere. */
+  :focus-visible {
+    outline: 2px solid var(--ochre);
+    outline-offset: 2px;
+    border-radius: var(--r-1);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::selection {
+    background: var(--paper-3);
+  }
+}
+
+@layer components {
+  /* Thermal-print header block (§3): the one place ALL CAPS is allowed. */
+  .receipt-head {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* §6 Loading: static dotted-leader rows, no shimmer. */
+  .loading-rows > * {
+    height: var(--row);
+    border-bottom: 1px dotted var(--hairline);
+  }
+
+  /* Hairline ruled list (§5): horizontal rules only. */
+  .ruled > * + * {
+    border-top: 1px solid var(--hairline);
+  }
+
+  /* Sheet slide (§6). */
+  .sheet-enter {
+    animation: sheet-up var(--dur-sheet) var(--ease-out) both;
+  }
+  @keyframes sheet-up {
+    from {
+      transform: translateY(16px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}

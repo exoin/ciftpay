@@ -1,0 +1,315 @@
+/*
+ * The receipt, as CSS. Semantic classes only (no Tailwind) so the same rules
+ * style <ReceiptCard> inside the app (imported by globals.css) and the zero-JS
+ * public document at /r/<code> (inlined by the route handler).
+ * docs/design-system.md §5 signature elements, §8 Money / Leader / Stamp.
+ */
+
+/* Money: KES 12 400.00 in tabular mono, right-aligned; negatives in kra-red. */
+.money {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.money--neg {
+  color: var(--kra-red);
+}
+.money-cur {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+  font-size: 0.8em;
+  margin-right: 0.35em;
+}
+.money-frac {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+.money--sm {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+.money--md {
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+}
+.money--lg {
+  font-size: var(--t-lg);
+  line-height: var(--lh-lg);
+}
+.money--xl {
+  font-size: var(--t-xl);
+  line-height: var(--lh-xl);
+}
+.money--2xl {
+  font-size: var(--t-2xl);
+  line-height: var(--lh-2xl);
+}
+.money--3xl {
+  font-size: var(--t-3xl);
+  line-height: var(--lh-3xl);
+}
+
+/* Leader: label · · · · · amount */
+.leader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.leader--strong {
+  font-weight: 500;
+}
+.leader-label {
+  flex: 0 0 auto;
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leader-dots {
+  flex: 1 1 auto;
+  min-width: var(--s-3);
+  border-bottom: 1px dotted var(--hairline);
+  transform: translateY(-0.3em);
+}
+.leader-amount {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+}
+
+/* Stamp: rotated outline label. */
+.stamp {
+  display: inline-block;
+  transform: rotate(-6deg);
+  border: 2px solid currentColor;
+  border-radius: var(--r-1);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.stamp--ok {
+  color: var(--ok);
+}
+.stamp--pending {
+  color: var(--ochre);
+}
+.stamp--failed {
+  color: var(--kra-red);
+}
+
+/* Perforated edges: radial-gradient used as a mask, not a colour. */
+.perforated-top {
+  -webkit-mask-image:
+    radial-gradient(circle at 6px 0, transparent 0 5px, #000 5.5px),
+    linear-gradient(#000, #000);
+  -webkit-mask-size:
+    12px 12px,
+    100% calc(100% - 12px);
+  -webkit-mask-position:
+    0 0,
+    0 12px;
+  -webkit-mask-repeat: repeat-x, no-repeat;
+  mask-image:
+    radial-gradient(circle at 6px 0, transparent 0 5px, #000 5.5px),
+    linear-gradient(#000, #000);
+  mask-size:
+    12px 12px,
+    100% calc(100% - 12px);
+  mask-position:
+    0 0,
+    0 12px;
+  mask-repeat: repeat-x, no-repeat;
+}
+.perforated-both {
+  -webkit-mask-image:
+    radial-gradient(circle at 6px 0, transparent 0 5px, #000 5.5px),
+    linear-gradient(#000, #000),
+    radial-gradient(circle at 6px 12px, transparent 0 5px, #000 5.5px);
+  -webkit-mask-size:
+    12px 12px,
+    100% calc(100% - 24px),
+    12px 12px;
+  -webkit-mask-position:
+    0 0,
+    0 12px,
+    0 100%;
+  -webkit-mask-repeat: repeat-x, no-repeat, repeat-x;
+  mask-image:
+    radial-gradient(circle at 6px 0, transparent 0 5px, #000 5.5px),
+    linear-gradient(#000, #000),
+    radial-gradient(circle at 6px 12px, transparent 0 5px, #000 5.5px);
+  mask-size:
+    12px 12px,
+    100% calc(100% - 24px),
+    12px 12px;
+  mask-position:
+    0 0,
+    0 12px,
+    0 100%;
+  mask-repeat: repeat-x, no-repeat, repeat-x;
+}
+
+/* ReceiptCard */
+.rc {
+  width: 100%;
+  max-width: var(--receipt-w);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.rc-inner {
+  padding: 28px 20px 24px;
+}
+.rc-header {
+  position: relative;
+}
+.rc-head {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.rc-seller {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 50;
+  font-size: var(--t-lg);
+  font-weight: 500;
+  line-height: var(--lh-lg);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rc-kind {
+  margin-top: var(--s-2);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+}
+.rc-stamp {
+  position: absolute;
+  right: -4px;
+  top: -8px;
+}
+.rc-meta {
+  margin: var(--s-4) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+.rc-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.rc-meta-row dt {
+  color: var(--muted);
+}
+.rc-meta-row dd {
+  margin: 0;
+  text-align: right;
+}
+.rc-rule {
+  margin: var(--s-4) 0;
+  border: 0;
+  border-top: 1px dashed var(--hairline);
+}
+.rc-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+.rc-lines > li + li {
+  margin-top: var(--s-2);
+}
+.rc-qty {
+  color: var(--muted);
+}
+.rc-cat {
+  font-size: var(--t-xs);
+}
+.rc-totals {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+.rc-totals > * + * {
+  margin-top: 6px;
+}
+.rc-total {
+  padding-top: var(--s-2);
+  font-size: var(--t-md);
+}
+.rc-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+.rc-qr {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  color: var(--ink);
+}
+.rc-qr svg {
+  width: 100%;
+  height: 100%;
+}
+.rc-code {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  line-height: var(--lh-xs);
+  color: var(--muted);
+}
+.rc-code > * + * {
+  margin-top: var(--s-1);
+}
+
+/* Print reveal on first ack; fade under reduced motion. */
+.print-reveal {
+  animation: print-reveal var(--dur-print) var(--ease-out) both;
+}
+@keyframes print-reveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+.print-reveal .stamp {
+  animation: stamp-in 150ms var(--ease-out) both;
+  animation-delay: var(--dur-print);
+}
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .print-reveal {
+    animation: fade-in 200ms linear both;
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
