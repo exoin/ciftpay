@@ -109,6 +109,15 @@ Never put real Daraja, integrator or Africa's Talking credentials in `.env.examp
 
 **Web build fails on fonts.** Fonts are self-hosted under `web/public/fonts`; a shallow clone with LFS disabled may leave them missing. Re-fetch or run `git lfs pull`.
 
+**Postgres container exits with `00-init.sql: Permission denied`.** `tools/postgres/init.sql` is bind-mounted into the container and read by the `postgres` user (uid 70). If your umask created the file or its parent directories without world-read (`-rw-rw----`, `drwxrwx---`), the entrypoint cannot open it and the container dies before creating the `ciftpay` role. Fix with `chmod o+rx tools tools/postgres && chmod o+r tools/postgres/init.sql`, then `make nuke && make up`. The same applies to `tools/webhooks/*.json` if you mount them.
+
+**RLS lets you see every org's rows.** You are connected as a superuser or a role with `BYPASSRLS`; Postgres skips policies for them even with `FORCE ROW LEVEL SECURITY`. The compose stack avoids this by creating `ciftpay` as `NOSUPERUSER` in `tools/postgres/init.sql` and never connecting as `postgres`. Check with `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;` — both must be `f`. Ad-hoc containers started with `POSTGRES_USER=ciftpay` make that user a superuser and are **not** a valid way to test tenancy.
+
 ## Deviations log
 
-_None recorded yet._
+| Date | Deviation | Resolution |
+|---|---|---|
+| 2026-09-03 | Phase-0 backend verified against a throwaway `postgres:16-alpine` container (port 55432) plus the host-built binaries, not `make up`, because a host Postgres already owned 5432. Same `init.sql`, same non-superuser role. | `make up` end-to-end is re-run in Step 6 once `web/` exists. |
+| 2026-09-03 | `tools/postgres/init.sql` was unreadable by the container (`0660`), which silently produced a superuser `ciftpay` and an RLS-bypassing local stack on first attempt. | File modes fixed in-repo; documented above. |
+| 2026-09-03 | `POST /sales` requires `etims_class_code` per line when `item_id` is omitted (the mock adapter, like KRA, rejects lines without a classification code, which sent the invoice straight to `NEEDS_REVIEW`). | Validation added; `api/openapi.yaml` `SaleLineInput` should list `etims_class_code` as optional-with-item / required-without-item in Step 6. |
+| 2026-09-03 | `notifications` gets an ingest-scope `UPDATE` policy and `stk_requests` an ingest-scope `SELECT` policy (Africa's Talking delivery reports and Daraja STK callbacks carry no org). `sales` gets a receipt-scope `SELECT` policy so the `/r/{code}` join works. | Added to `0001_init.sql` (Phase 0 migrations may still be edited); reflected in `docs/data-model.md` at Step 6. |

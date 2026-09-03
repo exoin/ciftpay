@@ -322,7 +322,7 @@ Root tooling lets a developer or agent run the whole stack with one command.
 - Add GitHub Actions `go-ci.yml` (lint, test with Postgres service) and `web-ci.yml` (tsc, eslint, vitest, build).
 - Add `tools/webhooks/*.json` sample Daraja payloads and `deploy/fly.*.toml` placeholders.
 
-### * Step 4: Scaffold Go backend — api, worker, ciftctl and internal packages
+### ✓ Step 4: Scaffold Go backend — api, worker, ciftctl and internal packages
 The Go module compiles into `api`, `worker` and `ciftctl` binaries with wired packages, migrations, mock fiscal adapter and passing unit tests.
 
 - `backend/go.mod` with chi, pgx, sqlc, goose, river, slog, otel, env, testcontainers.
@@ -335,7 +335,7 @@ The Go module compiles into `api`, `worker` and `ciftctl` binaries with wired pa
 - `cmd/api`, `cmd/worker` (River workers: `SubmitInvoice`, `SendReceipt`, `ReconcilePayments`), `cmd/ciftctl` (`migrate`, `seed`, `replay-webhook`).
 - `backend/Dockerfile` multi-stage; `go test ./...` and `golangci-lint` pass.
 
-###   Step 5: Scaffold Next.js PWA with design system and app shell
+### * Step 5: Scaffold Next.js PWA with design system and app shell
 The web app builds, installs as a PWA, renders the merchant shell and the public receipt page using the CiftPay design tokens.
 
 - Init `web/` with Next.js 15 (App Router, TS), Tailwind v4, Serwist PWA, TanStack Query, `openapi-typescript` client generation from `api/openapi.yaml`, `next-intl` with `messages/en.json` and `sw.json`.

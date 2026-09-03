@@ -81,30 +81,30 @@ Finance Act 2023: since **1 January 2024**, a business expense not supported by 
 
 ### 3.1 Documents
 - [x] `plan.md` (this file) and `README.md`
-- [ ] `docs/product.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/compliance.md`
-- [ ] `docs/design-system.md`, `docs/ux-flows.md`
-- [ ] `docs/api.md` + `api/openapi.yaml` (v1 surface, see §9.3)
-- [ ] `docs/adr/0001`–`0007`
-- [ ] `docs/runbooks/{local-dev,webhook-replay,fiscal-failures}.md`
+- [x] `docs/product.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/compliance.md`
+- [x] `docs/design-system.md`, `docs/ux-flows.md`
+- [x] `docs/api.md` + `api/openapi.yaml` (v1 surface, see §9.3)
+- [x] `docs/adr/0001`–`0007`
+- [x] `docs/runbooks/{local-dev,webhook-replay,fiscal-failures}.md`
 
 ### 3.2 Repo tooling
-- [ ] `Makefile`: `up`, `down`, `migrate`, `gen`, `test`, `lint`, `seed`, `replay-webhook`
-- [ ] `docker-compose.yml`: `postgres:16`, `api`, `worker`, `web`, `sms-sink`
-- [ ] `.env.example`, `.gitignore`, `.editorconfig`, `.golangci.yml`, `LICENSE`
-- [ ] `.github/workflows/go-ci.yml`, `.github/workflows/web-ci.yml`
-- [ ] `tools/webhooks/{c2b_confirmation,stk_callback,reversal}.json`
-- [ ] `deploy/fly.{api,worker,web}.toml`
+- [x] `Makefile`: `up`, `down`, `migrate`, `gen`, `test`, `lint`, `seed`, `replay-webhook`
+- [x] `docker-compose.yml`: `postgres:16`, `api`, `worker`, `web`, `sms-sink`
+- [x] `.env.example`, `.gitignore`, `.editorconfig`, `.golangci.yml`, `LICENSE`
+- [x] `.github/workflows/go-ci.yml`, `.github/workflows/web-ci.yml`
+- [x] `tools/webhooks/{c2b_confirmation,stk_callback,reversal}.json`
+- [x] `deploy/fly.{api,worker,web}.toml`
 
 ### 3.3 Backend (`backend/`, Go module)
-- [ ] `go.mod` with chi, pgx/v5, river, goose, env, slog, otel, testcontainers-go
-- [ ] `internal/platform/{config,db,httpx,jobs,log,crypto}` compile and are unit-tested where logic exists (crypto round-trip, config defaults)
-- [ ] `db/migrations/0001_init.sql` — all core tables, unique constraints, RLS policies; `sqlc.yaml` + `db/queries/*.sql`
-- [ ] `internal/mpesa` — Daraja client skeleton, C2B validation/confirmation + STK callback handlers, idempotent raw event storage, `testdata/`
-- [ ] `internal/ledger` — payment normalisation + matcher with table-driven tests
-- [ ] `internal/fiscal` — `Provider` port, state machine + tests, tax categories, `mock` adapter (failure injection), `vendor` stub, `providertest` contract suite
-- [ ] `internal/{org,notify,billing,reports,publicapi,admin}` skeletons with working health + `/r/{code}`
-- [ ] `cmd/api`, `cmd/worker`, `cmd/ciftctl` build; `go test ./...` and `golangci-lint run` pass
-- [ ] `backend/Dockerfile` multi-stage
+- [x] `go.mod` with chi, pgx/v5, river, goose, env, slog, otel, testcontainers-go
+- [x] `internal/platform/{config,db,httpx,jobs,log,crypto}` compile and are unit-tested where logic exists (crypto round-trip, config defaults)
+- [x] `db/migrations/0001_init.sql` — all core tables, unique constraints, RLS policies; `sqlc.yaml` + `db/queries/*.sql`
+- [x] `internal/mpesa` — Daraja client skeleton, C2B validation/confirmation + STK callback handlers, idempotent raw event storage, `testdata/`, `ReconcilePayments` worker
+- [x] `internal/ledger` — payment normalisation + matcher with table-driven tests; STK callback ingestion; REST handler for shortcodes/payments/items/sales/invoices/attention
+- [x] `internal/fiscal` — `Provider` port, state machine + tests, tax categories, `mock` adapter (failure injection), `vendor` stub, `providertest` contract suite, `Submitter` + River worker
+- [x] `internal/{org,notify,billing,reports,publicapi,admin}` skeletons with working health + `/r/{code}` (phone-OTP auth + cookie sessions + CSRF, AT SMS with EN/SW templates, plans/usage, Today + VAT position, back-office lists)
+- [x] `cmd/api`, `cmd/worker`, `cmd/ciftctl` (+ `cmd/smssink`) build; `go test ./...` and `golangci-lint run` pass
+- [x] `backend/Dockerfile` multi-stage (targets `api`, `worker`, `ciftctl`, `smssink`)
 
 ### 3.4 Web (`web/`, Next.js 15 PWA)
 - [ ] Project init: App Router, TS, Tailwind v4, Serwist, TanStack Query, `openapi-typescript`, `next-intl`
