@@ -41,7 +41,8 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
         kind: "cash",
         lines: lines.map((l) => ({
           item_id: l.item_id,
-          qty: Number(l.qty),
+          // Quantity is a decimal string on the wire (OpenAPI `Quantity`).
+          qty: l.qty.trim(),
           ...(l.unit_price ? { unit_price_cents: Math.round(Number(l.unit_price) * 100) } : {}),
         })),
         ...(buyerPin ? { buyer_pin: buyerPin.toUpperCase() } : {}),

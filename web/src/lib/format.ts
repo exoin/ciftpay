@@ -81,6 +81,13 @@ export function formatTime(iso: string, locale: string = "en-KE"): string {
   return new Intl.DateTimeFormat(locale, { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
 }
 
-export function formatQty(qty: number): string {
-  return Number.isInteger(qty) ? qty.toString() : qty.toFixed(3).replace(/\.?0+$/, "");
+/**
+ * Quantities travel as decimal strings (`"1.000"`, `"2.500"`; OpenAPI
+ * `Quantity`), never JSON numbers. Trims insignificant zeros: `"1.000"` → `1`,
+ * `"2.500"` → `2.5`. Tolerates a number for callers that still hold one.
+ */
+export function formatQty(qty: string | number): string {
+  const s = typeof qty === "number" ? qty.toFixed(3) : qty.trim();
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return s;
+  return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
 }

@@ -88,14 +88,18 @@ func run() error {
 	// Services.
 	ledgerSvc := ledger.New(d.DB, jc, d.Keys, log)
 	notifier := d.Notifier()
-	orgSvc := org.New(d.DB, d.Keys, notifier, nil, cfg.SessionSecret, cfg.Fiscal.Adapter, cfg.IsLocal(), log)
+	pinChecker := org.NewFiscalPINChecker(provider, time.Duration(cfg.Fiscal.TimeoutSeconds)*time.Second)
+	orgSvc := org.New(d.DB, d.Keys, notifier, pinChecker, cfg.SessionSecret, cfg.Fiscal.Adapter, cfg.IsLocal(), log)
 	submitter := fiscal.NewSubmitter(d.DB, jc, d.Keys, provider, log)
 	billingSvc := billing.New(d.DB)
 	daraja := mpesa.NewClient(cfg.Daraja)
 
 	// Handlers.
 	orgH := &org.Handler{S: orgSvc, SecureCookie: !cfg.IsLocal()}
-	ledgerH := &ledger.Handler{S: ledgerSvc, Keys: d.Keys, STK: stkAdapter{daraja}, Retrier: submitter, PublicBaseURL: cfg.PublicBaseURL}
+	ledgerH := &ledger.Handler{
+		S: ledgerSvc, Keys: d.Keys, STK: stkAdapter{daraja}, Daraja: daraja, Retrier: submitter,
+		PublicBaseURL: cfg.PublicBaseURL, WebhookBaseURL: cfg.WebhookBaseURL,
+	}
 	reportsH := &reports.Handler{S: reports.New(d.DB)}
 	adminH := &admin.Handler{S: admin.New(d.DB)}
 	receiptH := &publicapi.Handler{S: publicapi.New(d.DB, d.Keys), Log: log}

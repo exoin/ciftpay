@@ -335,7 +335,7 @@ The Go module compiles into `api`, `worker` and `ciftctl` binaries with wired pa
 - `cmd/api`, `cmd/worker` (River workers: `SubmitInvoice`, `SendReceipt`, `ReconcilePayments`), `cmd/ciftctl` (`migrate`, `seed`, `replay-webhook`).
 - `backend/Dockerfile` multi-stage; `go test ./...` and `golangci-lint` pass.
 
-### * Step 5: Scaffold Next.js PWA with design system and app shell
+### ✓ Step 5: Scaffold Next.js PWA with design system and app shell
 The web app builds, installs as a PWA, renders the merchant shell and the public receipt page using the CiftPay design tokens.
 
 - Init `web/` with Next.js 15 (App Router, TS), Tailwind v4, Serwist PWA, TanStack Query, `openapi-typescript` client generation from `api/openapi.yaml`, `next-intl` with `messages/en.json` and `sw.json`.
@@ -345,7 +345,7 @@ The web app builds, installs as a PWA, renders the merchant shell and the public
 - Route groups `(auth)/login`, `(merchant)/{today,payments,invoices,items,attention,settings}`, `(accountant)/clients`, `(admin)/ops` with placeholder data from the API client; server-rendered `r/[code]/page.tsx` receipt page under 30 KB.
 - `public/manifest.webmanifest` and icons; Vitest test for `formatKES`; Playwright smoke for shell and receipt page; `web/Dockerfile`.
 
-###   Step 6: End-to-end verification of the scaffold and Phase-0 gate
+### * Step 6: End-to-end verification of the scaffold and Phase-0 gate
 The full stack runs locally and a replayed Daraja webhook produces an ACKED mock invoice and a receipt, closing Phase 0 in `plan.md`.
 
 - Run `make up`, `make migrate`, `make gen`; confirm `GET /healthz` reports DB and queue OK.

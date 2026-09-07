@@ -56,9 +56,9 @@ func Render(template, locale string, v Vars) (string, error) {
 		return fmt.Sprintf("Your KES %s payment to %s was reversed. KRA credit note %s: %s", v.AmountKES, v.Merchant, v.KRAInvoice, v.ReceiptURL), nil
 	case TemplateOTP:
 		if locale == LocaleSW {
-			return fmt.Sprintf("Nambari yako ya CiftPay ni %s. Inaisha baada ya dakika 10. Usimpe mtu yeyote.", v.Code), nil
+			return fmt.Sprintf("Nambari yako ya CiftPay ni %s. Inaisha baada ya dakika 5. Usimpe mtu yeyote.", v.Code), nil
 		}
-		return fmt.Sprintf("Your CiftPay code is %s. It expires in 10 minutes. Do not share it.", v.Code), nil
+		return fmt.Sprintf("Your CiftPay code is %s. It expires in 5 minutes. Do not share it.", v.Code), nil
 	}
 	return "", fmt.Errorf("notify: unknown template %q", template)
 }

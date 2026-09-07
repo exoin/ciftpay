@@ -3,6 +3,9 @@
 //	ciftctl migrate                 apply goose + River migrations
 //	ciftctl seed                    demo org, shortcode 600123, default item, user, open KES 1 sale
 //	ciftctl replay-webhook <file>   POST a recorded Daraja payload to the local api
+//	ciftctl register-urls <shortcode>          Daraja RegisterURL for a shortcode at WEBHOOK_BASE_URL
+//	ciftctl simulate-c2b --shortcode --msisdn  Daraja sandbox C2B simulate (or the fake) for the KES 1 check
+//	ciftctl daraja-fake [--addr :18090]        run the in-process fake Daraja for local end-to-end runs
 package main
 
 import (
@@ -10,10 +13,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -21,6 +26,10 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/ciftpay/ciftpay/internal/boot"
+	"github.com/ciftpay/ciftpay/internal/mpesa"
+	"github.com/ciftpay/ciftpay/internal/mpesa/mpesatest"
+	"github.com/ciftpay/ciftpay/internal/platform/config"
+	"github.com/ciftpay/ciftpay/internal/platform/crypto"
 	"github.com/ciftpay/ciftpay/internal/platform/db"
 	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
 )
@@ -48,6 +57,17 @@ func run(args []string) int {
 			return 2
 		}
 		err = replay(ctx, args[1])
+	case "register-urls":
+		if len(args) < 2 {
+			usage()
+			return 2
+		}
+		err = registerURLs(ctx, args[1])
+	case "simulate-c2b":
+		err = simulateC2B(ctx, args[1:])
+	case "daraja-fake":
+		cancel()
+		err = darajaFake(args[1:])
 	default:
 		usage()
 		return 2
@@ -60,7 +80,7 @@ func run(args []string) int {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: ciftctl migrate | seed | replay-webhook <file.json>")
+	fmt.Fprintln(os.Stderr, "usage: ciftctl migrate | seed | replay-webhook <file.json> | register-urls <shortcode> | simulate-c2b --shortcode N --msisdn N [--amount KES] [--ref REF] | daraja-fake [--addr :18090]")
 }
 
 func withDeps(ctx context.Context, fn func(context.Context, *boot.Deps) error) error {
@@ -224,6 +244,92 @@ func replay(ctx context.Context, file string) error {
 		return fmt.Errorf("api returned %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// darajaClient builds the outbound Daraja client from the environment. With
+// DARAJA_BASE_URL pointing at `ciftctl daraja-fake` any key/secret will do.
+func darajaClient() (*mpesa.Client, config.Config, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, cfg, err
+	}
+	c := mpesa.NewClient(cfg.Daraja)
+	if !c.Configured() {
+		return nil, cfg, fmt.Errorf("DARAJA_CONSUMER_KEY and DARAJA_CONSUMER_SECRET are required (any value works against the fake)")
+	}
+	return c, cfg, nil
+}
+
+// registerURLs points Daraja's C2B validation/confirmation URLs for shortcode
+// at WEBHOOK_BASE_URL. In the sandbox this is how the test shortcode is wired
+// to a tunnel before `simulate-c2b`.
+func registerURLs(ctx context.Context, shortcode string) error {
+	c, cfg, err := darajaClient()
+	if err != nil {
+		return err
+	}
+	if err := c.RegisterC2BURLs(ctx, shortcode, cfg.WebhookBaseURL); err != nil {
+		return err
+	}
+	fmt.Printf("registered C2B URLs for %s -> %s/webhooks/mpesa/c2b/{validation,confirmation}/<token>\n", shortcode, cfg.WebhookBaseURL)
+	return nil
+}
+
+// simulateC2B asks the sandbox (or the fake) to emit a C2B confirmation, the
+// stand-in for the merchant paying KES 1 to their own Till.
+func simulateC2B(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("simulate-c2b", flag.ContinueOnError)
+	shortcode := fs.String("shortcode", "", "BusinessShortCode receiving the payment")
+	msisdn := fs.String("msisdn", "", "payer phone, e.g. 0140994513")
+	amount := fs.Float64("amount", 1, "amount in KES")
+	ref := fs.String("ref", "", "BillRefNumber / account reference (Paybill)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *shortcode == "" || *msisdn == "" {
+		return fmt.Errorf("--shortcode and --msisdn are required")
+	}
+	norm, err := crypto.NormaliseMSISDN(*msisdn)
+	if err != nil {
+		return err
+	}
+	c, cfg, err := darajaClient()
+	if err != nil {
+		return err
+	}
+	cents := int64(*amount*100 + 0.5)
+	out, err := c.SimulateC2B(ctx, *shortcode, norm, cents, *ref)
+	if err != nil {
+		return err
+	}
+	b, _ := json.Marshal(out)
+	fmt.Printf("simulate %s KES %.2f from %s via %s -> %s\n", *shortcode, float64(cents)/100, norm, cfg.Daraja.BaseURL, b)
+	return nil
+}
+
+// darajaFake serves mpesatest on --addr until interrupted.
+func darajaFake(args []string) error {
+	fs := flag.NewFlagSet("daraja-fake", flag.ContinueOnError)
+	addr := fs.String("addr", ":18090", "listen address")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	srv := &http.Server{Addr: *addr, Handler: mpesatest.New().Handler, ReadHeaderTimeout: 5 * time.Second}
+	errCh := make(chan error, 1)
+	go func() {
+		fmt.Printf("fake Daraja listening on %s (oauth, c2b registerurl, c2b simulate); set DARAJA_BASE_URL=http://localhost%s\n", *addr, *addr)
+		errCh <- srv.ListenAndServe()
+	}()
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
+	}
 }
 
 func env(k, def string) string {

@@ -15,11 +15,13 @@ ORDER BY received_at LIMIT $1;
 
 -- name: ResolveShortcode :one
 -- Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
+-- A verified row always wins; among unverified duplicates prefer_id (the row
+-- with an open KES 1 verification challenge for this payer) goes first.
 SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.verified_at,
        o.name AS org_name, o.vat_registered, o.locale AS org_locale
 FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
 WHERE s.shortcode = $1
-ORDER BY (s.verified_at IS NOT NULL) DESC, s.created_at
+ORDER BY (s.verified_at IS NOT NULL) DESC, (s.id = sqlc.narg('prefer_id')) DESC NULLS LAST, s.created_at
 LIMIT 1;
 
 -- name: CreateShortcode :one
@@ -61,3 +63,46 @@ SELECT * FROM stk_requests WHERE checkout_request_id = $1;
 
 -- name: UpdateSTKRequestResult :exec
 UPDATE stk_requests SET status = $2, result_code = $3, result_desc = $4 WHERE id = $1;
+
+-- name: MarkShortcodeC2BRegistered :exec
+UPDATE mpesa_shortcodes SET c2b_urls_registered_at = now() WHERE id = $1;
+
+-- name: CountVerifiedShortcodeElsewhere :one
+-- Runs under app.scope = 'ingest' or any org scope: the partial unique index
+-- is the arbiter, this is only the friendly pre-check behind shortcode_claimed.
+SELECT count(*) FROM mpesa_shortcodes
+WHERE shortcode = $1 AND org_id <> $2 AND verified_at IS NOT NULL;
+
+-- name: CreateShortcodeVerification :one
+-- Opens a KES 1 own-till challenge; any earlier open challenge for the same
+-- shortcode is closed first so at most one is pending per shortcode.
+WITH closed AS (
+  UPDATE shortcode_verifications SET status = 'expired'
+  WHERE shortcode_id = $2 AND status = 'pending'
+)
+INSERT INTO shortcode_verifications (org_id, shortcode_id, msisdn_hash, amount_cents, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: LatestShortcodeVerification :one
+SELECT * FROM shortcode_verifications
+WHERE shortcode_id = $1
+ORDER BY created_at DESC LIMIT 1;
+
+-- name: FindOpenShortcodeVerification :one
+-- Runs under app.scope = 'ingest' (db.WithIngest): the C2B confirmation carries
+-- only the number, so the open challenge decides which org is proving it.
+SELECT v.* FROM shortcode_verifications v
+JOIN mpesa_shortcodes s ON s.id = v.shortcode_id
+WHERE s.shortcode = $1 AND v.msisdn_hash = $2 AND v.amount_cents = $3
+  AND v.status = 'pending' AND v.expires_at > now()
+ORDER BY v.created_at DESC LIMIT 1;
+
+-- name: SettleShortcodeVerification :exec
+UPDATE shortcode_verifications
+SET status = $2, trans_id = $3, paid_at = $4
+WHERE id = $1;
+
+-- name: ExpireShortcodeVerifications :execrows
+UPDATE shortcode_verifications SET status = 'expired'
+WHERE status = 'pending' AND expires_at <= now();

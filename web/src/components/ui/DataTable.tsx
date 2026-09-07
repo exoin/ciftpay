@@ -37,7 +37,8 @@ export function DataTable<Row>({ rows, columns, rowKey, primary, secondary, trai
             <RowShell clickable={clickable} onClick={onRowClick ? () => onRowClick(r) : undefined}>
               <div className="min-w-0 flex-1">
                 <div className="truncate">{primary(r)}</div>
-                {secondary && <div className="truncate text-sm text-muted">{secondary(r)}</div>}
+                {/* Not truncated: the status chip lives here and must never be clipped on a 360 px phone. */}
+                {secondary && <div className="text-sm text-muted">{secondary(r)}</div>}
               </div>
               {trailing && <div className="shrink-0 text-right">{trailing(r)}</div>}
             </RowShell>

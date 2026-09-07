@@ -54,7 +54,7 @@ export default function InvoicesPage() {
             secondary={(i) => {
               const c = invoiceChip(i.state);
               return (
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-mono">{formatDateTime(i.created_at)}</span>
                   <StatusChip tone={c.tone}>{i.kind === "CREDIT_NOTE" ? t("creditNote") : ts(c.key)}</StatusChip>
                 </span>

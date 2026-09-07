@@ -29,10 +29,13 @@ type OTPSender interface {
 	SendOTP(ctx context.Context, msisdn, code, locale string) error
 }
 
-// PINChecker answers "does this KRA PIN exist" (iTax PIN checker in Phase 1;
-// format-only at Phase 0).
+// PINChecker answers "does this KRA PIN exist". nil means KRA knows the PIN;
+// ErrPINUnknown means it does not (onboarding stops with 422 pin_unknown); any
+// other error means the checker could not be asked and the org is created
+// with kra_pin_verified_at NULL. FiscalPINChecker asks the fiscal provider,
+// FormatOnlyPINChecker never contacts anyone.
 type PINChecker interface {
-	CheckPIN(ctx context.Context, pin string) (verified bool, err error)
+	CheckPIN(ctx context.Context, pin string) error
 }
 
 // Service implements auth and organisation use cases.
@@ -61,8 +64,11 @@ func New(d *db.DB, k *crypto.Keyring, otp OTPSender, pin PINChecker, sessionSecr
 type FormatOnlyPINChecker struct{}
 
 // CheckPIN implements PINChecker.
-func (FormatOnlyPINChecker) CheckPIN(_ context.Context, pin string) (bool, error) {
-	return PINRe.MatchString(pin), nil
+func (FormatOnlyPINChecker) CheckPIN(_ context.Context, pin string) error {
+	if !PINRe.MatchString(pin) {
+		return ErrBadPIN
+	}
+	return nil
 }
 
 // ------------------------------------------------------------------ OTP
@@ -260,9 +266,12 @@ func (s *Service) CreateOrg(ctx context.Context, userID uuid.UUID, in CreateOrgI
 	if in.Locale == "" {
 		in.Locale = "en"
 	}
-	verified, err := s.PIN.CheckPIN(ctx, pin)
-	if err != nil {
-		s.Log.Warn("pin check unavailable, continuing unverified", "err", err)
+	verified := true
+	switch err := s.PIN.CheckPIN(ctx, pin); {
+	case errors.Is(err, ErrPINUnknown), errors.Is(err, ErrBadPIN):
+		return Org{}, err
+	case err != nil:
+		s.Log.Warn("pin check unavailable, continuing unverified", "err", err, "pin", plog.MaskPIN(pin))
 		verified = false
 	}
 	pinEnc, err := s.Keys.EncryptString(pin)

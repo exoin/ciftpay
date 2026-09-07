@@ -62,12 +62,13 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 }
 
 // RegisterC2BURLs points a shortcode's validation/confirmation at CiftPay.
-func (c *Client) RegisterC2BURLs(ctx context.Context, shortcode, publicBaseURL string) error {
+// webhookBaseURL is the api's public URL (config WEBHOOK_BASE_URL).
+func (c *Client) RegisterC2BURLs(ctx context.Context, shortcode, webhookBaseURL string) error {
 	body := map[string]string{
 		"ShortCode":       shortcode,
 		"ResponseType":    "Completed",
-		"ConfirmationURL": fmt.Sprintf("%s/webhooks/mpesa/c2b/confirmation/%s", publicBaseURL, c.cfg.WebhookToken),
-		"ValidationURL":   fmt.Sprintf("%s/webhooks/mpesa/c2b/validation/%s", publicBaseURL, c.cfg.WebhookToken),
+		"ConfirmationURL": fmt.Sprintf("%s/webhooks/mpesa/c2b/confirmation/%s", webhookBaseURL, c.cfg.WebhookToken),
+		"ValidationURL":   fmt.Sprintf("%s/webhooks/mpesa/c2b/validation/%s", webhookBaseURL, c.cfg.WebhookToken),
 	}
 	var out map[string]any
 	return c.post(ctx, "/mpesa/c2b/v1/registerurl", body, &out)
@@ -83,7 +84,7 @@ type STKPushResult struct {
 }
 
 // STKPush asks the customer's phone to authorise amountCents to shortcode.
-func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCents int64, accountRef, desc, publicBaseURL string) (STKPushResult, error) {
+func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCents int64, accountRef, desc, webhookBaseURL string) (STKPushResult, error) {
 	ts := time.Now().In(Nairobi).Format("20060102150405")
 	password := base64.StdEncoding.EncodeToString([]byte(shortcode + c.cfg.Passkey + ts))
 	body := map[string]any{
@@ -95,7 +96,7 @@ func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCe
 		"PartyA":            msisdn,
 		"PartyB":            shortcode,
 		"PhoneNumber":       msisdn,
-		"CallBackURL":       fmt.Sprintf("%s/webhooks/mpesa/stk/%s", publicBaseURL, c.cfg.WebhookToken),
+		"CallBackURL":       fmt.Sprintf("%s/webhooks/mpesa/stk/%s", webhookBaseURL, c.cfg.WebhookToken),
 		"AccountReference":  accountRef,
 		"TransactionDesc":   desc,
 	}
@@ -105,6 +106,28 @@ func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCe
 	}
 	if out.ResponseCode != "0" {
 		return out, fmt.Errorf("mpesa: stk push rejected: %s %s", out.ResponseCode, out.ResponseDescription)
+	}
+	return out, nil
+}
+
+// SimulateC2B asks the Daraja *sandbox* to emit a C2B confirmation for
+// shortcode as if msisdn had paid amountCents (the customer-to-business
+// simulator; production has no such endpoint). billRef is the account number
+// for Paybill numbers. Used by `ciftctl simulate-c2b` and the fake server.
+func (c *Client) SimulateC2B(ctx context.Context, shortcode, msisdn string, amountCents int64, billRef string) (map[string]any, error) {
+	if c.cfg.Env == "production" {
+		return nil, fmt.Errorf("mpesa: C2B simulate is a sandbox-only endpoint")
+	}
+	body := map[string]any{
+		"ShortCode":     shortcode,
+		"CommandID":     "CustomerPayBillOnline",
+		"Amount":        amountCents / 100,
+		"Msisdn":        msisdn,
+		"BillRefNumber": billRef,
+	}
+	var out map[string]any
+	if err := c.post(ctx, "/mpesa/c2b/v1/simulate", body, &out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

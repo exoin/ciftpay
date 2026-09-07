@@ -12,6 +12,25 @@ import (
 	"github.com/google/uuid"
 )
 
+const countVerifiedShortcodeElsewhere = `-- name: CountVerifiedShortcodeElsewhere :one
+SELECT count(*) FROM mpesa_shortcodes
+WHERE shortcode = $1 AND org_id <> $2 AND verified_at IS NOT NULL
+`
+
+type CountVerifiedShortcodeElsewhereParams struct {
+	Shortcode string
+	OrgID     uuid.UUID
+}
+
+// Runs under app.scope = 'ingest' or any org scope: the partial unique index
+// is the arbiter, this is only the friendly pre-check behind shortcode_claimed.
+func (q *Queries) CountVerifiedShortcodeElsewhere(ctx context.Context, arg CountVerifiedShortcodeElsewhereParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVerifiedShortcodeElsewhere, arg.Shortcode, arg.OrgID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSTKRequest = `-- name: CreateSTKRequest :one
 INSERT INTO stk_requests (org_id, sale_id, shortcode_id, msisdn_hash, amount_cents, checkout_request_id, merchant_request_id, purpose, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -99,6 +118,99 @@ func (q *Queries) CreateShortcode(ctx context.Context, arg CreateShortcodeParams
 		&i.VerifiedAt,
 		&i.VerificationCheckoutID,
 		&i.C2bUrlsRegisteredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createShortcodeVerification = `-- name: CreateShortcodeVerification :one
+WITH closed AS (
+  UPDATE shortcode_verifications SET status = 'expired'
+  WHERE shortcode_id = $2 AND status = 'pending'
+)
+INSERT INTO shortcode_verifications (org_id, shortcode_id, msisdn_hash, amount_cents, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, org_id, shortcode_id, msisdn_hash, amount_cents, status, trans_id, paid_at, expires_at, created_at, updated_at
+`
+
+type CreateShortcodeVerificationParams struct {
+	OrgID       uuid.UUID
+	ShortcodeID uuid.UUID
+	MsisdnHash  []byte
+	AmountCents int64
+	ExpiresAt   time.Time
+}
+
+// Opens a KES 1 own-till challenge; any earlier open challenge for the same
+// shortcode is closed first so at most one is pending per shortcode.
+func (q *Queries) CreateShortcodeVerification(ctx context.Context, arg CreateShortcodeVerificationParams) (ShortcodeVerification, error) {
+	row := q.db.QueryRow(ctx, createShortcodeVerification,
+		arg.OrgID,
+		arg.ShortcodeID,
+		arg.MsisdnHash,
+		arg.AmountCents,
+		arg.ExpiresAt,
+	)
+	var i ShortcodeVerification
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ShortcodeID,
+		&i.MsisdnHash,
+		&i.AmountCents,
+		&i.Status,
+		&i.TransID,
+		&i.PaidAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const expireShortcodeVerifications = `-- name: ExpireShortcodeVerifications :execrows
+UPDATE shortcode_verifications SET status = 'expired'
+WHERE status = 'pending' AND expires_at <= now()
+`
+
+func (q *Queries) ExpireShortcodeVerifications(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, expireShortcodeVerifications)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const findOpenShortcodeVerification = `-- name: FindOpenShortcodeVerification :one
+SELECT v.id, v.org_id, v.shortcode_id, v.msisdn_hash, v.amount_cents, v.status, v.trans_id, v.paid_at, v.expires_at, v.created_at, v.updated_at FROM shortcode_verifications v
+JOIN mpesa_shortcodes s ON s.id = v.shortcode_id
+WHERE s.shortcode = $1 AND v.msisdn_hash = $2 AND v.amount_cents = $3
+  AND v.status = 'pending' AND v.expires_at > now()
+ORDER BY v.created_at DESC LIMIT 1
+`
+
+type FindOpenShortcodeVerificationParams struct {
+	Shortcode   string
+	MsisdnHash  []byte
+	AmountCents int64
+}
+
+// Runs under app.scope = 'ingest' (db.WithIngest): the C2B confirmation carries
+// only the number, so the open challenge decides which org is proving it.
+func (q *Queries) FindOpenShortcodeVerification(ctx context.Context, arg FindOpenShortcodeVerificationParams) (ShortcodeVerification, error) {
+	row := q.db.QueryRow(ctx, findOpenShortcodeVerification, arg.Shortcode, arg.MsisdnHash, arg.AmountCents)
+	var i ShortcodeVerification
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ShortcodeID,
+		&i.MsisdnHash,
+		&i.AmountCents,
+		&i.Status,
+		&i.TransID,
+		&i.PaidAt,
+		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -226,6 +338,31 @@ func (q *Queries) InsertWebhookEvent(ctx context.Context, arg InsertWebhookEvent
 	return id, err
 }
 
+const latestShortcodeVerification = `-- name: LatestShortcodeVerification :one
+SELECT id, org_id, shortcode_id, msisdn_hash, amount_cents, status, trans_id, paid_at, expires_at, created_at, updated_at FROM shortcode_verifications
+WHERE shortcode_id = $1
+ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) LatestShortcodeVerification(ctx context.Context, shortcodeID uuid.UUID) (ShortcodeVerification, error) {
+	row := q.db.QueryRow(ctx, latestShortcodeVerification, shortcodeID)
+	var i ShortcodeVerification
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.ShortcodeID,
+		&i.MsisdnHash,
+		&i.AmountCents,
+		&i.Status,
+		&i.TransID,
+		&i.PaidAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listShortcodes = `-- name: ListShortcodes :many
 SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, verification_checkout_id, c2b_urls_registered_at, created_at, updated_at FROM mpesa_shortcodes WHERE org_id = $1 ORDER BY created_at
 `
@@ -298,6 +435,15 @@ func (q *Queries) ListUnprocessedWebhookEvents(ctx context.Context, limit int32)
 	return items, nil
 }
 
+const markShortcodeC2BRegistered = `-- name: MarkShortcodeC2BRegistered :exec
+UPDATE mpesa_shortcodes SET c2b_urls_registered_at = now() WHERE id = $1
+`
+
+func (q *Queries) MarkShortcodeC2BRegistered(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markShortcodeC2BRegistered, id)
+	return err
+}
+
 const markShortcodeVerified = `-- name: MarkShortcodeVerified :exec
 UPDATE mpesa_shortcodes SET verified_at = now(), verification_checkout_id = $2 WHERE id = $1
 `
@@ -331,9 +477,14 @@ SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s
        o.name AS org_name, o.vat_registered, o.locale AS org_locale
 FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
 WHERE s.shortcode = $1
-ORDER BY (s.verified_at IS NOT NULL) DESC, s.created_at
+ORDER BY (s.verified_at IS NOT NULL) DESC, (s.id = $2) DESC NULLS LAST, s.created_at
 LIMIT 1
 `
+
+type ResolveShortcodeParams struct {
+	Shortcode string
+	PreferID  *uuid.UUID
+}
 
 type ResolveShortcodeRow struct {
 	ID            uuid.UUID
@@ -349,8 +500,10 @@ type ResolveShortcodeRow struct {
 }
 
 // Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
-func (q *Queries) ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error) {
-	row := q.db.QueryRow(ctx, resolveShortcode, shortcode)
+// A verified row always wins; among unverified duplicates prefer_id (the row
+// with an open KES 1 verification challenge for this payer) goes first.
+func (q *Queries) ResolveShortcode(ctx context.Context, arg ResolveShortcodeParams) (ResolveShortcodeRow, error) {
+	row := q.db.QueryRow(ctx, resolveShortcode, arg.Shortcode, arg.PreferID)
 	var i ResolveShortcodeRow
 	err := row.Scan(
 		&i.ID,
@@ -365,6 +518,29 @@ func (q *Queries) ResolveShortcode(ctx context.Context, shortcode string) (Resol
 		&i.OrgLocale,
 	)
 	return i, err
+}
+
+const settleShortcodeVerification = `-- name: SettleShortcodeVerification :exec
+UPDATE shortcode_verifications
+SET status = $2, trans_id = $3, paid_at = $4
+WHERE id = $1
+`
+
+type SettleShortcodeVerificationParams struct {
+	ID      uuid.UUID
+	Status  string
+	TransID *string
+	PaidAt  *time.Time
+}
+
+func (q *Queries) SettleShortcodeVerification(ctx context.Context, arg SettleShortcodeVerificationParams) error {
+	_, err := q.db.Exec(ctx, settleShortcodeVerification,
+		arg.ID,
+		arg.Status,
+		arg.TransID,
+		arg.PaidAt,
+	)
+	return err
 }
 
 const updateSTKRequestResult = `-- name: UpdateSTKRequestResult :exec

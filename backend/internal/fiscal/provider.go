@@ -7,6 +7,7 @@ package fiscal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -99,3 +100,29 @@ type ItemCode struct {
 	Description string
 	TaxCategory TaxCategory
 }
+
+// PINLookup is the optional capability of answering "does KRA know this PIN"
+// (the iTax PIN checker, reached through the integrator). Adapters that have
+// it implement this interface next to Provider; callers type-assert.
+type PINLookup interface {
+	// LookupPIN returns the taxpayer behind a well-formed KRA PIN. It returns
+	// ErrPINUnknown when KRA has no such PIN and ErrLookupUnavailable (or a
+	// TransientError) when the answer cannot be obtained right now.
+	LookupPIN(ctx context.Context, pin string) (Taxpayer, error)
+}
+
+// Taxpayer is the public record the PIN checker returns.
+type Taxpayer struct {
+	PIN           string
+	Name          string
+	VATRegistered bool
+}
+
+// PIN lookup outcomes.
+var (
+	// ErrPINUnknown means KRA does not know the PIN: onboarding must stop.
+	ErrPINUnknown = errors.New("fiscal: KRA does not know this PIN")
+	// ErrLookupUnavailable means the checker could not be asked; callers
+	// proceed with the PIN unverified (orgs.kra_pin_verified_at stays NULL).
+	ErrLookupUnavailable = errors.New("fiscal: PIN lookup unavailable")
+)

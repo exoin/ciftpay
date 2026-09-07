@@ -61,10 +61,11 @@ func (r *Reconciler) Run(ctx context.Context) (Stats, error) {
 			st.Failed++
 			continue
 		}
+		in := ToC2BInput(p, ev.Payload)
 		var sc gen.ResolveShortcodeRow
 		err := r.DB.WithIngest(ctx, func(ctx context.Context, tx db.Tx) error {
 			var err error
-			sc, err = tx.ResolveShortcode(ctx, p.BusinessShortCode)
+			sc, err = r.Ledger.ResolveForC2B(ctx, tx, in)
 			return err
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -75,7 +76,7 @@ func (r *Reconciler) Run(ctx context.Context) (Stats, error) {
 		if err != nil {
 			return st, err
 		}
-		res, err := r.Ledger.ProcessStoredC2B(ctx, ev.ID, sc, ToC2BInput(p, ev.Payload))
+		res, err := r.Ledger.ProcessStoredC2B(ctx, ev.ID, sc, in)
 		if err != nil {
 			r.Log.Warn("reconcile: event still failing", "event", ev.ID, "trans_id", p.TransID, "err", err)
 			st.Failed++

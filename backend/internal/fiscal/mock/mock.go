@@ -147,6 +147,31 @@ func (p *Provider) submit(ctx context.Context, id, prefix string, total int64) (
 	return ack, nil
 }
 
+// UnknownPIN is the reserved, well-formed PIN the mock reports as unknown to
+// KRA so the `pin_unknown` onboarding path can be exercised end to end.
+const UnknownPIN = "P000000000Z"
+
+// LookupPIN implements fiscal.PINLookup: every well-formed PIN except
+// UnknownPIN is known, with a deterministic taxpayer name. A-PINs (companies)
+// are reported VAT registered, P-PINs (individuals) are not.
+func (p *Provider) LookupPIN(ctx context.Context, pin string) (fiscal.Taxpayer, error) {
+	if err := ctx.Err(); err != nil {
+		return fiscal.Taxpayer{}, err
+	}
+	pin = strings.ToUpper(strings.TrimSpace(pin))
+	if !pinRe.MatchString(pin) {
+		return fiscal.Taxpayer{}, &fiscal.ValidationError{Code: "pin_invalid", Field: "kra_pin", Message: "KRA PIN must match A/P + 9 digits + letter"}
+	}
+	if pin == UnknownPIN {
+		return fiscal.Taxpayer{}, fiscal.ErrPINUnknown
+	}
+	return fiscal.Taxpayer{
+		PIN:           pin,
+		Name:          "TAXPAYER " + strings.ToUpper(shortHash(pin)[:6]),
+		VATRegistered: pin[0] == 'A',
+	}, nil
+}
+
 // LookupItemCodes implements fiscal.Provider with a small curated list.
 func (p *Provider) LookupItemCodes(_ context.Context, q string) ([]fiscal.ItemCode, error) {
 	q = strings.ToLower(strings.TrimSpace(q))

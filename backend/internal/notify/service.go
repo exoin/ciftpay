@@ -42,9 +42,24 @@ func New(d *db.DB, k *crypto.Keyring, s Sender, publicBaseURL string, l *slog.Lo
 // ReceiptURL is the public verify link for a receipt code.
 func (s *Service) ReceiptURL(code string) string { return s.PublicBaseURL + "/r/" + code }
 
+// stillPending reports whether an invoice is still on its way to KRA, i.e. the
+// buyer has not received (and will not shortly receive) the final receipt.
+func stillPending(state string) bool {
+	switch state {
+	case "ACKED", "FAILED_TERMINAL":
+		return false
+	}
+	return true
+}
+
+// ErrSkipped is returned when a scheduled receipt template is no longer
+// relevant (the "pending" SMS for an invoice KRA has already acked).
+var ErrSkipped = errors.New("notify: skipped")
+
 // SendReceipt sends the given template for an invoice and records the
 // notification. It is idempotent per (invoice, template): a second call finds
-// the earlier row and does nothing.
+// the earlier row and does nothing. The "pending" template is only sent while
+// the invoice is still waiting on KRA; otherwise ErrSkipped is returned.
 func (s *Service) SendReceipt(ctx context.Context, orgID, invoiceID uuid.UUID, template string) (gen.Notification, error) {
 	var (
 		n      gen.Notification
@@ -66,6 +81,9 @@ func (s *Service) SendReceipt(ctx context.Context, orgID, invoiceID uuid.UUID, t
 		inv, err := tx.GetInvoice(ctx, invoiceID)
 		if err != nil {
 			return err
+		}
+		if template == TemplateReceiptPending && !stillPending(inv.State) {
+			return ErrSkipped
 		}
 		org, err := tx.GetOrg(ctx, inv.OrgID)
 		if err != nil {
@@ -159,6 +177,9 @@ type Worker struct {
 // recipients cancel the job; anything else is retried by River.
 func (w *Worker) Work(ctx context.Context, job *river.Job[jobs.SendReceiptArgs]) error {
 	_, err := w.S.SendReceipt(ctx, job.Args.OrgID, job.Args.InvoiceID, job.Args.Template)
+	if errors.Is(err, ErrSkipped) {
+		return nil
+	}
 	var perm *PermanentError
 	switch {
 	case err == nil:

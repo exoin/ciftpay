@@ -192,6 +192,16 @@ GRANT SELECT, INSERT, UPDATE ON payments TO ciftpay_app;
 - `ciftpay_app` is **not** the table owner and has no `BYPASSRLS`.
 - Cross-org reads for accountants are done as N scoped transactions (one per client org), never by disabling RLS.
 - `ciftpay_public` has `SELECT` on a view `public_receipts` (invoice + org name + lines, filtered `state = 'ACKED' OR state = 'SUBMITTED'`) with a policy `USING (receipt_code = current_setting('app.receipt_code', true))`.
+- **Scoped policies beyond `org_id`** (as shipped in `0001_init.sql`). Two request kinds carry no org at all, so a second setting, `app.scope` (`current_scope()`), and a third, `app.receipt_code` (`current_receipt_code()`), gate narrowly targeted extra policies:
+
+  | Table | Policy | Scope | Why |
+  |---|---|---|---|
+  | `mpesa_shortcodes` | `mpesa_shortcodes_ingest` (`SELECT`) | `app.scope = 'ingest'` | A Daraja C2B callback must resolve `BusinessShortCode` → `org_id` *before* an org is known. |
+  | `stk_requests` | `stk_requests_ingest` (`SELECT`) | `app.scope = 'ingest'` | STK callbacks carry only `CheckoutRequestID`. |
+  | `notifications` | `notifications_delivery` (`UPDATE`) | `app.scope = 'ingest'` | Africa's Talking delivery reports carry only the provider message id. |
+  | `invoices`, `sales`, `sale_items` | `*_public_receipt` (`SELECT`) | `receipt_code = app.receipt_code` | `/r/{code}` joins invoice → sale → lines for one receipt, no org. |
+
+  Ingest-scope transactions are opened only by the webhook handlers (`db.WithIngest`), receipt-scope ones only by `/r/{code}` (`db.WithReceipt`); user-facing requests always use `db.WithOrg`. Once a webhook has resolved its org, the handler continues inside a normal `WithOrg` transaction.
 - Integration test (`internal/platform/db/rls_test.go`): insert under org A, select under org B → 0 rows; select with no setting → 0 rows.
 
 ## 4. Encryption

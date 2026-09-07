@@ -41,6 +41,11 @@ func (SubmitInvoiceArgs) InsertOpts() river.InsertOpts {
 	}
 }
 
+// PendingReceiptDelay is how long we give KRA before telling the buyer their
+// receipt is "being prepared" (plan.md §4.4). The job is skipped if the invoice
+// is ACKED by the time it runs, so the usual outcome is a single SMS.
+const PendingReceiptDelay = 5 * time.Minute
+
 // SendReceiptArgs sends the buyer SMS/WhatsApp for an invoice.
 type SendReceiptArgs struct {
 	OrgID     uuid.UUID `json:"org_id"`
@@ -107,6 +112,11 @@ func New(pool *pgxpool.Pool, workers *river.Workers) (*Client, error) {
 func (c *Client) EnqueueTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, opts *river.InsertOpts) error {
 	_, err := c.River.InsertTx(ctx, tx, args, opts)
 	return err
+}
+
+// EnqueueAfterTx inserts a job inside tx that becomes available after delay.
+func (c *Client) EnqueueAfterTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, delay time.Duration) error {
+	return c.EnqueueTx(ctx, tx, args, &river.InsertOpts{ScheduledAt: time.Now().Add(delay)})
 }
 
 // Start runs the workers until ctx is cancelled.

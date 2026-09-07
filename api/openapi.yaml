@@ -164,6 +164,10 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/OrgCreate"
+      description: |
+        The KRA PIN must match `^[AP]\d{9}[A-Z]$` and is then looked up with the fiscal
+        provider (iTax PIN checker). A PIN KRA does not know is rejected with `422 pin_unknown`;
+        if the checker is unavailable the org is created with `kra_pin_verified_at: null`.
       responses:
         "201":
           description: Created; caller becomes `owner`
@@ -171,6 +175,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Org"
+        "409":
+          description: A business with this KRA PIN already exists (`conflict`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "422":
           $ref: "#/components/responses/Error"
         default:
@@ -223,6 +233,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Shortcode"
+        "409":
+          description: Another organisation has already verified this shortcode (`shortcode_claimed`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           $ref: "#/components/responses/Error"
 
@@ -266,21 +282,45 @@ paths:
     post:
       tags: [shortcodes]
       operationId: verifyShortcode
-      summary: Start the control check (KES 1 STK push to the caller's phone)
+      summary: Start the control check (merchant pays KES 1 to their own shortcode)
       description: |
-        Sends a KES 1 STK push against this shortcode to the MSISDN of the current user.
-        Verification completes asynchronously when the STK callback arrives; poll `GET /shortcodes/{id}`.
+        Opens a 10-minute verification challenge: the merchant proves control of the
+        Till/Paybill/Pochi by paying **exactly KES 1** to it from their own phone (the MSISDN
+        of the current user, or `msisdn` in the body). No money is collected by CiftPay and no
+        M-Pesa PIN is ever requested by the app (ADR-0003).
+
+        The `202` body carries the instructions to show (`pay`). Verification completes when
+        the matching C2B confirmation arrives; poll `GET /shortcodes/{id}` every few seconds
+        until `verified` is true or `verification.status` becomes `expired`/`failed`. The KES 1
+        is **not** recorded as a payment or sale. Calling again while a challenge is open
+        refreshes it (new `expires_at`).
+
+        When the challenge is created CiftPay also attempts Daraja `RegisterURL` for the
+        shortcode (best effort; success is visible as `c2b_urls_registered_at`).
+
+        Without Daraja credentials (`APP_ENV=local`) the shortcode is verified immediately and `200` is returned.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                msisdn:
+                  $ref: "#/components/schemas/Msisdn"
       responses:
         "202":
-          description: STK push sent
+          description: Challenge open; waiting for the merchant's KES 1 payment
           content:
             application/json:
               schema:
-                type: object
-                required: [checkout_request_id]
-                properties:
-                  checkout_request_id:
-                    type: string
+                $ref: "#/components/schemas/ShortcodeVerification"
+        "200":
+          description: Already verified (or verified immediately in local mode)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShortcodeVerification"
         "409":
           description: Shortcode already verified by another organisation (`shortcode_claimed`)
           content:
@@ -912,6 +952,8 @@ components:
         expires_at:
           type: string
           format: date-time
+        msisdn_masked:
+          $ref: "#/components/schemas/MaskedMsisdn"
         orgs:
           type: array
           items:
@@ -1028,6 +1070,60 @@ components:
         verified_at:
           type: [string, "null"]
           format: date-time
+        c2b_urls_registered_at:
+          type: [string, "null"]
+          format: date-time
+          description: When Daraja `RegisterURL` succeeded for this shortcode; null until then
+        verification:
+          description: State of the latest control-check challenge; absent when none was ever started
+          type: object
+          required: [status, expires_at]
+          properties:
+            status:
+              type: string
+              enum: [pending, verified, expired, failed]
+              description: >-
+                `failed` means another organisation verified the same number first
+                (`shortcode_claimed`)
+            expires_at:
+              type: string
+              format: date-time
+
+    ShortcodeVerification:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, verified]
+        msisdn_masked:
+          allOf:
+            - $ref: "#/components/schemas/MaskedMsisdn"
+          description: The phone the KES 1 must come from (status `pending`)
+        pay:
+          description: What to show the merchant (status `pending`)
+          type: object
+          required: [kind, shortcode, amount_cents, account_ref]
+          properties:
+            kind:
+              $ref: "#/components/schemas/ShortcodeKind"
+            shortcode:
+              type: string
+              example: "123456"
+            amount_cents:
+              type: integer
+              format: int64
+              example: 100
+            account_ref:
+              type: string
+              description: Account number to enter for Paybill numbers (ignored for Till/Pochi)
+              example: CIFTPAY
+        expires_at:
+          type: string
+          format: date-time
+          description: When the challenge lapses (status `pending`)
+        shortcode:
+          $ref: "#/components/schemas/Shortcode"
 
     PaymentStatus:
       type: string
@@ -1111,22 +1207,45 @@ components:
             is_active:
               type: boolean
 
+    Quantity:
+      type: string
+      pattern: '^\d{1,9}(\.\d{1,3})?$'
+      description: >-
+        Decimal quantity as a string (Postgres `numeric(12,3)`), never a JSON
+        number: `"1"`, `"2.500"`. Phase 0 accepts whole numbers on input only.
+      example: "1"
+
     SaleLineInput:
       type: object
-      required: [item_id, qty]
+      description: >-
+        A line either references a catalog item (`item_id`), in which case
+        `description`, `etims_class_code`, `tax_category` and `unit_price_cents`
+        default to the item's values, or is free-form, in which case
+        `description`, `etims_class_code`, `tax_category` and `unit_price_cents`
+        are all required (KRA rejects lines without a classification code).
       properties:
         item_id:
           type: string
           format: uuid
         qty:
-          type: number
-          exclusiveMinimum: 0
+          allOf:
+            - $ref: "#/components/schemas/Quantity"
+          description: Defaults to `"1"` when omitted
         unit_price_cents:
           type: integer
           format: int64
-          description: Overrides the item's default price (VAT-inclusive)
+          description: Overrides the item's default price (VAT-inclusive); required without `item_id`
         description:
           type: string
+          description: Required without `item_id`
+        etims_class_code:
+          type: string
+          description: KRA item classification code; required without `item_id`
+          example: "99000000"
+        tax_category:
+          allOf:
+            - $ref: "#/components/schemas/TaxCategory"
+          description: Required without `item_id`
 
     SaleLine:
       type: object
@@ -1138,7 +1257,7 @@ components:
         description:
           type: string
         qty:
-          type: number
+          $ref: "#/components/schemas/Quantity"
         unit_price_cents:
           type: integer
           format: int64

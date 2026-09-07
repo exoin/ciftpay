@@ -27,7 +27,7 @@ export function ConvertPaymentSheet({ payment, onClose }: { payment: Schemas["Pa
       await convert.mutateAsync({
         id: payment.id,
         body: {
-          lines: [{ item_id: itemId, qty: 1, unit_price_cents: payment.amount_cents }],
+          lines: [{ item_id: itemId, qty: "1", unit_price_cents: payment.amount_cents }],
           ...(buyerPin ? { buyer_pin: buyerPin.toUpperCase() } : {}),
         },
       });

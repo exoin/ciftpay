@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKES, groupThousands, maskMsisdn, moneyParts, normaliseMsisdn, THIN_SPACE, MINUS } from "./format";
+import { formatKES, formatQty, groupThousands, maskMsisdn, moneyParts, normaliseMsisdn, THIN_SPACE, MINUS } from "./format";
 
 describe("formatKES", () => {
   it("renders cents with thin-space thousands and two decimals", () => {
@@ -46,5 +46,22 @@ describe("msisdn helpers", () => {
     expect(normaliseMsisdn("712345678")).toBe("254712345678");
     expect(normaliseMsisdn("0112345678")).toBe("254112345678");
     expect(normaliseMsisdn("12345")).toBeNull();
+  });
+  it("normalises the 01xx Safaricom range", () => {
+    expect(normaliseMsisdn("0140994513")).toBe("254140994513");
+    expect(maskMsisdn("254140994513")).toBe("2541•••••513");
+  });
+});
+
+describe("formatQty", () => {
+  it("accepts the API's numeric(12,3) decimal strings", () => {
+    expect(formatQty("1.000")).toBe("1");
+    expect(formatQty("2.500")).toBe("2.5");
+    expect(formatQty("10")).toBe("10");
+    expect(formatQty("100.000")).toBe("100");
+  });
+  it("still tolerates numbers", () => {
+    expect(formatQty(2)).toBe("2");
+    expect(formatQty(0.25)).toBe("0.25");
   });
 });

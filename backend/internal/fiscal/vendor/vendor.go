@@ -170,6 +170,36 @@ func (p *Provider) LookupItemCodes(ctx context.Context, q string) ([]fiscal.Item
 	return codes, nil
 }
 
+// taxpayerPath is the integrator's iTax PIN checker proxy. Adjusted once the
+// vendor is chosen, like every other path in this file.
+const taxpayerPath = "/v1/taxpayers/"
+
+// LookupPIN implements fiscal.PINLookup. A 404 from the integrator means KRA
+// does not know the PIN; transport and 5xx failures surface as
+// ErrLookupUnavailable so onboarding can continue unverified.
+func (p *Provider) LookupPIN(ctx context.Context, pin string) (fiscal.Taxpayer, error) {
+	var out struct {
+		PIN           string `json:"pin"`
+		Name          string `json:"name"`
+		VATRegistered bool   `json:"vatRegistered"`
+	}
+	err := p.do(ctx, http.MethodGet, taxpayerPath+url.PathEscape(pin), nil, &out)
+	var ve *fiscal.ValidationError
+	switch {
+	case err == nil:
+		if out.PIN == "" {
+			out.PIN = pin
+		}
+		return fiscal.Taxpayer{PIN: out.PIN, Name: out.Name, VATRegistered: out.VATRegistered}, nil
+	case errors.As(err, &ve) && (ve.Code == "not_found" || ve.Code == "pin_unknown"):
+		return fiscal.Taxpayer{}, fiscal.ErrPINUnknown
+	case errors.Is(err, context.Canceled):
+		return fiscal.Taxpayer{}, err
+	default:
+		return fiscal.Taxpayer{}, fmt.Errorf("%w: %v", fiscal.ErrLookupUnavailable, err)
+	}
+}
+
 // transport ------------------------------------------------------------------
 
 func (p *Provider) do(ctx context.Context, method, path string, in, out any) error {
@@ -233,7 +263,10 @@ func classifyStatus(status int, raw []byte) error {
 	var we wireError
 	_ = json.Unmarshal(raw, &we)
 	code := we.Error.Code
-	if code == "" {
+	switch {
+	case code == "" && status == http.StatusNotFound:
+		code = "not_found"
+	case code == "":
 		code = "vendor_rejected"
 	}
 	switch code {

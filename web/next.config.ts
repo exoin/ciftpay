@@ -20,6 +20,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   output: "standalone",
+  // The public receipt route handler inlines these stylesheets at request time;
+  // make sure they ship with the standalone server.
+  outputFileTracingIncludes: {
+    "/r/[code]": ["./src/styles/tokens.css", "./src/styles/fonts.css", "./src/styles/receipt.css", "./src/styles/document.css"],
+  },
   // Server components and route handlers talk to the API over the compose
   // network; the browser talks to it over the published port.
   env: {

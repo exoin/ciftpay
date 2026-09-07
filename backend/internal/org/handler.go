@@ -176,6 +176,8 @@ func (h *Handler) createOrg(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrBadPIN), errors.Is(err, ErrBadName), errors.Is(err, ErrInvalidLocale):
 		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", err.Error())
+	case errors.Is(err, ErrPINUnknown):
+		httpx.Fail(w, http.StatusUnprocessableEntity, "pin_unknown", "KRA does not recognise this PIN. Check it on iTax and try again")
 	case errors.Is(err, ErrPINTaken):
 		httpx.Fail(w, http.StatusConflict, "conflict", "A business with this KRA PIN is already registered")
 	case err != nil:

@@ -55,7 +55,7 @@ export default function PaymentsPage() {
             secondary={(p) => {
               const c = paymentChip(p.status);
               return (
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-mono">{formatDateTime(p.paid_at)}</span>
                   <StatusChip tone={c.tone}>{ts(c.key)}</StatusChip>
                 </span>

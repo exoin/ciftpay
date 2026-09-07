@@ -12,10 +12,14 @@ import (
 
 // Config is the fully parsed environment for api, worker and ciftctl.
 type Config struct {
-	AppEnv        string   `env:"APP_ENV" envDefault:"local"`
-	HTTPAddr      string   `env:"HTTP_ADDR" envDefault:":8080"`
-	PublicBaseURL string   `env:"PUBLIC_BASE_URL" envDefault:"http://localhost:8080"`
-	CORSOrigins   []string `env:"CORS_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000"`
+	AppEnv        string `env:"APP_ENV" envDefault:"local"`
+	HTTPAddr      string `env:"HTTP_ADDR" envDefault:":8080"`
+	PublicBaseURL string `env:"PUBLIC_BASE_URL" envDefault:"http://localhost:3000"`
+	// WebhookBaseURL is the api's own public URL, the base of the callback URLs
+	// handed to Daraja (RegisterURL, STK). Distinct from PublicBaseURL, which is
+	// the web app buyers open receipt links on.
+	WebhookBaseURL string   `env:"WEBHOOK_BASE_URL" envDefault:"http://localhost:8080"`
+	CORSOrigins    []string `env:"CORS_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000"`
 
 	DatabaseURL      string `env:"DATABASE_URL" envDefault:"postgres://ciftpay:ciftpay@localhost:5432/ciftpay?sslmode=disable"`
 	DatabaseMaxConns int32  `env:"DATABASE_MAX_CONNS" envDefault:"10"`

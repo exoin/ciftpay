@@ -22,6 +22,10 @@ type ShortcodeView struct {
 	AutoInvoice   bool       `json:"auto_invoice"`
 	Verified      bool       `json:"verified"`
 	VerifiedAt    *time.Time `json:"verified_at"`
+	// C2BURLsRegisteredAt is when Daraja RegisterURL last succeeded for it.
+	C2BURLsRegisteredAt *time.Time `json:"c2b_urls_registered_at"`
+	// Verification is the latest control-check challenge (GET /shortcodes/{id}).
+	Verification *VerificationState `json:"verification,omitempty"`
 }
 
 // PaymentView is the Payment schema.
@@ -136,7 +140,7 @@ type AttentionView struct {
 
 func toShortcode(s gen.MpesaShortcode) ShortcodeView {
 	return ShortcodeView{ID: s.ID, Kind: s.Kind, Shortcode: s.Shortcode, Label: s.Label, DefaultItemID: s.DefaultItemID,
-		AutoInvoice: s.AutoInvoice, Verified: s.VerifiedAt != nil, VerifiedAt: s.VerifiedAt}
+		AutoInvoice: s.AutoInvoice, Verified: s.VerifiedAt != nil, VerifiedAt: s.VerifiedAt, C2BURLsRegisteredAt: s.C2bUrlsRegisteredAt}
 }
 
 func toPayment(k *crypto.Keyring, p gen.Payment, invoiceID *uuid.UUID) PaymentView {

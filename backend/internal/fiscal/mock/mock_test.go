@@ -2,6 +2,7 @@ package mock_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ciftpay/ciftpay/internal/fiscal"
@@ -102,5 +103,28 @@ func TestLookupFilters(t *testing.T) {
 	codes, _ = p.LookupItemCodes(context.Background(), "5040")
 	if len(codes) != 1 {
 		t.Fatalf("prefix search got %+v", codes)
+	}
+}
+
+func TestLookupPIN(t *testing.T) {
+	ctx := context.Background()
+	var p fiscal.PINLookup = mock.New(mock.FailNone)
+
+	tp, err := p.LookupPIN(ctx, " a012345678z ")
+	if err != nil || tp.PIN != "A012345678Z" || !tp.VATRegistered || tp.Name == "" {
+		t.Fatalf("company pin: got %+v, %v", tp, err)
+	}
+	again, _ := p.LookupPIN(ctx, "A012345678Z")
+	if again.Name != tp.Name {
+		t.Fatalf("name must be deterministic: %q vs %q", again.Name, tp.Name)
+	}
+	if tp, err := p.LookupPIN(ctx, "P012345678Q"); err != nil || tp.VATRegistered {
+		t.Fatalf("individual pin: got %+v, %v", tp, err)
+	}
+	if _, err := p.LookupPIN(ctx, mock.UnknownPIN); !errors.Is(err, fiscal.ErrPINUnknown) {
+		t.Fatalf("reserved pin: got %v, want ErrPINUnknown", err)
+	}
+	if _, err := p.LookupPIN(ctx, "12345"); fiscal.Classify(err) != fiscal.ClassTerminal {
+		t.Fatalf("malformed pin: got %v, want validation error", err)
 	}
 }

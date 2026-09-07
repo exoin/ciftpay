@@ -114,7 +114,10 @@ func CORS(origins []string) func(http.Handler) http.Handler {
 				h := w.Header()
 				h.Set("Access-Control-Allow-Origin", origin)
 				h.Set("Access-Control-Allow-Credentials", "true")
-				h.Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID")
+				// X-Org-Id selects the tenant on every authenticated call from the PWA.
+				h.Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID, X-Org-Id")
+				h.Set("Access-Control-Expose-Headers", "X-Request-ID")
+				h.Set("Access-Control-Max-Age", "600")
 				h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 				h.Set("Vary", "Origin")
 				if r.Method == http.MethodOptions {

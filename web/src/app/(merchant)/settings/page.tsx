@@ -24,7 +24,8 @@ export default function SettingsPage() {
   const { data: shortcodes } = useShortcodes();
   const { data: ent } = useQuery({
     queryKey: qk.entitlement,
-    queryFn: () => rawGet<{ plan?: string; used?: number; limit?: number | null }>("/billing/entitlement"),
+    // Shape of internal/billing Entitlement (not yet in api/openapi.yaml; see local-dev.md contract debt).
+    queryFn: () => rawGet<{ plan_code: string; plan_name: string; invoices_acked: number; invoice_cap: number | null }>("/billing/entitlement"),
   });
   const logout = useLogout();
 
@@ -91,9 +92,11 @@ export default function SettingsPage() {
 
         <Section title={t("plan")}>
           <p className="font-mono text-sm">
-            {ent?.limit == null
-              ? t("planUnlimited", { plan: ent?.plan ?? "—" })
-              : t("planLead", { plan: ent.plan ?? "—", used: ent.used ?? 0, limit: ent.limit })}
+            {!ent
+              ? "—"
+              : ent.invoice_cap == null
+                ? t("planUnlimited", { plan: ent.plan_name })
+                : t("planLead", { plan: ent.plan_name, used: ent.invoices_acked, limit: ent.invoice_cap })}
           </p>
         </Section>
 

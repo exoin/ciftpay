@@ -20,6 +20,9 @@ type Querier interface {
 	CountInvoicesByState(ctx context.Context, orgID uuid.UUID) ([]CountInvoicesByStateRow, error)
 	CountPaymentsByStatus(ctx context.Context, orgID uuid.UUID) ([]CountPaymentsByStatusRow, error)
 	CountRecentOTPs(ctx context.Context, msisdnHash []byte) (int64, error)
+	// Runs under app.scope = 'ingest' or any org scope: the partial unique index
+	// is the arbiter, this is only the friendly pre-check behind shortcode_claimed.
+	CountVerifiedShortcodeElsewhere(ctx context.Context, arg CountVerifiedShortcodeElsewhereParams) (int64, error)
 	CreateFiscalSubmission(ctx context.Context, arg CreateFiscalSubmissionParams) (FiscalSubmission, error)
 	CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error)
 	CreateItem(ctx context.Context, arg CreateItemParams) (Item, error)
@@ -33,9 +36,16 @@ type Querier interface {
 	CreateSaleItem(ctx context.Context, arg CreateSaleItemParams) (SaleItem, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateShortcode(ctx context.Context, arg CreateShortcodeParams) (MpesaShortcode, error)
+	// Opens a KES 1 own-till challenge; any earlier open challenge for the same
+	// shortcode is closed first so at most one is pending per shortcode.
+	CreateShortcodeVerification(ctx context.Context, arg CreateShortcodeVerificationParams) (ShortcodeVerification, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	ExpireShortcodeVerifications(ctx context.Context) (int64, error)
 	FindCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error)
 	FindCustomerByMSISDNHash(ctx context.Context, arg FindCustomerByMSISDNHashParams) (Customer, error)
+	// Runs under app.scope = 'ingest' (db.WithIngest): the C2B confirmation carries
+	// only the number, so the open challenge decides which org is proving it.
+	FindOpenShortcodeVerification(ctx context.Context, arg FindOpenShortcodeVerificationParams) (ShortcodeVerification, error)
 	// Rule 2 of the matcher: same payer, same amount, created within the window.
 	FindPendingSTKRequest(ctx context.Context, arg FindPendingSTKRequestParams) (StkRequest, error)
 	GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
@@ -59,6 +69,7 @@ type Querier interface {
 	// Idempotent intake. Returns zero rows when external_id was already seen.
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (uuid.UUID, error)
 	LatestOTP(ctx context.Context, msisdnHash []byte) (OtpCode, error)
+	LatestShortcodeVerification(ctx context.Context, shortcodeID uuid.UUID) (ShortcodeVerification, error)
 	ListFiscalSubmissions(ctx context.Context, invoiceID uuid.UUID) ([]FiscalSubmission, error)
 	ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error)
 	ListItems(ctx context.Context, orgID uuid.UUID) ([]Item, error)
@@ -76,14 +87,18 @@ type Querier interface {
 	MarkNotificationSent(ctx context.Context, arg MarkNotificationSentParams) error
 	MarkPaymentReversed(ctx context.Context, id uuid.UUID) error
 	MarkSalePaid(ctx context.Context, arg MarkSalePaidParams) error
+	MarkShortcodeC2BRegistered(ctx context.Context, id uuid.UUID) error
 	MarkShortcodeVerified(ctx context.Context, arg MarkShortcodeVerifiedParams) error
 	MarkWebhookProcessed(ctx context.Context, arg MarkWebhookProcessedParams) error
 	NextSaleRef(ctx context.Context, orgID uuid.UUID) (string, error)
 	ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoice, error)
 	// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
-	ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error)
+	// A verified row always wins; among unverified duplicates prefer_id (the row
+	// with an open KES 1 verification challenge for this payer) goes first.
+	ResolveShortcode(ctx context.Context, arg ResolveShortcodeParams) (ResolveShortcodeRow, error)
 	RevokeSession(ctx context.Context, id uuid.UUID) error
 	SetInvoiceState(ctx context.Context, arg SetInvoiceStateParams) (Invoice, error)
+	SettleShortcodeVerification(ctx context.Context, arg SettleShortcodeVerificationParams) error
 	TodayTotals(ctx context.Context, orgID uuid.UUID) (TodayTotalsRow, error)
 	UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, error)
 	UpdateOrgFiscalProfile(ctx context.Context, arg UpdateOrgFiscalProfileParams) error

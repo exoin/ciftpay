@@ -6,6 +6,13 @@ BACKEND := backend
 WEB := web
 FILE ?= tools/webhooks/c2b_confirmation.json
 
+# Host-run tools (ciftctl migrate/seed/replay-webhook) read the same .env the
+# compose stack uses, so DATABASE_URL, PG_PORT etc. only live in one place.
+ifneq (,$(wildcard .env))
+include .env
+export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' .env)
+endif
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -52,6 +59,32 @@ seed: ## Insert the demo org, shortcode, item and user
 replay-webhook: ## Replay a Daraja payload: make replay-webhook FILE=tools/webhooks/stk_callback.json
 	cd $(BACKEND) && go run ./cmd/ciftctl replay-webhook ../$(FILE)
 
+# Shortcode verification loop (plan.md §4.1). Defaults target the Daraja
+# sandbox test shortcode and the dev phone; override on the command line:
+#   make sandbox-verify SHORTCODE=600000 MSISDN=0140994513
+SHORTCODE ?= 600000
+MSISDN ?= 0140994513
+
+.PHONY: daraja-fake
+daraja-fake: ## Run the in-process fake Daraja on :18090 (point DARAJA_BASE_URL at it)
+	cd $(BACKEND) && go run ./cmd/ciftctl daraja-fake --addr :18090
+
+.PHONY: register-urls
+register-urls: ## Daraja RegisterURL for $(SHORTCODE) at WEBHOOK_BASE_URL (sandbox or fake)
+	cd $(BACKEND) && go run ./cmd/ciftctl register-urls $(SHORTCODE)
+
+.PHONY: simulate-c2b
+simulate-c2b: ## Emit a KES 1 C2B from $(MSISDN) to $(SHORTCODE) (sandbox or fake)
+	cd $(BACKEND) && go run ./cmd/ciftctl simulate-c2b --shortcode $(SHORTCODE) --msisdn $(MSISDN) --amount 1 --ref CIFTPAY
+
+.PHONY: sandbox-verify
+sandbox-verify: ## Drive the own-Till verification against Daraja: register URLs then simulate the KES 1
+	@echo "WEBHOOK_BASE_URL=$(WEBHOOK_BASE_URL) (for the real sandbox this must be a public tunnel, e.g. cloudflared tunnel --url http://localhost:8080)"
+	@echo "1. open the challenge in the app or: POST /shortcodes/{id}/verify"
+	$(MAKE) register-urls SHORTCODE=$(SHORTCODE)
+	$(MAKE) simulate-c2b SHORTCODE=$(SHORTCODE) MSISDN=$(MSISDN)
+	@echo "2. poll GET /shortcodes/{id} until verified=true (see docs/runbooks/local-dev.md)"
+
 .PHONY: gen
 gen: gen-sqlc gen-api ## Regenerate sqlc code and the TypeScript API client
 
@@ -67,8 +100,13 @@ gen-api: ## Regenerate the typed API client from api/openapi.yaml
 .PHONY: test
 test: test-backend test-web ## Run backend and web unit tests
 
+# DB-backed Go tests create a throwaway database per test through the compose
+# postgres superuser; without a reachable server they skip themselves.
+TEST_ADMIN_DATABASE_URL ?= postgres://postgres:postgres@localhost:$(or $(PG_PORT),5432)/postgres?sslmode=disable
+export TEST_ADMIN_DATABASE_URL
+
 .PHONY: test-backend
-test-backend: ## go test ./...
+test-backend: ## go test ./... (DB tests use TEST_ADMIN_DATABASE_URL, skipped when unreachable)
 	cd $(BACKEND) && go test ./...
 
 .PHONY: test-web
@@ -76,8 +114,8 @@ test-web: ## vitest run
 	cd $(WEB) && npm run test
 
 .PHONY: e2e
-e2e: ## Playwright smoke tests (expects web on :3000)
-	cd $(WEB) && npx playwright test
+e2e: ## Playwright smoke tests against a fresh build wired to the e2e stub API (:18080)
+	cd $(WEB) && NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:18080 API_BASE_URL=http://127.0.0.1:18080 npm run build >/dev/null && npx playwright test
 
 .PHONY: lint
 lint: lint-backend lint-web ## Lint backend and web

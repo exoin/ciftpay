@@ -103,6 +103,18 @@ func fakeIntegrator(t *testing.T, apiKey string) *httptest.Server {
 			"receivedAt": ack.ReceivedAt.Format(time.RFC3339),
 		})
 	}))
+	mux.HandleFunc("/v1/taxpayers/", auth(func(w http.ResponseWriter, r *http.Request) {
+		pin := strings.TrimPrefix(r.URL.Path, "/v1/taxpayers/")
+		tp, err := backend.LookupPIN(r.Context(), pin)
+		switch {
+		case errors.Is(err, fiscal.ErrPINUnknown):
+			writeErr(w, http.StatusNotFound, "not_found", "pin", "no such taxpayer")
+		case err != nil:
+			mapErr(w, err)
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{"pin": tp.PIN, "name": tp.Name, "vatRegistered": tp.VATRegistered})
+		}
+	}))
 	mux.HandleFunc("/v1/item-codes", auth(func(w http.ResponseWriter, r *http.Request) {
 		codes, _ := backend.LookupItemCodes(r.Context(), r.URL.Query().Get("q"))
 		out := make([]map[string]string, 0, len(codes))
@@ -179,6 +191,48 @@ func TestClassification(t *testing.T) {
 	t.Run("missing config", func(t *testing.T) {
 		if _, err := vendor.New(vendor.Config{}); fiscal.Classify(err) != fiscal.ClassTerminal {
 			t.Fatalf("got %v", err)
+		}
+	})
+}
+
+func TestLookupPIN(t *testing.T) {
+	ctx := context.Background()
+	srv := fakeIntegrator(t, "k")
+	p, err := vendor.New(vendor.Config{BaseURL: srv.URL, APIKey: "k", Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lookup fiscal.PINLookup = p
+
+	t.Run("known pin", func(t *testing.T) {
+		tp, err := lookup.LookupPIN(ctx, "A012345678Z")
+		if err != nil || tp.PIN != "A012345678Z" || tp.Name == "" || !tp.VATRegistered {
+			t.Fatalf("got %+v, %v", tp, err)
+		}
+	})
+	t.Run("unknown pin", func(t *testing.T) {
+		if _, err := lookup.LookupPIN(ctx, mock.UnknownPIN); !errors.Is(err, fiscal.ErrPINUnknown) {
+			t.Fatalf("got %v, want ErrPINUnknown", err)
+		}
+	})
+	t.Run("bare 404 is unknown too", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) }))
+		defer srv.Close()
+		p, _ := vendor.New(vendor.Config{BaseURL: srv.URL, APIKey: "k"})
+		if _, err := p.LookupPIN(ctx, "A012345678Z"); !errors.Is(err, fiscal.ErrPINUnknown) {
+			t.Fatalf("got %v, want ErrPINUnknown", err)
+		}
+	})
+	t.Run("integrator down is unavailable", func(t *testing.T) {
+		p, _ := vendor.New(vendor.Config{BaseURL: "http://127.0.0.1:1", APIKey: "k", Timeout: time.Second})
+		if _, err := p.LookupPIN(ctx, "A012345678Z"); !errors.Is(err, fiscal.ErrLookupUnavailable) {
+			t.Fatalf("got %v, want ErrLookupUnavailable", err)
+		}
+	})
+	t.Run("bad api key is unavailable, not unknown", func(t *testing.T) {
+		p, _ := vendor.New(vendor.Config{BaseURL: srv.URL, APIKey: "wrong"})
+		if _, err := p.LookupPIN(ctx, "A012345678Z"); !errors.Is(err, fiscal.ErrLookupUnavailable) {
+			t.Fatalf("got %v, want ErrLookupUnavailable", err)
 		}
 	})
 }

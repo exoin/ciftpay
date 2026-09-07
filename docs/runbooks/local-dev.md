@@ -32,7 +32,7 @@ make gen                    # regenerates sqlc code and the TypeScript API clien
 | api | http://localhost:8080 | `GET /healthz` returns `{"status":"ok","db":"ok","queue":"ok"}` |
 | web | http://localhost:3000 | Next.js PWA, opens on **Today** |
 | sms-sink | http://localhost:8025 | fake Africa's Talking endpoint; browse captured SMS/WhatsApp messages |
-| postgres | `localhost:5432` | user `ciftpay`, password `ciftpay`, database `ciftpay` |
+| postgres | `localhost:${PG_PORT:-5432}` | user `ciftpay`, password `ciftpay`, database `ciftpay` |
 | worker | no port | River workers: `SubmitInvoice`, `SendReceipt`, `ReconcilePayments` |
 
 Useful shortcuts:
@@ -87,13 +87,15 @@ All variables are documented in `.env.example`. The ones you will actually touch
 | `MOCK_FAIL_MODE` | `none` | `none`, `retryable`, `terminal`; used to exercise the failure paths (see fiscal-failures.md) |
 | `DARAJA_WEBHOOK_TOKEN` | `dev-webhook-token` | path token on `/webhooks/mpesa/*/{token}`; `ciftctl replay-webhook` reads it |
 | `SESSION_SECRET`, `HASH_PEPPER` | dev values | change for anything that is not a laptop |
-| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080` | what the browser calls |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080` | what the browser calls (inlined at build time) |
+| `PUBLIC_BASE_URL` | `http://localhost:3000` | web origin used in SMS receipt links (`/r/<code>`) |
+| `PG_PORT` | `5432` | host port for the compose Postgres; change together with `DATABASE_URL` |
 
 Never put real Daraja, integrator or Africa's Talking credentials in `.env.example`. `.env` is git-ignored.
 
 ## Common problems
 
-**`bind: address already in use` on 5432/8080/3000/8025.** Another Postgres or dev server is running. Either stop it or change the host port mapping in `docker-compose.yml` (left side of `"5432:5432"`); container-internal ports must not change.
+**`bind: address already in use` on 5432/8080/3000/8025.** Another Postgres or dev server is running. For Postgres set `PG_PORT=55432` (or any free port) in `.env` and change the port in `DATABASE_URL` to match; `docker-compose.yml` reads `PG_PORT` and the `Makefile` exports `.env` to the host-run tools (`make migrate`, `make seed`, `make replay-webhook`). For the other ports edit the left side of the mapping in `docker-compose.yml`; container-internal ports must not change.
 
 **`make migrate` fails with "missing migration" or "out of order".** goose requires migrations applied in filename order. If you pulled a branch that added `0003_*.sql` after you already applied a local `0003_*.sql` with a different name, either `make nuke && make up && make migrate` or rename your local migration to the next free number. Never edit an applied migration; add a new one.
 
@@ -119,5 +121,12 @@ Never put real Daraja, integrator or Africa's Talking credentials in `.env.examp
 |---|---|---|
 | 2026-09-03 | Phase-0 backend verified against a throwaway `postgres:16-alpine` container (port 55432) plus the host-built binaries, not `make up`, because a host Postgres already owned 5432. Same `init.sql`, same non-superuser role. | `make up` end-to-end is re-run in Step 6 once `web/` exists. |
 | 2026-09-03 | `tools/postgres/init.sql` was unreadable by the container (`0660`), which silently produced a superuser `ciftpay` and an RLS-bypassing local stack on first attempt. | File modes fixed in-repo; documented above. |
-| 2026-09-03 | `POST /sales` requires `etims_class_code` per line when `item_id` is omitted (the mock adapter, like KRA, rejects lines without a classification code, which sent the invoice straight to `NEEDS_REVIEW`). | Validation added; `api/openapi.yaml` `SaleLineInput` should list `etims_class_code` as optional-with-item / required-without-item in Step 6. |
-| 2026-09-03 | `notifications` gets an ingest-scope `UPDATE` policy and `stk_requests` an ingest-scope `SELECT` policy (Africa's Talking delivery reports and Daraja STK callbacks carry no org). `sales` gets a receipt-scope `SELECT` policy so the `/r/{code}` join works. | Added to `0001_init.sql` (Phase 0 migrations may still be edited); reflected in `docs/data-model.md` at Step 6. |
+| 2026-09-03 | `POST /sales` requires `etims_class_code` per line when `item_id` is omitted (the mock adapter, like KRA, rejects lines without a classification code, which sent the invoice straight to `NEEDS_REVIEW`). | **Resolved 2026-09-07:** `SaleLineInput` in `api/openapi.yaml` now documents `etims_class_code`, `tax_category`, `description`, `unit_price_cents` as required-without-`item_id`. |
+| 2026-09-03 | `notifications` gets an ingest-scope `UPDATE` policy and `stk_requests` an ingest-scope `SELECT` policy (Africa's Talking delivery reports and Daraja STK callbacks carry no org). `sales` gets a receipt-scope `SELECT` policy so the `/r/{code}` join works. | **Resolved 2026-09-07:** documented in `docs/data-model.md` §3 (scoped policies table). |
+| 2026-09-07 | Quantities: the Go API serialises `qty` as a decimal **string** (`numeric(12,3)` → `"1.000"`) while `api/openapi.yaml` said `number`. The generated TS client hid it and `/r/<code>` crashed with `toFixed is not a function` on the first real receipt. | Contract fixed (`Quantity` string schema, client regenerated); `formatQty` accepts strings; regression test in `format.test.ts`; e2e stub now returns strings. |
+| 2026-09-07 | The api's CORS preflight did not allow `X-Org-Id`, so every tenant request from the browser was blocked and the PWA sat on its loading rows. Not caught by Playwright because the shell tests stub the API same-origin. | `httpx.CORS` allows `X-Org-Id`; unit test `httpx_test.go` pins the preflight. |
+| 2026-09-07 | Replay produced **two** SMS (`receipt_pending` and `receipt_acked` in the same second) where the gate expects one; the receipt link pointed at the api (`:8080`) instead of the web app. | `receipt_pending` is enqueued with `ScheduledAt = +5 min` and skipped if the invoice is already `ACKED`/terminal (`jobs.PendingReceiptDelay`); `PUBLIC_BASE_URL` defaults to the web origin (`:3000`). |
+| 2026-09-07 | `/billing/entitlement` is served by the api but not in `api/openapi.yaml`; the web read wrong field names (`plan`/`used`/`limit` vs `plan_name`/`invoices_acked`/`invoice_cap`) and showed `—`. | Web fixed to the real shape. **Open:** add `Entitlement` to the contract in Phase 1 (§5.6 billing) and drop `rawGet`. |
+| 2026-09-07 | OTP SMS said "expires in 10 minutes"; `OTPTTL` is 5 minutes. | Template fixed (EN/SW). |
+| 2026-09-07 | `make e2e` ran Playwright against whatever `.next` build was on disk; shell tests only pass when the build has `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:18080` inlined (it is a build-time constant). | `make e2e` now builds with the stub URL first. The compose `web` image is still built for `:8080`; do not point Playwright at it. |
+| 2026-09-07 | Phase-0 gate (G0) run on the full compose stack (postgres on `PG_PORT=55432`, api, worker, web, sms-sink). One replayed C2B for `254140994513` → 1 `payments`, 1 cash `sales`, invoice `ACKED` (mock), 1 SMS in sink, `/r/<code>` 200 / 15.2 KB / 0 scripts from the real API. | G0 ticked in `plan.md` §3.5. |

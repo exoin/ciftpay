@@ -42,6 +42,7 @@ var (
 	ErrUnauthorised  = errors.New("org: not authenticated")
 	ErrForbidden     = errors.New("org: not a member of that organisation")
 	ErrPINTaken      = errors.New("org: an organisation with this KRA PIN already exists")
+	ErrPINUnknown    = errors.New("org: KRA does not know this PIN")
 	ErrNoMembership  = errors.New("org: user has no organisation yet")
 	ErrCSRFMismatch  = errors.New("org: csrf token mismatch")
 	ErrInvalidLocale = errors.New("org: locale must be en or sw")

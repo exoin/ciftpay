@@ -83,7 +83,7 @@ func (s *Service) IngestC2B(ctx context.Context, in C2BInput) (C2BResult, error)
 			return err
 		}
 		eventID = &id
-		sc, err = tx.ResolveShortcode(ctx, in.ShortCode)
+		sc, err = s.ResolveForC2B(ctx, tx, in)
 		if errors.Is(err, pgx.ErrNoRows) {
 			_ = tx.MarkWebhookProcessed(ctx, gen.MarkWebhookProcessedParams{ID: id, Error: db.Ptr("unknown shortcode " + in.ShortCode)})
 			return ErrUnknownShortcode
@@ -133,6 +133,12 @@ func (s *Service) applyPayment(ctx context.Context, tx db.Tx, sc gen.ResolveShor
 	if norm, err := crypto.NormaliseMSISDN(in.MSISDN); err == nil {
 		msisdnHash = s.Keys.Hash(norm)
 		msisdnEnc, _ = s.Keys.EncryptString(norm)
+	}
+
+	// The merchant's own KES 1 control payment settles the open challenge and
+	// is deliberately not recorded as a payment (plan.md §4.1).
+	if consumed, err := s.tryVerification(ctx, tx, sc, in, msisdnHash, res); consumed || err != nil {
+		return err
 	}
 
 	decision := Match(
@@ -281,7 +287,9 @@ func (s *Service) CreateInvoiceForSale(ctx context.Context, tx db.Tx, orgID, sal
 	if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: inv.ID}, nil); err != nil {
 		return gen.Invoice{}, err
 	}
-	if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SendReceiptArgs{OrgID: orgID, InvoiceID: inv.ID, Template: "receipt_pending"}, nil); err != nil {
+	// "Your receipt is being prepared" only if KRA has not acked by then; the
+	// notify worker skips it for an ACKED invoice (plan.md §4.4).
+	if err := s.Jobs.EnqueueAfterTx(ctx, tx.Tx, jobs.SendReceiptArgs{OrgID: orgID, InvoiceID: inv.ID, Template: "receipt_pending"}, jobs.PendingReceiptDelay); err != nil {
 		return gen.Invoice{}, err
 	}
 	return inv, tx.AppendAudit(ctx, gen.AppendAuditParams{

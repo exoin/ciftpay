@@ -14,8 +14,8 @@ const receipt = {
   kra_qr_payload: "https://etims.kra.go.ke/verify?inv=KRAMW0100000001",
   buyer_pin_masked: null,
   lines: [
-    { description: "Sukari 2kg", qty: 2, unit_price_cents: 32000, tax_category: "B", line_total_cents: 64000, line_tax_cents: 8828 },
-    { description: "Unga 2kg", qty: 1, unit_price_cents: 18000, tax_category: "A", line_total_cents: 18000, line_tax_cents: 0 },
+    { description: "Sukari 2kg", qty: "2.000", unit_price_cents: 32000, tax_category: "B", line_total_cents: 64000, line_tax_cents: 8828 },
+    { description: "Unga 2kg", qty: "1.000", unit_price_cents: 18000, tax_category: "A", line_total_cents: 18000, line_tax_cents: 0 },
   ],
   vat_by_category: [
     { category: "B", taxable_cents: 55172, tax_cents: 8828 },

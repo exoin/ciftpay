@@ -107,18 +107,20 @@ Finance Act 2023: since **1 January 2024**, a business expense not supported by 
 - [x] `backend/Dockerfile` multi-stage (targets `api`, `worker`, `ciftctl`, `smssink`)
 
 ### 3.4 Web (`web/`, Next.js 15 PWA)
-- [ ] Project init: App Router, TS, Tailwind v4, Serwist, TanStack Query, `openapi-typescript`, `next-intl`
-- [ ] `src/styles/tokens.css` + `globals.css` implementing [`docs/design-system.md`](docs/design-system.md)
-- [ ] `src/components/ui`: `Button`, `Money`, `ReceiptCard`, `DataTable`, `Sheet`, `Tabs`, `EmptyState`, `StatusChip`
-- [ ] `src/components/shell`: `BottomNav`, `TopBar`, `OrgSwitcher`
-- [ ] Routes: `(auth)/login`, `(merchant)/{today,payments,invoices,items,attention,settings}`, `(accountant)/clients`, `(admin)/ops`, `r/[code]`
-- [ ] `public/manifest.webmanifest` + icons; Vitest (`formatKES`); Playwright smoke; `web/Dockerfile`
+- [x] Project init: App Router, TS, Tailwind v4, Serwist, TanStack Query, `openapi-typescript`, `next-intl`
+- [x] `src/styles/tokens.css` + `globals.css` implementing [`docs/design-system.md`](docs/design-system.md) (+ `fonts.css`, `receipt.css`, `document.css` shared by the app and the public receipt)
+- [x] `src/components/ui`: `Button`, `Money`, `ReceiptCard`, `DataTable`, `Sheet`, `Tabs`, `EmptyState`, `StatusChip`
+- [x] `src/components/shell`: `BottomNav`, `TopBar`, `OrgSwitcher`
+- [x] Routes: `(auth)/login`, `(merchant)/{today,payments,invoices,items,attention,settings}`, `(accountant)/clients`, `(admin)/ops`, `r/[code]` (route handler emitting static HTML, 0 `<script>`, ~15 KB — N6)
+- [x] `public/manifest.webmanifest` + icons; Vitest (`formatKES`); Playwright smoke; `web/Dockerfile`
 
 ### 3.5 Phase-0 gate (G0)
-- [ ] `make up && make migrate && make gen` on a clean checkout; `GET /healthz` → `200 {"db":"ok","queue":"ok"}`
-- [ ] `make replay-webhook FILE=tools/webhooks/c2b_confirmation.json` → 1 `payments` row, 1 cash `sales` row, invoice reaches `ACKED` via mock adapter, 1 notification in `sms-sink`, `/r/<code>` renders
-- [ ] `make test` and `make lint` green for backend and web
-- [ ] Deviations recorded in `docs/runbooks/local-dev.md`; Phase-1 external accounts listed in §9.2
+- [x] `make up && make migrate && make gen` on a clean checkout; `GET /healthz` → `200 {"db":"ok","queue":"ok"}` (2026-09-07, full compose stack with `PG_PORT=55432`)
+- [x] `make replay-webhook FILE=tools/webhooks/c2b_confirmation.json` → 1 `payments` row, 1 cash `sales` row, invoice reaches `ACKED` via mock adapter, 1 notification in `sms-sink`, `/r/<code>` renders (200, 15.2 KB, 0 `<script>`, from the real API)
+- [x] `make test` and `make lint` green for backend and web; `make e2e` 20/20 (mobile + desktop)
+- [x] Deviations recorded in `docs/runbooks/local-dev.md` (2026-09-07 entries); Phase-1 external accounts listed in §9.2
+
+**G0 passed 2026-09-07.** Phase 1 starts at §4.1. Carry-overs into Phase 1: `Entitlement` (`/billing/entitlement`) still missing from `api/openapi.yaml` (§5.6); shell e2e tests rely on a stub-API build (see runbook).
 
 ---
 
@@ -318,10 +320,13 @@ Full list with comments in [`.env.example`](.env.example). Summary:
 | `NEXT_PUBLIC_API_BASE_URL` | web | API origin |
 
 ### 9.2 External accounts to open (before Phase 1)
-1. **Safaricom Daraja** — sandbox app (C2B, STK Push, Transaction Status, Reversal); later Go-Live with the design partners' shortcodes.
-2. **KRA-approved eTIMS integrator sandbox** — pick one from KRA's published list of approved third-party integrators; obtain API credentials and their item-code catalogue endpoint.
-3. **Africa's Talking** — SMS sender ID, WhatsApp Business (Phase 2), USSD not needed.
-4. **ODPC** — register CiftPay as data controller & processor (Data Protection Act 2019).
+
+Each account unblocks a specific Phase-1 item; open them in this order. Nothing in Phase 0 needs any of them.
+
+1. **Safaricom Daraja** — sandbox app (C2B, STK Push, Transaction Status, Reversal); later Go-Live with the design partners' shortcodes. Env: `DARAJA_ENV`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_PASSKEY`, `DARAJA_SHORTCODE`, `DARAJA_IP_ALLOWLIST`. Unblocks §4.1 (`RegisterURL`, KES 1 STK) and §4.2 (real C2B). Sandbox test MSISDN for STK: `254140994513`.
+2. **KRA-approved eTIMS integrator sandbox** — pick one from KRA's published list of approved third-party integrators; obtain API credentials and their item-code catalogue endpoint. Env: `FISCAL_ADAPTER=vendor`, `FISCAL_VENDOR_BASE_URL`, `FISCAL_VENDOR_API_KEY`. Unblocks §4.3 (`vendor` adapter must pass `providertest`).
+3. **Africa's Talking** — SMS sender ID (`CIFTPAY`), WhatsApp Business (Phase 2), USSD not needed. Env: `AT_USERNAME`, `AT_API_KEY`, `AT_SENDER_ID`, `AT_BASE_URL`. Unblocks §4.1 (real OTP) and §4.4 (buyer receipts, delivery reports).
+4. **ODPC** — register CiftPay as data controller & processor (Data Protection Act 2019). Required before the first real buyer MSISDN/PIN is stored (§4.2).
 5. **Fly.io** (or Render) — staging org; Postgres 16.
 6. **Domain** `ciftpay.co.ke` (KeNIC) + TLS.
 7. **DCP partner** shortlist (Phase 3) — CBK-licensed Digital Credit Providers.

@@ -76,7 +76,7 @@ export default function TodayPage() {
                   <li key={p.id} className="flex min-h-[var(--row)] items-center gap-3 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-mono">{p.payer_msisdn_masked}</div>
-                      <div className="flex items-center gap-2 text-sm text-muted">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                         <span className="font-mono">{formatTime(p.paid_at)}</span>
                         <StatusChip tone={chip.tone}>{ts(chip.key)}</StatusChip>
                       </div>
