@@ -16,7 +16,7 @@ The product's actual value — turning a received payment into a KRA-acknowledge
 
 CiftPay is a zero-custody system. This is non-negotiable N1 in `plan.md`.
 
-- CiftPay never holds, routes, settles, refunds or disburses funds. Money moves from buyer to merchant entirely within M-Pesa; CiftPay only receives Daraja callbacks (`POST /webhooks/mpesa/c2b/validation/{token}`, `POST /webhooks/mpesa/c2b/confirmation/{token}`, `POST /webhooks/mpesa/stk/{token}`) and fiscalises what it observes.
+- CiftPay never holds, routes, settles, refunds or disburses funds. Money moves from buyer to merchant entirely within M-Pesa; CiftPay only receives Daraja callbacks (`POST /webhooks/daraja/c2b/validation/{token}`, `POST /webhooks/daraja/c2b/confirmation/{token}`, `POST /webhooks/daraja/stk/{token}`) and fiscalises what it observes.
 - Shortcodes are always the merchant's own, registered and verified by the merchant. CiftPay does not operate aggregator shortcodes on behalf of merchants.
 - STK push initiated by CiftPay (request-to-pay, shortcode verification) always targets the merchant's own shortcode as the receiving party; CiftPay is never the payee for merchant sales.
 - Reversals are observed via Daraja callbacks and mirrored as credit notes; CiftPay does not initiate reversals of merchant funds.
