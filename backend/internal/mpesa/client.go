@@ -67,8 +67,8 @@ func (c *Client) RegisterC2BURLs(ctx context.Context, shortcode, webhookBaseURL 
 	body := map[string]string{
 		"ShortCode":       shortcode,
 		"ResponseType":    "Completed",
-		"ConfirmationURL": fmt.Sprintf("%s/webhooks/mpesa/c2b/confirmation/%s", webhookBaseURL, c.cfg.WebhookToken),
-		"ValidationURL":   fmt.Sprintf("%s/webhooks/mpesa/c2b/validation/%s", webhookBaseURL, c.cfg.WebhookToken),
+		"ConfirmationURL": fmt.Sprintf("%s/webhooks/daraja/c2b/confirmation/%s", webhookBaseURL, c.cfg.WebhookToken),
+		"ValidationURL":   fmt.Sprintf("%s/webhooks/daraja/c2b/validation/%s", webhookBaseURL, c.cfg.WebhookToken),
 	}
 	var out map[string]any
 	return c.post(ctx, "/mpesa/c2b/v1/registerurl", body, &out)
