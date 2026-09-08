@@ -725,7 +725,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DarajaResult"
 
-  /webhooks/mpesa/c2b/confirmation/{token}:
+  /webhooks/daraja/c2b/confirmation/{token}:
     post:
       tags: [webhooks]
       operationId: mpesaC2bConfirmation
