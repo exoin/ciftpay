@@ -51,6 +51,126 @@ const today = {
   recent_payments: [payment, { ...payment, id: "22222222-2222-4222-8222-222222222222", status: "unmatched", amount_cents: 50000 }],
 };
 
+const defaultOrg = { org_id: "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", name: "Mama Njeri Groceries", role: "owner", is_default: true };
+
+// Phones the specs sign in with. A brand-new user has no org and must be onboarded.
+const NEW_USER_MSISDN = "254700000001";
+// Reserved values mirrored from the backend mock adapter / handler tests.
+const UNKNOWN_PIN = "P000000000Z";
+const TAKEN_PIN = "P051234567X";
+const CLAIMED_SHORTCODE = "999999";
+
+const state = {
+  orgs: [], // memberships created through POST /orgs in this process
+  shortcodes: [], // Shortcode rows created through POST /shortcodes
+  polls: new Map(), // shortcode id -> GET /shortcodes/{id} count since verify
+};
+
+function maskMsisdn(m) {
+  return `${m.slice(0, 4)}•••••${m.slice(-3)}`;
+}
+
+// The PWA polls every 3 s (plus one refetch right after the 202), so three
+// polls leave the instruction card on screen for ~6 s before "verified".
+const POLLS_UNTIL_VERIFIED = 3;
+
+function shortcodeView(sc) {
+  const polls = state.polls.get(sc.id);
+  const verified = sc.verified || (polls !== undefined && polls >= POLLS_UNTIL_VERIFIED);
+  const view = { ...sc, verified, verified_at: verified ? new Date().toISOString() : null };
+  if (polls !== undefined) view.verification = { status: verified ? "verified" : "pending", expires_at: sc.expires_at };
+  return view;
+}
+
+// Routes with a path parameter or a body; matched before the static table.
+const dynamic = [
+  {
+    method: "POST",
+    re: /^\/auth\/otp\/verify$/,
+    handle: (_m, body) => {
+      const brandNew = body?.msisdn === NEW_USER_MSISDN;
+      return [
+        200,
+        {
+          user_id: brandNew ? "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          csrf_token: "csrf-test",
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          msisdn_masked: maskMsisdn(body?.msisdn ?? "254712345678"),
+          orgs: brandNew ? [] : [defaultOrg],
+        },
+      ];
+    },
+  },
+  {
+    method: "POST",
+    re: /^\/orgs$/,
+    handle: (_m, body) => {
+      if (!body?.name || !/^[AP]\d{9}[A-Z]$/.test(body.kra_pin ?? "")) return [422, { error: { code: "validation", message: "KRA PIN must be A or P, nine digits and a letter" } }];
+      if (body.kra_pin === UNKNOWN_PIN) return [422, { error: { code: "pin_unknown", message: "KRA does not recognise this PIN. Check it on iTax and try again" } }];
+      if (body.kra_pin === TAKEN_PIN) return [409, { error: { code: "conflict", message: "A business with this KRA PIN is already registered" } }];
+      const id = randomUUID();
+      state.orgs.push({ org_id: id, name: body.name, role: "owner", is_default: state.orgs.length === 0 });
+      return [
+        201,
+        {
+          id,
+          name: body.name,
+          kra_pin_masked: `${body.kra_pin[0]}•••••••••${body.kra_pin.slice(-1)}`,
+          kra_pin_verified_at: new Date().toISOString(),
+          vat_registered: Boolean(body.vat_registered),
+          locale: body.locale ?? "en",
+          fiscal_adapter: "mock",
+          created_at: new Date().toISOString(),
+        },
+      ];
+    },
+  },
+  {
+    method: "POST",
+    re: /^\/shortcodes$/,
+    handle: (_m, body) => {
+      if (!/^\d{5,12}$/.test(body?.shortcode ?? "")) return [422, { error: { code: "validation", message: "shortcode must be 5–12 digits" } }];
+      if (body.shortcode === CLAIMED_SHORTCODE) {
+        return [409, { error: { code: "shortcode_claimed", message: "This number is already verified by another business. If it is yours, contact support." } }];
+      }
+      const sc = { id: randomUUID(), kind: body.kind, shortcode: body.shortcode, label: body.label ?? "", default_item_id: null, auto_invoice: body.auto_invoice ?? true, verified: false, verified_at: null, c2b_urls_registered_at: null };
+      state.shortcodes.push(sc);
+      return [201, shortcodeView(sc)];
+    },
+  },
+  {
+    method: "POST",
+    re: /^\/shortcodes\/([^/]+)\/verify$/,
+    handle: (m) => {
+      const sc = state.shortcodes.find((s) => s.id === m[1]);
+      if (!sc) return [404, { error: { code: "not_found", message: "Not found" } }];
+      if (shortcodeView(sc).verified) return [200, { status: "verified", shortcode: shortcodeView(sc) }];
+      sc.expires_at = new Date(Date.now() + 10 * 60_000).toISOString();
+      sc.c2b_urls_registered_at = new Date().toISOString();
+      state.polls.set(sc.id, 0);
+      return [
+        202,
+        {
+          status: "pending",
+          msisdn_masked: maskMsisdn(NEW_USER_MSISDN),
+          pay: { kind: sc.kind, shortcode: sc.shortcode, amount_cents: 100, account_ref: "CIFTPAY" },
+          expires_at: sc.expires_at,
+        },
+      ];
+    },
+  },
+  {
+    method: "GET",
+    re: /^\/shortcodes\/([^/]+)$/,
+    handle: (m) => {
+      const sc = state.shortcodes.find((s) => s.id === m[1]);
+      if (!sc) return [404, { error: { code: "not_found", message: "Not found" } }];
+      if (state.polls.has(sc.id)) state.polls.set(sc.id, state.polls.get(sc.id) + 1);
+      return [200, shortcodeView(sc)];
+    },
+  },
+];
+
 const routes = {
   "GET /healthz": () => [200, { status: "ok", db: "ok", queue: "ok" }],
   "GET /r/7KQ2M9": () => [200, receipt],
