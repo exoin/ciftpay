@@ -140,7 +140,7 @@ func TestConfirmation_BadTokenRejected(t *testing.T) {
 
 func TestConfirmation_InvalidBodyIs400(t *testing.T) {
 	srv := newServer(t, &fakeIngester{})
-	status, ack := post(t, srv.URL+"/webhooks/mpesa/c2b/confirmation/t0k3n", []byte(`{"TransID":"X"}`))
+	status, ack := post(t, srv.URL+"/webhooks/daraja/c2b/confirmation/t0k3n", []byte(`{"TransID":"X"}`))
 	if status != http.StatusBadRequest || ack.ResultCode != 1 {
 		t.Fatalf("status=%d ack=%+v", status, ack)
 	}
