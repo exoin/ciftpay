@@ -179,7 +179,15 @@ export function useCreateShortcode() {
 export function useVerifyShortcode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => unwrap(await api.POST("/shortcodes/{id}/verify", { params: { path: { id } } })),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.shortcodes }),
+    mutationFn: async (vars: string | { id: string; msisdn?: string }): Promise<Schemas["ShortcodeVerification"]> => {
+      const { id, msisdn } = typeof vars === "string" ? { id: vars, msisdn: undefined } : vars;
+      return unwrap(await api.POST("/shortcodes/{id}/verify", { params: { path: { id } }, body: msisdn ? { msisdn } : {} }));
+    },
+    onSuccess: (_res, vars) => {
+      const id = typeof vars === "string" ? vars : vars.id;
+      void qc.invalidateQueries({ queryKey: qk.shortcodes });
+      void qc.invalidateQueries({ queryKey: qk.shortcode(id) });
+      void qc.invalidateQueries({ queryKey: qk.attention });
+    },
   });
 }
