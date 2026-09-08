@@ -60,7 +60,9 @@ replay-webhook: ## Replay a Daraja payload: make replay-webhook FILE=tools/webho
 	cd $(BACKEND) && go run ./cmd/ciftctl replay-webhook ../$(FILE)
 
 # Shortcode verification loop (plan.md §4.1). Defaults target the Daraja
-# sandbox test shortcode and the dev phone; override on the command line:
+# sandbox test shortcode and Safaricom's test MSISDN (the sandbox only delivers
+# C2B callbacks for its own test numbers, see docs/runbooks/local-dev.md);
+# override on the command line:
 #   make sandbox-verify SHORTCODE=600000 MSISDN=0140994513
 SHORTCODE ?= 600000
 MSISDN ?= 0140994513
