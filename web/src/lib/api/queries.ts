@@ -15,6 +15,7 @@ export const qk = {
   invoice: (id: string) => ["invoices", "detail", id] as const,
   items: ["items"] as const,
   shortcodes: ["shortcodes"] as const,
+  shortcode: (id: string) => ["shortcodes", "detail", id] as const,
   attention: ["attention"] as const,
   entitlement: ["billing", "entitlement"] as const,
 };
