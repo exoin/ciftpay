@@ -160,7 +160,7 @@ func TestConfirmation_IngestErrorStill200(t *testing.T) {
 func TestSTKCallback_Flattened(t *testing.T) {
 	ing := &fakeIngester{}
 	srv := newServer(t, ing)
-	status, _ := post(t, srv.URL+"/webhooks/mpesa/stk/t0k3n", fixture(t, "stk_callback.json"))
+	status, _ := post(t, srv.URL+"/webhooks/daraja/stk/t0k3n", fixture(t, "stk_callback.json"))
 	if status != http.StatusOK {
 		t.Fatalf("status = %d", status)
 	}
