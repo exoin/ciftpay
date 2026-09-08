@@ -6,7 +6,7 @@ Companion to [`design-system.md`](design-system.md) (how it looks) and [`api.md`
 
 ```
 /login                         (auth)         phone → OTP
-/onboarding/*                  (auth)         business → PIN → shortcode → verify → default item
+/onboarding                    (auth)         business → shortcode → pay KES 1 to your own Till (one screen, 3 steps)
 /today                         (merchant)     ▸ default after login
 /payments                      (merchant)
 /payments/[id]                 (merchant)     sheet on mobile, drawer on desktop
