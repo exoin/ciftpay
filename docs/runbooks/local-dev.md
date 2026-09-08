@@ -143,6 +143,8 @@ All variables are documented in `.env.example`. The ones you will actually touch
 | `SESSION_SECRET`, `HASH_PEPPER` | dev values | change for anything that is not a laptop |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080` | what the browser calls (inlined at build time) |
 | `PUBLIC_BASE_URL` | `http://localhost:3000` | web origin used in SMS receipt links (`/r/<code>`) |
+| `WEBHOOK_BASE_URL` | `http://localhost:8080` | api origin handed to Daraja (RegisterURL, STK callbacks); a tunnel URL for sandbox runs |
+| `DARAJA_BASE_URL` | `https://sandbox.safaricom.co.ke` | set to `http://localhost:18090` to use `make daraja-fake` |
 | `PG_PORT` | `5432` | host port for the compose Postgres; change together with `DATABASE_URL` |
 
 Never put real Daraja, integrator or Africa's Talking credentials in `.env.example`. `.env` is git-ignored.
