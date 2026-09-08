@@ -60,7 +60,7 @@ func TestClient_SimulateDeliversConfirmation(t *testing.T) {
 	// A stand-in for the api's webhook endpoint.
 	var got mpesa.C2BPayload
 	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.URL.Path, "/webhooks/mpesa/c2b/confirmation/tok") {
+		if !strings.HasSuffix(r.URL.Path, "/webhooks/daraja/c2b/confirmation/tok") {
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&got)
