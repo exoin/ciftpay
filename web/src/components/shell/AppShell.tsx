@@ -11,7 +11,8 @@ import { useOnline } from "@/lib/useOnline";
 /**
  * Authenticated shell: left rail on desktop, bottom tabs on mobile, content
  * column max 880 px left-anchored (design-system §9). Redirects to /login
- * when there is no client-side session copy.
+ * when there is no client-side session copy, and to /onboarding when the
+ * session has no business yet.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
