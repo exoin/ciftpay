@@ -29,7 +29,8 @@ export function LoginForm() {
   const verify = useVerifyOtp();
 
   useEffect(() => {
-    if (readSession()) router.replace(next);
+    const s = readSession();
+    if (s) router.replace(hasNoOrg(s) ? "/onboarding" : next);
   }, [router, next]);
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({ resolver: zodResolver(phoneSchema), defaultValues: { phone: "" } });
