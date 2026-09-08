@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const ts = useTranslations("status");
   const locale = useLocale();
   const router = useRouter();
+  const qc = useQueryClient();
   const { data: org } = useCurrentOrg();
   const { data: shortcodes } = useShortcodes();
   const { data: ent } = useQuery({
