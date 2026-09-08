@@ -226,7 +226,7 @@ func replay(ctx context.Context, file string) error {
 	base := strings.TrimRight(env("API_BASE_URL", "http://localhost:8080"), "/")
 	path := "/webhooks/daraja/c2b/confirmation/" + token
 	if _, ok := probe["Body"]; ok {
-		path = "/webhooks/mpesa/stk/" + token
+		path = "/webhooks/daraja/stk/" + token
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+path, bytes.NewReader(body))
 	if err != nil {
