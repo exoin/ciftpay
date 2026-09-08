@@ -57,7 +57,7 @@ export function useItems() {
   });
 }
 
-export function useShortcodes() {
+export function useShortcodes(opts: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: qk.shortcodes,
     queryFn: async () => unwrap(await api.GET("/shortcodes")),
