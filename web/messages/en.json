@@ -56,6 +56,88 @@
     "wrongCode": "That code didn't match. Check the SMS and try again.",
     "footer": "By signing in you accept that CiftPay never holds your money — it only reads M-Pesa confirmations and files invoices with KRA on your behalf."
   },
+  "onboarding": {
+    "title": "Set up your business",
+    "stepLabel": "Step {n} of {total}",
+    "steps": {
+      "business": "Business",
+      "shortcode": "Till or Paybill",
+      "verify": "Prove it's yours"
+    },
+    "later": "Do this later",
+    "goToday": "Go to Today",
+    "business": {
+      "title": "Your business",
+      "lead": "The name and KRA PIN that go on every receipt.",
+      "name": "Business name",
+      "nameHint": "As buyers know it, e.g. Mama Njeri Wholesalers",
+      "nameInvalid": "2–80 characters.",
+      "pin": "KRA PIN",
+      "pinHint": "A or P, nine digits and a letter, e.g. P051234567X",
+      "pinInvalid": "That isn't a KRA PIN. It starts with A or P and has eleven characters.",
+      "pinUnknown": "KRA doesn't recognise this PIN. Check it on iTax and try again.",
+      "pinTaken": "A business with this PIN is already on CiftPay. If it's yours, sign in with the phone that registered it.",
+      "vat": "VAT registered",
+      "vatHint": "Tick if you charge 16% VAT. Leave it if you only pay turnover tax.",
+      "submit": "Save business"
+    },
+    "shortcode": {
+      "title": "Where do customers pay you?",
+      "lead": "Add the M-Pesa number you're paid on. Every payment to it becomes a KRA receipt.",
+      "kind": "Type",
+      "kinds": {
+        "till": "Till (Buy Goods)",
+        "paybill": "Paybill",
+        "pochi": "Pochi la Biashara"
+      },
+      "number": "Number",
+      "numberHintTill": "The Till number on your Lipa na M-Pesa sticker, 5–7 digits",
+      "numberHintPaybill": "Your Paybill business number, 5–7 digits",
+      "numberHintPochi": "The phone number of your Pochi, e.g. 0712 345 678",
+      "numberInvalid": "Digits only, 5 to 12 of them.",
+      "label": "Label (optional)",
+      "labelHint": "Helps when you have more than one, e.g. Shop, Kiosk",
+      "claimed": "This number is already verified by another business. If it's yours, contact support.",
+      "submit": "Add number"
+    },
+    "verify": {
+      "title": "Pay KES 1 to your own {kind}",
+      "lead": "Send exactly KES 1 from {msisdn} to {shortcode}. It stays in your M-Pesa; CiftPay only sees the confirmation.",
+      "starting": "Getting ready…",
+      "how": "On your phone",
+      "steps": {
+        "open": "Open M-Pesa → Lipa na M-Pesa",
+        "menuBuyGoods": "Choose Buy Goods and Services",
+        "menuPayBill": "Choose Pay Bill",
+        "menuPochi": "Choose Send Money",
+        "enterTill": "Till number: {value}",
+        "enterBusiness": "Business number: {value}",
+        "enterAccount": "Account number: {value}",
+        "enterPhone": "Phone number: {value}",
+        "amount": "Amount: KES 1",
+        "pin": "Enter your M-Pesa PIN and send"
+      },
+      "waiting": "Waiting for the confirmation…",
+      "timeLeft": "{time} left",
+      "verified": "Verified. Payments to {shortcode} now become KRA receipts.",
+      "expired": "Time's up. Nothing was received from {msisdn}.",
+      "expiredHint": "If you already paid, wait a minute and start again — the confirmation can lag.",
+      "claimed": "This number is already verified by another business.",
+      "claimedHint": "If it's yours, write to support@ciftpay.co.ke with your Till number and business name.",
+      "startAgain": "Start again",
+      "useOtherPhone": "Pay from a different phone",
+      "otherPhone": "Phone you'll pay from",
+      "otherPhoneInvalid": "That doesn't look like a Kenyan mobile number.",
+      "otherPhoneSubmit": "Use this number",
+      "kindNames": {
+        "till": "Till",
+        "paybill": "Paybill",
+        "pochi": "Pochi"
+      },
+      "done": "Go to Today",
+      "later": "Do this later"
+    }
+  },
   "today": {
     "title": "Today",
     "received": "Received today",
