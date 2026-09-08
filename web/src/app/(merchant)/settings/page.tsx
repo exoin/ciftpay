@@ -20,6 +20,7 @@ import { cn } from "@/lib/cn";
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const ts = useTranslations("status");
   const locale = useLocale();
   const router = useRouter();
