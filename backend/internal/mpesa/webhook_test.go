@@ -117,7 +117,7 @@ func TestConfirmation_DuplicateTransIDIngestedOnce(t *testing.T) {
 func TestConfirmation_ReversalIsFlagged(t *testing.T) {
 	ing := &fakeIngester{}
 	srv := newServer(t, ing)
-	status, _ := post(t, srv.URL+"/webhooks/mpesa/c2b/confirmation/t0k3n", fixture(t, "reversal.json"))
+	status, _ := post(t, srv.URL+"/webhooks/daraja/c2b/confirmation/t0k3n", fixture(t, "reversal.json"))
 	if status != http.StatusOK {
 		t.Fatalf("status = %d", status)
 	}
