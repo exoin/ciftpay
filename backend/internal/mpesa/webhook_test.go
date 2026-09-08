@@ -175,7 +175,7 @@ func TestSTKCallback_Flattened(t *testing.T) {
 
 func TestValidation_AlwaysAccepts(t *testing.T) {
 	srv := newServer(t, &fakeIngester{})
-	status, ack := post(t, srv.URL+"/webhooks/mpesa/c2b/validation/t0k3n", fixture(t, "c2b_confirmation.json"))
+	status, ack := post(t, srv.URL+"/webhooks/daraja/c2b/validation/t0k3n", fixture(t, "c2b_confirmation.json"))
 	if status != http.StatusOK || ack.ResultCode != 0 {
 		t.Fatalf("validation must never bounce a payment: status=%d ack=%+v", status, ack)
 	}
