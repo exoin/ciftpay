@@ -96,7 +96,7 @@ func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCe
 		"PartyA":            msisdn,
 		"PartyB":            shortcode,
 		"PhoneNumber":       msisdn,
-		"CallBackURL":       fmt.Sprintf("%s/webhooks/mpesa/stk/%s", webhookBaseURL, c.cfg.WebhookToken),
+		"CallBackURL":       fmt.Sprintf("%s/webhooks/daraja/stk/%s", webhookBaseURL, c.cfg.WebhookToken),
 		"AccountReference":  accountRef,
 		"TransactionDesc":   desc,
 	}
