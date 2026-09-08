@@ -56,6 +56,88 @@
     "wrongCode": "Nambari hiyo haikulingana. Angalia SMS ujaribu tena.",
     "footer": "Kwa kuingia unakubali kwamba CiftPay haishiki pesa zako — inasoma tu uthibitisho wa M-Pesa na kuwasilisha invoice kwa KRA kwa niaba yako."
   },
+  "onboarding": {
+    "title": "Sajili biashara yako",
+    "stepLabel": "Hatua {n} ya {total}",
+    "steps": {
+      "business": "Biashara",
+      "shortcode": "Till au Paybill",
+      "verify": "Thibitisha ni yako"
+    },
+    "later": "Fanya baadaye",
+    "goToday": "Nenda Leo",
+    "business": {
+      "title": "Biashara yako",
+      "lead": "Jina na PIN ya KRA zitakazoonekana kwenye kila risiti.",
+      "name": "Jina la biashara",
+      "nameHint": "Kama wanunuzi wanavyoijua, k.m. Mama Njeri Wholesalers",
+      "nameInvalid": "Herufi 2 hadi 80.",
+      "pin": "PIN ya KRA",
+      "pinHint": "A au P, tarakimu tisa na herufi, k.m. P051234567X",
+      "pinInvalid": "Hiyo si PIN ya KRA. Huanza na A au P na ina herufi kumi na moja.",
+      "pinUnknown": "KRA haiitambui PIN hii. Iangalie kwenye iTax ujaribu tena.",
+      "pinTaken": "Biashara yenye PIN hii tayari iko CiftPay. Ikiwa ni yako, ingia kwa simu iliyoisajili.",
+      "vat": "Imesajiliwa VAT",
+      "vatHint": "Tiki ukitoza VAT ya 16%. Acha wazi ukilipa kodi ya mauzo pekee.",
+      "submit": "Hifadhi biashara"
+    },
+    "shortcode": {
+      "title": "Wateja wanakulipa wapi?",
+      "lead": "Ongeza nambari ya M-Pesa unayolipwa nayo. Kila malipo kwake huwa risiti ya KRA.",
+      "kind": "Aina",
+      "kinds": {
+        "till": "Till (Buy Goods)",
+        "paybill": "Paybill",
+        "pochi": "Pochi la Biashara"
+      },
+      "number": "Nambari",
+      "numberHintTill": "Nambari ya Till kwenye stika yako ya Lipa na M-Pesa, tarakimu 5 hadi 7",
+      "numberHintPaybill": "Nambari ya biashara ya Paybill yako, tarakimu 5 hadi 7",
+      "numberHintPochi": "Nambari ya simu ya Pochi yako, k.m. 0712 345 678",
+      "numberInvalid": "Tarakimu pekee, 5 hadi 12.",
+      "label": "Jina (si lazima)",
+      "labelHint": "Husaidia ukiwa na zaidi ya moja, k.m. Duka, Kiosk",
+      "claimed": "Nambari hii tayari imethibitishwa na biashara nyingine. Ikiwa ni yako, wasiliana na usaidizi.",
+      "submit": "Ongeza nambari"
+    },
+    "verify": {
+      "title": "Lipa KES 1 kwa {kind} yako mwenyewe",
+      "lead": "Tuma KES 1 haswa kutoka {msisdn} kwenda {shortcode}. Zinabaki kwenye M-Pesa yako; CiftPay inaona uthibitisho tu.",
+      "starting": "Inajiandaa…",
+      "how": "Kwenye simu yako",
+      "steps": {
+        "open": "Fungua M-Pesa → Lipa na M-Pesa",
+        "menuBuyGoods": "Chagua Buy Goods and Services",
+        "menuPayBill": "Chagua Pay Bill",
+        "menuPochi": "Chagua Send Money",
+        "enterTill": "Nambari ya Till: {value}",
+        "enterBusiness": "Nambari ya biashara: {value}",
+        "enterAccount": "Nambari ya akaunti: {value}",
+        "enterPhone": "Nambari ya simu: {value}",
+        "amount": "Kiasi: KES 1",
+        "pin": "Weka PIN yako ya M-Pesa utume"
+      },
+      "waiting": "Inasubiri uthibitisho…",
+      "timeLeft": "Zimebaki {time}",
+      "verified": "Imethibitishwa. Malipo kwa {shortcode} sasa huwa risiti za KRA.",
+      "expired": "Muda umeisha. Hakuna kilichopokelewa kutoka {msisdn}.",
+      "expiredHint": "Kama tayari umelipa, subiri dakika moja uanze tena — uthibitisho unaweza kuchelewa.",
+      "claimed": "Nambari hii tayari imethibitishwa na biashara nyingine.",
+      "claimedHint": "Ikiwa ni yako, andikia support@ciftpay.co.ke ukitaja nambari ya Till na jina la biashara.",
+      "startAgain": "Anza tena",
+      "useOtherPhone": "Lipa kutoka simu nyingine",
+      "otherPhone": "Simu utakayolipa nayo",
+      "otherPhoneInvalid": "Hiyo haionekani kama nambari ya simu ya Kenya.",
+      "otherPhoneSubmit": "Tumia nambari hii",
+      "kindNames": {
+        "till": "Till",
+        "paybill": "Paybill",
+        "pochi": "Pochi"
+      },
+      "done": "Nenda Leo",
+      "later": "Fanya baadaye"
+    }
+  },
   "today": {
     "title": "Leo",
     "received": "Umepokea leo",
