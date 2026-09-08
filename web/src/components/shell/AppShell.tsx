@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BottomNav } from "./BottomNav";
 import { OrgSwitcher } from "./OrgSwitcher";
-import { readSession } from "@/lib/auth";
+import { hasNoOrg, readSession } from "@/lib/auth";
 import { useOnline } from "@/lib/useOnline";
 
 /**
