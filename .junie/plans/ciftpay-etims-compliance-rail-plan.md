@@ -345,7 +345,7 @@ The web app builds, installs as a PWA, renders the merchant shell and the public
 - Route groups `(auth)/login`, `(merchant)/{today,payments,invoices,items,attention,settings}`, `(accountant)/clients`, `(admin)/ops` with placeholder data from the API client; server-rendered `r/[code]/page.tsx` receipt page under 30 KB.
 - `public/manifest.webmanifest` and icons; Vitest test for `formatKES`; Playwright smoke for shell and receipt page; `web/Dockerfile`.
 
-### * Step 6: End-to-end verification of the scaffold and Phase-0 gate
+### ✓ Step 6: End-to-end verification of the scaffold and Phase-0 gate
 The full stack runs locally and a replayed Daraja webhook produces an ACKED mock invoice and a receipt, closing Phase 0 in `plan.md`.
 
 - Run `make up`, `make migrate`, `make gen`; confirm `GET /healthz` reports DB and queue OK.
