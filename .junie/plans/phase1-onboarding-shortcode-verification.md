@@ -218,7 +218,7 @@ Settings can add and verify shortcodes with the same components, and Playwright 
 - Add `web/e2e/onboarding.spec.ts` (happy path, claimed path, settings sheet) and run `npx tsc --noEmit`, `npm run lint`, `npx vitest run`, `npm run build`, `make e2e`.
 - Capture Pixel-5 screenshots of each onboarding step, expired/claimed states and the settings sheet into the session scratch dir and show them.
 
-###   Step 7: Close out §4.1 in docs and plans
+### ✓ Step 7: Close out §4.1 in docs and plans
 Documentation reflects the shipped behaviour and `plan.md` §4.1 is ticked.
 
 - Update `docs/ux-flows.md` (onboarding flow), `docs/data-model.md` (`shortcode_verifications`, no-payment rule), `docs/api.md` (verification contract, `WEBHOOK_BASE_URL`).
