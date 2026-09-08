@@ -193,7 +193,7 @@ A merchant paying KES 1 from their phone to their own shortcode marks it verifie
 - Build `internal/mpesa/mpesatest` fake Daraja (`oauth`, `registerurl`, `simulate` → posts confirmation to the registered URL) and `mpesa/client_test.go`.
 - Tests: `ledger/verification_test.go` (verify → 202, simulate → verified with zero payments; wrong MSISDN/amount → normal unmatched payment; claimed → 409; expired challenge), update `handler_test.go`; `go vet`/`golangci-lint` clean.
 
-### * Step 4: Add sandbox tooling and run the live Daraja sandbox check
+### ✓ Step 4: Add sandbox tooling and run the live Daraja sandbox check
 The verification loop can be driven from the CLI against the fake or the real sandbox, and one real run is documented.
 
 - Add `ciftctl simulate-c2b --shortcode --msisdn --amount --ref` using `mpesa.Client.SimulateC2B` (new method, sandbox-only endpoint).
