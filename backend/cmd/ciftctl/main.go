@@ -224,7 +224,7 @@ func replay(ctx context.Context, file string) error {
 	}
 	token := env("DARAJA_WEBHOOK_TOKEN", "dev-webhook-token")
 	base := strings.TrimRight(env("API_BASE_URL", "http://localhost:8080"), "/")
-	path := "/webhooks/mpesa/c2b/confirmation/" + token
+	path := "/webhooks/daraja/c2b/confirmation/" + token
 	if _, ok := probe["Body"]; ok {
 		path = "/webhooks/mpesa/stk/" + token
 	}
