@@ -186,7 +186,23 @@ const routes = {
   "POST /auth/otp/request": () => [202, { expires_in_seconds: 300 }],
 };
 
-const server = http.createServer((req, res) => {
+function readBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      if (!raw) return resolve(undefined);
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        resolve(undefined);
+      }
+    });
+  });
+}
+
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${port}`);
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Credentials", "true");
