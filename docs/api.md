@@ -58,8 +58,8 @@ Roles: `owner` (everything), `staff` (no settings/plan), `accountant` (read + ex
 |---|---|---|
 | System | `GET /healthz` | `{status, db, queue, version}`; 503 when degraded |
 | Auth | `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/logout` | |
-| Orgs | `GET /orgs`, `POST /orgs`, `GET /orgs/current` | `POST` performs the iTax PIN lookup |
-| Shortcodes | `GET/POST /shortcodes`, `GET/PATCH /shortcodes/{id}`, `POST /shortcodes/{id}/verify` | Verify = KES 1 STK push; completes async |
+| Orgs | `GET /orgs`, `POST /orgs`, `GET /orgs/current` | `POST` runs the PIN lookup through `fiscal.PINLookup` (mock: `P000000000Z` is unknown; vendor: `GET {base}/taxpayers/{pin}`); provider unavailable → 201 with `kra_pin_verified_at: null` |
+| Shortcodes | `GET/POST /shortcodes`, `GET/PATCH /shortcodes/{id}`, `POST /shortcodes/{id}/verify` | Verify = own-Till KES 1 control check, see §4.1 below; `GET /shortcodes/{id}` carries `verification {status, expires_at}` for polling |
 | Payments | `GET /payments?status=`, `GET /payments/{id}`, `POST /payments/{id}/convert` | Convert turns `unmatched` → sale + queued invoice |
 | Items | `GET/POST /items`, `GET /items/codes?q=` | Codes proxy `fiscal.Provider.LookupItemCodes` |
 | Sales | `GET/POST /sales` | `kind=open` (request-to-pay, Phase 2) or `cash` |
