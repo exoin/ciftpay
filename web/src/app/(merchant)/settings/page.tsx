@@ -154,7 +154,7 @@ export default function SettingsPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section>
       <h2 className="border-b border-hairline pb-2">{title}</h2>
