@@ -69,6 +69,18 @@ Roles: `owner` (everything), `staff` (no settings/plan), `accountant` (read + ex
 | Public | `GET /r/{code}` | No auth; edge-cacheable 60 s; the Next.js page renders from it |
 | Webhooks | see §5 | No session; token/signature based |
 
+### 4.1 Shortcode verification
+
+`POST /shortcodes/{id}/verify` with body `{}` (or `{"msisdn": "07…"}` to pay from another phone):
+
+| Result | Response |
+|---|---|
+| already verified, or the api has no Daraja credentials (`APP_ENV=local` default) | `200 {"status":"verified","shortcode":{…}}` |
+| challenge opened or refreshed | `202 {"status":"pending","msisdn_masked":"2541•••••513","pay":{"kind":"till","shortcode":"600000","amount_cents":100,"account_ref":"CIFTPAY"},"expires_at":"…"}` |
+| another org already verified the number | `409 shortcode_claimed` |
+
+The merchant then sends exactly KES 1 from that MSISDN to the shortcode. The C2B confirmation (`POST /webhooks/daraja/c2b/confirmation/{token}`) that matches `{shortcode, msisdn_hash, amount_cents}` against an open challenge settles it: `verified_at` is set, `audit_log` gets `shortcode.verified`, and **no payment, sale or invoice is created**. The PWA polls `GET /shortcodes/{id}` every 3 s; the response's `verification.status` is `pending | verified | expired | failed`. On a 202 the api also calls Daraja `RegisterURL` for the shortcode (best effort; failure is logged and `c2b_urls_registered_at` stays null) using `WEBHOOK_BASE_URL` as the callback origin — that variable must be the api's public URL (a tunnel in sandbox runs), whereas `PUBLIC_BASE_URL` is the web app's. Runbook: `docs/runbooks/local-dev.md` §"Shortcode verification loop".
+
 ## 5. Webhooks (inbound)
 
 ### Daraja
