@@ -238,7 +238,14 @@
     "receiptTemplate": "Receipt template",
     "receiptLead": "Buyers get an SMS with a link to a verifiable KRA receipt.",
     "account": "Account",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "addAction": "Add",
+    "addSheetTitle": "Add a Till or Paybill",
+    "verifyAction": "Verify",
+    "verifySheetTitle": "Prove it's yours",
+    "c2bRegistered": "M-Pesa confirmations connected",
+    "c2bNotRegistered": "M-Pesa confirmations not yet connected",
+    "done": "Done"
   },
   "sale": {
     "title": "Record a sale",
