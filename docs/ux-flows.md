@@ -27,7 +27,7 @@ Bottom navigation (mobile): **Today · Payments · Invoices · Attention · More
 
 One client screen, `/onboarding` (`OnboardingFlow.tsx`), with a three-segment `StepIndicator` ("Step 2 of 3 · Till or Paybill"). Login and OTP stay on `/login`; a session whose `orgs` is empty is sent here by `LoginForm` and by `AppShell` (any merchant route). The flow skips step 1 when an org exists and leaves for `/today` when a verified shortcode exists; an unverified one reopens step 3.
 
-| Step | Screen | User does | System does | Failure copy |
+| Step | Component | User does | System does | Failure copy |
 |---|---|---|---|---|
 | 1 | `/login` | Enters phone (`+254` prefilled) | `POST /auth/otp/request` | "We couldn't text that number. Check it and try again." |
 | 2 | `/login` (OTP) | Enters 6 digits; auto-submit on 6th | `POST /auth/otp/verify` → cookie | "That code didn't match. 2 tries left." |
