@@ -747,7 +747,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DarajaResult"
 
-  /webhooks/mpesa/stk/{token}:
+  /webhooks/daraja/stk/{token}:
     post:
       tags: [webhooks]
       operationId: mpesaStkCallback
