@@ -271,7 +271,7 @@ func registerURLs(ctx context.Context, shortcode string) error {
 	if err := c.RegisterC2BURLs(ctx, shortcode, cfg.WebhookBaseURL); err != nil {
 		return err
 	}
-	fmt.Printf("registered C2B URLs for %s -> %s/webhooks/mpesa/c2b/{validation,confirmation}/<token>\n", shortcode, cfg.WebhookBaseURL)
+	fmt.Printf("registered C2B URLs for %s -> %s/webhooks/daraja/c2b/{validation,confirmation}/<token>\n", shortcode, cfg.WebhookBaseURL)
 	return nil
 }
 
