@@ -140,7 +140,7 @@ Finance Act 2023: since **1 January 2024**, a business expense not supported by 
 - [ ] Onboarding completes in ≤ 3 minutes on a mid-range Android (measured with 3 design partners — needs the Daraja production shortcode, §9.2)
 
 ### 4.2 C2B ingestion & matching (`internal/mpesa`, `internal/ledger`)
-- [ ] `POST /webhooks/mpesa/c2b/confirmation/{token}`: verify path token + Daraja IP allow-list; store raw payload in `webhook_events` (`external_id = provider:TransID`); duplicate → `200` and no side effects
+- [ ] `POST /webhooks/daraja/c2b/confirmation/{token}`: verify path token + Daraja IP allow-list; store raw payload in `webhook_events` (`external_id = provider:TransID`); duplicate → `200` and no side effects
 - [ ] Normalise to `payments` (amount in cents, `msisdn_hash`, `msisdn_enc`, `bill_ref`, `paid_at`); `trans_id` unique
 - [ ] Matcher order: (1) `BillRefNumber` = open `sales.ref` → mark sale `paid`; (2) amount + `msisdn_hash` matches a pending STK request within 10 min; (3) shortcode `auto_invoice=true` → **cash sale** with `default_item_id`; (4) else `payments.status='unmatched'` → Needs attention
 - [ ] `GET /payments?status=unmatched` and `POST /payments/{id}/convert` (choose items → sale → invoice)
