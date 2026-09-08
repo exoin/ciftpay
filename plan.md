@@ -333,7 +333,7 @@ Each account unblocks a specific Phase-1 item; open them in this order. Nothing 
 7. **DCP partner** shortlist (Phase 3) — CBK-licensed Digital Credit Providers.
 
 ### 9.3 API surface v1 (see `api/openapi.yaml`)
-`POST /auth/otp/request` · `POST /auth/otp/verify` · `GET/POST /orgs` · `POST /shortcodes` · `POST /shortcodes/{id}/verify` · `GET /payments` · `POST /payments/{id}/convert` · `GET/POST /items` · `GET/POST /sales` · `GET /invoices` · `POST /invoices/{id}/retry` · `GET /reports/vat` · `GET /r/{code}` (public) · `POST /webhooks/mpesa/c2b/validation/{token}` · `POST /webhooks/mpesa/c2b/confirmation/{token}` · `POST /webhooks/mpesa/stk/{token}` · `POST /webhooks/at/delivery` · `GET /healthz`
+`POST /auth/otp/request` · `POST /auth/otp/verify` · `GET/POST /orgs` · `POST /shortcodes` · `POST /shortcodes/{id}/verify` · `GET /payments` · `POST /payments/{id}/convert` · `GET/POST /items` · `GET/POST /sales` · `GET /invoices` · `POST /invoices/{id}/retry` · `GET /reports/vat` · `GET /r/{code}` (public) · `POST /webhooks/daraja/c2b/validation/{token}` · `POST /webhooks/daraja/c2b/confirmation/{token}` · `POST /webhooks/daraja/stk/{token}` · `POST /webhooks/at/delivery` · `GET /healthz`
 
 ### 9.4 Fiscal port (Go)
 ```go
