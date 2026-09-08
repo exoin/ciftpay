@@ -27,6 +27,12 @@ export default function SettingsPage() {
   const qc = useQueryClient();
   const { data: org } = useCurrentOrg();
   const { data: shortcodes } = useShortcodes();
+  // The add/verify sheet: `add` shows the form, `verify` the KES 1 control check for one row.
+  const [sheet, setSheet] = useState<{ mode: "add" } | { mode: "verify"; shortcode: Schemas["Shortcode"] } | null>(null);
+  const closeSheet = () => {
+    setSheet(null);
+    void qc.invalidateQueries({ queryKey: qk.shortcodes });
+  };
   const { data: ent } = useQuery({
     queryKey: qk.entitlement,
     // Shape of internal/billing Entitlement (not yet in api/openapi.yaml; see local-dev.md contract debt).
