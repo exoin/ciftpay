@@ -352,3 +352,12 @@ The full stack runs locally and a replayed Daraja webhook produces an ACKED mock
 - Run `make replay-webhook tools/webhooks/c2b_confirmation.json` and assert: one `payments` row, one cash `sales` row, invoice transitions to `ACKED` via mock adapter, notification captured by the fake SMS sink, `/r/<code>` renders the receipt.
 - Run `make test` and `make lint` for both backend and web; run Playwright smoke.
 - Tick Phase-0 checkboxes in `plan.md`, record any deviations in `docs/runbooks/local-dev.md`, and list the exact next actions for Phase 1 (external accounts to open: Daraja sandbox, integrator sandbox, Africa's Talking, ODPC registration).
+
+### ✓ Step 7: Phase 1 §4.1 — Onboarding & shortcode verification
+Delivered 2026-09-08 (detailed plan: `.junie/plans/phase1-onboarding-shortcode-verification.md`).
+
+- Backend: `fiscal.PINLookup` (mock/vendor) behind `POST /orgs` (`422 pin_unknown`); `shortcode_verifications` (migration `0002`) with own-Till KES 1 C2B control check — `POST /shortcodes/{id}/verify` 202/200/409, `GET /shortcodes/{id}` polling, `tryVerification` ahead of the matcher so the KES 1 never becomes a payment; best-effort RegisterURL on `WEBHOOK_BASE_URL`; webhook paths renamed to `/webhooks/daraja/...` (Safaricom rejects "mpesa" in URLs).
+- Tooling: `mpesatest` fake Daraja, `ciftctl daraja-fake | register-urls | simulate-c2b`, `make sandbox-verify`; one live sandbox run through cloudflared (findings in the runbook).
+- Web: `/onboarding` (BusinessForm → ShortcodeForm → VerifyShortcode), org-less redirects in `LoginForm`/`AppShell`, Settings add/verify sheet, EN/SW copy; vitest 26, Playwright 32/32.
+- Docs: `ux-flows.md` §2, `data-model.md`, `api.md` §4.1, runbook procedure + deviations; `plan.md` §4.1 ticked except the design-partner timing measurement.
+- **Next:** `plan.md` §4.2 C2B ingestion & matching (reconcile job, `TransactionStatus`, auto-match measurement).
