@@ -71,9 +71,24 @@ erDiagram
 | label | text | "Main till" |
 | default_item_id | uuid → items | used for cash sales |
 | auto_invoice | boolean DEFAULT true | fallback to cash sale |
-| verified_at | timestamptz | set after KES 1 STK control check |
-| verification_checkout_id | text | Daraja `CheckoutRequestID` of the control STK |
-| c2b_urls_registered_at | timestamptz | RegisterURL done |
+| verified_at | timestamptz | set when the merchant's own KES 1 C2B payment settles a `shortcode_verifications` challenge |
+| verification_checkout_id | text | legacy: Daraja `CheckoutRequestID` of the Phase-0 STK control ping (no longer written) |
+| c2b_urls_registered_at | timestamptz | RegisterURL done (best effort, at verify time) |
+
+**`shortcode_verifications`** (migration `0002`) — one row per control-check attempt ("pay KES 1 from your own phone to your own Till").
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| org_id | uuid | RLS |
+| shortcode_id | uuid → mpesa_shortcodes | |
+| msisdn_hash | bytea | payer the merchant promised to pay from (session user, or `{msisdn}` override) |
+| amount_cents | bigint DEFAULT 100 | always KES 1 today |
+| status | text | `pending` / `verified` / `expired` / `failed` (`failed` = another org verified the number first) |
+| trans_id | text | Daraja `TransID` of the settling payment |
+| paid_at | timestamptz | |
+| expires_at | timestamptz | 10 minutes after creation; a new challenge marks older pending ones `expired` |
+
+Index (`shortcode_id`, `msisdn_hash`, `status`); RLS policy like `stk_requests` plus an ingest-scope `SELECT/UPDATE` because the C2B webhook carries no org. **Rule:** a C2B confirmation for `{shortcode, msisdn_hash, amount_cents}` that matches an open challenge is consumed by the challenge — the `webhook_events` row is stored and marked processed, `mpesa_shortcodes.verified_at` is set and `audit_log` gets `shortcode.verified`, but **no `payments`, `sales` or `invoices` row is created**. The KES 1 moved merchant-to-merchant and never entered the ledger (ADR-0003); it is the one M-Pesa movement CiftPay observes without booking. Any other C2B on the shortcode (different payer, KES 2, expired challenge) goes through the ordinary matcher.
 
 **`webhook_events`** (not tenant-scoped; raw intake, kept 13 months)
 | column | type | notes |
