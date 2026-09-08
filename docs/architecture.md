@@ -100,7 +100,7 @@ sequenceDiagram
   participant F as fiscal.Provider
   participant N as notify (Africa's Talking)
 
-  D->>A: POST /webhooks/mpesa/c2b/confirmation/{token}
+  D->>A: POST /webhooks/daraja/c2b/confirmation/{token}
   A->>A: verify token + IP allow-list
   A->>PG: INSERT webhook_events (external_id = mpesa:TransID) ON CONFLICT DO NOTHING
   alt duplicate
