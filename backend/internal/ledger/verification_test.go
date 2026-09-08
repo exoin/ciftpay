@@ -196,7 +196,7 @@ func TestVerification_OwnTillPaymentVerifiesWithoutPayment(t *testing.T) {
 	}
 	// RegisterURL was attempted against the fake with the webhook base URL.
 	reg, ok := r.fake.Registration("600123")
-	if !ok || !strings.HasPrefix(reg.ConfirmationURL, r.api.URL+"/webhooks/mpesa/c2b/confirmation/") {
+	if !ok || !strings.HasPrefix(reg.ConfirmationURL, r.api.URL+"/webhooks/daraja/c2b/confirmation/") {
 		t.Fatalf("registration = %+v, %v", reg, ok)
 	}
 	status, sc := r.call(tn, http.MethodGet, "/shortcodes/"+scID.String(), nil)
