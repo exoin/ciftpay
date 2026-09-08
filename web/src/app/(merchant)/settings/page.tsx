@@ -136,6 +136,20 @@ export default function SettingsPage() {
           </Button>
         </Section>
       </div>
+
+      <Sheet open={sheet !== null} onClose={closeSheet} title={sheet?.mode === "verify" ? t("verifySheetTitle") : t("addSheetTitle")} closeLabel={tc("close")}>
+        {sheet?.mode === "add" && <ShortcodeForm heading={false} onCreated={(sc) => setSheet({ mode: "verify", shortcode: sc })} />}
+        {sheet?.mode === "verify" && (
+          <VerifyShortcode
+            key={sheet.shortcode.id}
+            shortcode={sheet.shortcode}
+            heading="compact"
+            onVerified={() => void qc.invalidateQueries({ queryKey: qk.shortcodes })}
+            onDone={closeSheet}
+            doneLabel={t("done")}
+          />
+        )}
+      </Sheet>
     </>
   );
 }
