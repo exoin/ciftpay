@@ -210,7 +210,7 @@ A new user goes login → business → shortcode → pay-KES-1 verification → 
 - Redirect org-less sessions in `LoginForm.tsx` and `shell/AppShell.tsx`.
 - Add `onboarding.*` strings to `web/messages/en.json` and `sw.json`.
 
-###   Step 6: Integrate shortcode management into Settings and cover with e2e
+### ✓ Step 6: Integrate shortcode management into Settings and cover with e2e
 Settings can add and verify shortcodes with the same components, and Playwright proves the whole flow against the stub.
 
 - `(merchant)/settings/page.tsx`: "Add shortcode" `Sheet` with `ShortcodeForm` → `VerifyShortcode`, per-row "Verify" for unverified rows, "C2B URLs registered" hint, `qk.shortcodes` invalidation.
