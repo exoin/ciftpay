@@ -61,6 +61,21 @@ export function useShortcodes(opts: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: qk.shortcodes,
     queryFn: async () => unwrap(await api.GET("/shortcodes")),
+    enabled: opts.enabled ?? true,
+  });
+}
+
+/**
+ * One shortcode with the state of its latest control check. `poll` turns on
+ * the 3 s refetch the onboarding screen uses while the merchant pays KES 1.
+ */
+export function useShortcode(id: string | null | undefined, opts: { poll?: boolean } = {}) {
+  return useQuery({
+    queryKey: qk.shortcode(id ?? ""),
+    queryFn: async () => unwrap(await api.GET("/shortcodes/{id}", { params: { path: { id: id! } } })),
+    enabled: Boolean(id),
+    refetchInterval: opts.poll ? 3_000 : false,
+    refetchIntervalInBackground: opts.poll,
   });
 }
 
