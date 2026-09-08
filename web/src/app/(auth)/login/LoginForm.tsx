@@ -8,7 +8,7 @@ import { z } from "zod";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
-import { readSession, useRequestOtp, useVerifyOtp } from "@/lib/auth";
+import { hasNoOrg, readSession, useRequestOtp, useVerifyOtp } from "@/lib/auth";
 import { ApiRequestError } from "@/lib/api/client";
 import { maskMsisdn, normaliseMsisdn } from "@/lib/format";
 
