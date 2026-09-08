@@ -38,9 +38,9 @@ func (h *Webhooks) Mount(r chi.Router) {
 		r.Use(httpx.IPAllowlist(h.IPAllowlist))
 		r.Use(httpx.RateLimit(600, time.Minute, func(r *http.Request) string { return "webhook:" + httpx.ClientIP(r) }))
 		r.Use(h.requireToken)
-		r.Post("/mpesa/c2b/validation/{token}", h.validation)
-		r.Post("/mpesa/c2b/confirmation/{token}", h.confirmation)
-		r.Post("/mpesa/stk/{token}", h.stk)
+		r.Post("/daraja/c2b/validation/{token}", h.validation)
+		r.Post("/daraja/c2b/confirmation/{token}", h.confirmation)
+		r.Post("/daraja/stk/{token}", h.stk)
 	})
 }
 
