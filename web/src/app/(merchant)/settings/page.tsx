@@ -90,7 +90,6 @@ export default function SettingsPage() {
                       </Button>
                     )}
                   </span>
-                  <StatusChip tone={s.verified ? "acked" : "pending"}>{s.verified ? ts("verified") : ts("unverified")}</StatusChip>
                 </li>
               ))}
             </ul>
