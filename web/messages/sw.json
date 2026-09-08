@@ -238,7 +238,14 @@
     "receiptTemplate": "Muundo wa risiti",
     "receiptLead": "Wanunuzi hupata SMS yenye kiungo cha risiti ya KRA inayoweza kuthibitishwa.",
     "account": "Akaunti",
-    "signOut": "Ondoka"
+    "signOut": "Ondoka",
+    "addAction": "Ongeza",
+    "addSheetTitle": "Ongeza Till au Paybill",
+    "verifyAction": "Thibitisha",
+    "verifySheetTitle": "Thibitisha ni yako",
+    "c2bRegistered": "Uthibitisho wa M-Pesa umeunganishwa",
+    "c2bNotRegistered": "Uthibitisho wa M-Pesa bado haujaunganishwa",
+    "done": "Imekamilika"
   },
   "sale": {
     "title": "Andika mauzo",
