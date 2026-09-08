@@ -129,7 +129,9 @@ One SMS ≤ 160 GSM-7 characters; merchant names are truncated at 24 chars.
 | Duplicate Daraja callback | Nothing visible; `webhook_duplicates_total` metric increments |
 | Reversal after ACKED (Phase 2) | Invoice shows `CANCELLED` stamp with linked credit note; Attention item "Confirm credit note sent" |
 | Buyer PIN invalid format | Inline error "KRA PINs look like A123456789B"; never submitted |
-| Shortcode claimed by another org | `409` → copy in §2; support link |
+| Shortcode claimed by another org | `409 shortcode_claimed` on add or verify, or a challenge that ends `failed` → copy in §2; support address |
+| Merchant pays KES 2 (or from another phone) during verification | Treated as an ordinary payment (unmatched → Attention); the challenge stays pending and the card keeps saying exactly KES 1 |
+| Verification challenge expires | Card turns ochre; **Start again** opens a fresh 10-minute challenge and the old one is marked `expired` |
 | KRA down for > 1 h | Attention shows one grouped item "KRA is unavailable — 14 invoices waiting. We'll keep trying."; buyers already got the pending SMS |
 | Swahili overflow | Receipt lines wrap at 32 mono chars; merchant name truncates with "…" |
 | Month boundary in reports (Phase 2) | Period picker uses Africa/Nairobi; a note shows "Includes payments until 23:59 EAT on the 31st" |
