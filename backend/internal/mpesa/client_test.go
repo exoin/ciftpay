@@ -45,7 +45,7 @@ func TestClient_OAuthAndRegisterURL(t *testing.T) {
 	if !ok {
 		t.Fatal("RegisterURL not recorded")
 	}
-	if reg.ConfirmationURL != "https://api.example.com/webhooks/mpesa/c2b/confirmation/tok" || reg.ValidationURL != "https://api.example.com/webhooks/mpesa/c2b/validation/tok" {
+	if reg.ConfirmationURL != "https://api.example.com/webhooks/daraja/c2b/confirmation/tok" || reg.ValidationURL != "https://api.example.com/webhooks/daraja/c2b/validation/tok" {
 		t.Fatalf("registered %+v", reg)
 	}
 	if reg.ResponseType != "Completed" {
