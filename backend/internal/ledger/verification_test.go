@@ -259,7 +259,7 @@ func TestVerification_OwnTillPaymentVerifiesWithoutPayment(t *testing.T) {
 	// 5. A replay of the same TransID is a duplicate: still one event, no payment.
 	sims := r.fake.Simulations()
 	replay := fmt.Sprintf(`{"TransactionType":"Pay Bill","TransID":%q,"TransTime":"20260907120000","TransAmount":"1.00","BusinessShortCode":"600123","BillRefNumber":"","MSISDN":%q,"FirstName":"FAKE"}`, sims[0].TransID, ownerMSISDN)
-	replayReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, r.api.URL+"/webhooks/mpesa/c2b/confirmation/"+webhookTok, strings.NewReader(replay))
+	replayReq, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, r.api.URL+"/webhooks/daraja/c2b/confirmation/"+webhookTok, strings.NewReader(replay))
 	replayReq.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(replayReq)
 	if err != nil || resp.StatusCode != http.StatusOK {
