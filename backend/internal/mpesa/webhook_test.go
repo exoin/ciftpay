@@ -151,7 +151,7 @@ func TestConfirmation_IngestErrorStill200(t *testing.T) {
 	// must acknowledge and let the reconcile job finish the work.
 	ing := &fakeIngester{err: context.DeadlineExceeded}
 	srv := newServer(t, ing)
-	status, ack := post(t, srv.URL+"/webhooks/mpesa/c2b/confirmation/t0k3n", fixture(t, "c2b_confirmation.json"))
+	status, ack := post(t, srv.URL+"/webhooks/daraja/c2b/confirmation/t0k3n", fixture(t, "c2b_confirmation.json"))
 	if status != http.StatusOK || ack.ResultCode != 0 {
 		t.Fatalf("status=%d ack=%+v", status, ack)
 	}
