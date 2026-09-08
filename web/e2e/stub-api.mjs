@@ -213,6 +213,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   res.setHeader("Content-Type", "application/json");
+  for (const d of dynamic) {
+    const m = d.method === req.method ? d.re.exec(url.pathname) : null;
+    if (m) {
+      const [status, body] = d.handle(m, await readBody(req));
+      res.writeHead(status).end(JSON.stringify(body));
+      return;
+    }
+  }
+  const handler = routes[`${req.method} ${url.pathname}`];
   if (!handler) {
     res.writeHead(404).end(JSON.stringify({ error: { code: "not_found", message: "No receipt with that code." } }));
     return;
