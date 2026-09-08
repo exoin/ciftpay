@@ -703,7 +703,7 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
-  /webhooks/mpesa/c2b/validation/{token}:
+  /webhooks/daraja/c2b/validation/{token}:
     post:
       tags: [webhooks]
       operationId: mpesaC2bValidation
