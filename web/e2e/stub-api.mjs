@@ -3,6 +3,7 @@
 // implemented. Onboarding routes keep a little in-memory state so a spec can
 // create a business, add a Till, open the KES 1 check and poll it to verified.
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 
 const port = Number(process.env.STUB_PORT ?? 18080);
 const origin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
