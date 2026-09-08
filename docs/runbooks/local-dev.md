@@ -77,6 +77,60 @@ Stop the containerised `api`/`worker`/`web` first (`docker compose stop api work
 
 `DATABASE_URL` inside compose points at the `postgres` hostname; on the host it must be `localhost`. `AT_BASE_URL` follows the same rule.
 
+## Shortcode verification loop (own-Till KES 1)
+
+A merchant proves control of a Till/Paybill by paying **KES 1 from their own phone to that number**; the C2B confirmation settles the challenge opened by `POST /shortcodes/{id}/verify` (plan.md §4.1). Nothing is charged by CiftPay and no `payments` row is created for the KES 1. Three ways to run the loop:
+
+| Mode | Daraja | When |
+|---|---|---|
+| **unconfigured** | none (`DARAJA_CONSUMER_KEY` empty) | `POST …/verify` returns `200 verified` immediately; what `make up` gives you |
+| **fake** | `ciftctl daraja-fake` on `:18090` | tests and offline dev; `simulate` posts the confirmation straight to the URL you registered |
+| **sandbox** | `https://sandbox.safaricom.co.ke` through a tunnel | one manual run per change to the C2B path |
+
+### Against the fake
+
+```bash
+make daraja-fake                                   # terminal 1: fake Daraja on :18090
+
+# terminal 2: api on the host, pointed at the fake (any key/secret works)
+cd backend && set -a && source ../.env && set +a
+export DARAJA_BASE_URL=http://localhost:18090 DARAJA_CONSUMER_KEY=fake DARAJA_CONSUMER_SECRET=fake
+go run ./cmd/api
+
+# terminal 3: drive it
+make register-urls SHORTCODE=600123                # RegisterURL -> WEBHOOK_BASE_URL/webhooks/daraja/c2b/...
+#   sign in, create the org and the shortcode, open the challenge (see curl below)
+make simulate-c2b SHORTCODE=600123 MSISDN=0140994513
+#   GET /shortcodes/{id} -> verified: true, verification.status: "verified"
+```
+
+`make sandbox-verify SHORTCODE=… MSISDN=…` runs `register-urls` then `simulate-c2b` in one go.
+
+### Against the real sandbox
+
+1. Put the app's `DARAJA_CONSUMER_KEY` / `DARAJA_CONSUMER_SECRET` in `.env` (`DARAJA_ENV=sandbox`, `DARAJA_BASE_URL=https://sandbox.safaricom.co.ke`). The sandbox only knows its **test shortcodes** (`600000`, `600980`, `174379`…); use one of them as the merchant's Till.
+2. Expose the api: `cloudflared tunnel --url http://localhost:8080` and copy the `https://<name>.trycloudflare.com` it prints into `WEBHOOK_BASE_URL` in `.env`, then restart the api (host or `docker compose up -d api`).
+3. `make register-urls SHORTCODE=600000` — the sandbox answers `{"ResponseDescription":"Success"}`. RegisterURL only sticks for a while in the sandbox; re-run it if a later simulate produces no webhook.
+4. Sign in and open the challenge (`APP_ENV=local` logs the OTP code in the api output):
+
+   ```bash
+   API=http://localhost:8080
+   curl -s $API/auth/otp/request -H 'content-type: application/json' -d '{"msisdn":"0140994513"}'
+   curl -s -c cj $API/auth/otp/verify -H 'content-type: application/json' -d '{"msisdn":"0140994513","code":"<from api log>"}'
+   # -> {"csrf_token":"…","orgs":[]}; keep the csrf token
+   H=(-b cj -H "X-CSRF-Token: $CSRF" -H 'content-type: application/json')
+   curl -s "${H[@]}" $API/orgs -d '{"name":"Sandbox Duka","kra_pin":"P051234568Y","vat_registered":false}'
+   # -> {"id":"<org>", "kra_pin_verified_at": …}; add -H "X-Org-Id: <org>" to H
+   curl -s "${H[@]}" $API/shortcodes -d '{"kind":"till","shortcode":"600000","label":"Sandbox Till"}'
+   curl -s "${H[@]}" $API/shortcodes/<id>/verify -d '{}'
+   # -> 202 {"status":"pending","msisdn_masked":"2541•••••513","pay":{"kind":"till","shortcode":"600000","amount_cents":100,"account_ref":"CIFTPAY"},"expires_at":…}
+   ```
+
+5. Stand in for the merchant's phone: `make simulate-c2b SHORTCODE=600000 MSISDN=254708374149` (see the MSISDN finding below). The sandbox calls back the tunnel within a few seconds; the api log shows `shortcode verified by own payment` and `c2b ingested … rule=verification`.
+6. `curl -s "${H[@]}" $API/shortcodes/<id>` → `verified_at` set and `verification.status: "verified"`. Check `payments` has **no** row for the KES 1 and `audit_log` has `shortcode.verified`.
+
+Sandbox findings (2026-09-08 run): `simulate` **accepts** any Kenyan MSISDN with `ResponseCode 0`, but the confirmation callback only ever arrived for Safaricom's test MSISDN `254708374149` (within 3 s); for `254140994513` nothing came back in 5 min. So pass the test number both in `-d '{"msisdn":"254708374149"}'` on `/verify` (a new challenge replaces the pending one, which becomes `expired`) and in `MSISDN=` on `simulate-c2b`; the match is on hash, so both sides must agree. Daraja also rejects any callback URL containing the word `mpesa` (`400.003.02 Invalid ValidationURL - URL has the word MPESA`), which is why the webhook paths are `/webhooks/daraja/...`. In production there is no simulate endpoint: the merchant really sends KES 1, and RegisterURL for a Till that is not under CiftPay's Daraja app needs Safaricom's go-live/partner arrangement (plan.md §9.2), which is why registration is best-effort and surfaced as `c2b_urls_registered_at`.
+
 ## Environment variables
 
 All variables are documented in `.env.example`. The ones you will actually touch locally:
