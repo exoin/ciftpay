@@ -45,8 +45,8 @@ Roles: `owner` (everything), `staff` (no settings/plan), `accountant` (read + ex
 | 401 | `unauthenticated` | No/expired session, bad OTP |
 | 403 | `forbidden` | Role or org mismatch, CSRF failure |
 | 404 | `not_found` | Resource not in the active org (RLS makes foreign rows invisible, so also 404) |
-| 409 | `conflict`, `shortcode_claimed`, `already_converted`, `illegal_state` | Uniqueness or state-machine violations |
-| 422 | `validation_failed` | Field-level errors in `details.fields` |
+| 409 | `conflict`, `shortcode_claimed`, `already_converted`, `illegal_state` | Uniqueness or state-machine violations; `shortcode_claimed` = another org already **verified** that number (on `POST /shortcodes` and `POST /shortcodes/{id}/verify`) |
+| 422 | `validation_failed`, `pin_unknown` | Field-level errors in `details.fields`; `pin_unknown` = the fiscal provider's PIN lookup does not know the KRA PIN (`POST /orgs`) |
 | 429 | `rate_limited` | With `Retry-After` |
 | 500 | `internal` | Never leaks internals; `request_id` for support |
 
