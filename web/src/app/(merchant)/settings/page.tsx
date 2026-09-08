@@ -13,7 +13,7 @@ import { OrgSwitcher } from "@/components/shell/OrgSwitcher";
 import { ShortcodeForm } from "@/components/onboarding/ShortcodeForm";
 import { VerifyShortcode } from "@/components/onboarding/VerifyShortcode";
 import { qk, useCurrentOrg, useShortcodes } from "@/lib/api/queries";
-import { rawGet } from "@/lib/api/client";
+import { rawGet, type Schemas } from "@/lib/api/client";
 import { useLogout } from "@/lib/auth";
 import { setLocale } from "@/lib/i18n/actions";
 import { cn } from "@/lib/cn";
