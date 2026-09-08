@@ -80,6 +80,15 @@ export default function SettingsPage() {
                       {s.kind}
                       {s.label ? ` · ${s.label}` : ""}
                     </span>
+                    <span className="block text-xs text-muted">{s.c2b_urls_registered_at ? t("c2bRegistered") : t("c2bNotRegistered")}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <StatusChip tone={s.verified ? "acked" : "pending"}>{s.verified ? ts("verified") : ts("unverified")}</StatusChip>
+                    {!s.verified && (
+                      <Button size="sm" variant="secondary" onClick={() => setSheet({ mode: "verify", shortcode: s })}>
+                        {t("verifyAction")}
+                      </Button>
+                    )}
                   </span>
                   <StatusChip tone={s.verified ? "acked" : "pending"}>{s.verified ? ts("verified") : ts("unverified")}</StatusChip>
                 </li>
