@@ -24,7 +24,7 @@ make replay-webhook FILE=tools/webhooks/c2b_confirmation.json
 `make replay-webhook` runs `ciftctl replay-webhook ../tools/webhooks/c2b_confirmation.json`. The CLI:
 
 1. reads `DARAJA_WEBHOOK_TOKEN` (and `API_BASE_URL`, default `http://localhost:8080`) from the environment / `.env`;
-2. picks the route from the payload shape: C2B fields -> `POST /webhooks/mpesa/c2b/confirmation/{token}`, `Body.stkCallback` -> `POST /webhooks/mpesa/stk/{token}`;
+2. picks the route from the payload shape: C2B fields -> `POST /webhooks/daraja/c2b/confirmation/{token}`, `Body.stkCallback` -> `POST /webhooks/daraja/stk/{token}`;
 3. POSTs the JSON and prints the status and body. Daraja expects `{"ResultCode":0,"ResultDesc":"Accepted"}` and the api returns exactly that, also on duplicates.
 
 Anything other than HTTP 200 means the token is wrong (401), the body failed validation (400) or the api is down.
