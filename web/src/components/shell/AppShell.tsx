@@ -21,7 +21,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const t = useTranslations("common");
 
   useEffect(() => {
-    if (!readSession()) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    const s = readSession();
+    if (!s) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    else if (hasNoOrg(s)) router.replace("/onboarding");
   }, [router, pathname]);
 
   return (
