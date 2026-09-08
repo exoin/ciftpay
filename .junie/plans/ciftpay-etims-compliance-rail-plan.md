@@ -256,7 +256,7 @@ The product is about proof and trust, so the UI borrows from the thermal receipt
 - **Settings:** shortcodes (verify flow), business profile (KRA PIN), receipt template, language, plan.
 
 ### Onboarding (≤3 minutes)
-Phone OTP → business name + KRA PIN (format check + iTax lookup) → add Till/Paybill → verify control (KES 1 STK to own phone) → choose default item → "You're live: next M-Pesa payment becomes a KRA invoice". Progress shown as a receipt printing line by line.
+Phone OTP → business name + KRA PIN (format check + provider PIN lookup) → add Till/Paybill → verify control (**merchant pays KES 1 from their own phone to the Till**; the C2B confirmation proves control, no STK/passkey — shipped 2026-09-08) → "Go to Today". Default-item choice moved to Items (§4.5). Progress shown as a three-segment step indicator.
 
 ### Buyer receipt page `/r/<code>`
 Server-rendered, <30 KB, no JS required: merchant name, KRA PIN, invoice no., items, VAT, QR, verification status badge, "Save to phone" (share/PDF), footer CTA "Issue your own eTIMS receipts — CiftPay".
