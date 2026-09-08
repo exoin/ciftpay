@@ -29,12 +29,11 @@ One client screen, `/onboarding` (`OnboardingFlow.tsx`), with a three-segment `S
 
 | Step | Component | User does | System does | Failure copy |
 |---|---|---|---|---|
-| 1 | `/login` | Enters phone (`+254` prefilled) | `POST /auth/otp/request` | "We couldn't text that number. Check it and try again." |
-| 2 | `/login` (OTP) | Enters 6 digits; auto-submit on 6th | `POST /auth/otp/verify` → cookie | "That code didn't match. 2 tries left." |
-| 3 | `/onboarding/business` | Business name, KRA PIN (uppercase, 11 chars), VAT registered? toggle | Format check client-side; `POST /orgs` → iTax lookup returns taxpayer name shown for confirmation | "KRA doesn't recognise this PIN. Check it on iTax." |
-| 4 | `/onboarding/shortcode` | Picks Till / Paybill / Pochi, enters number, label | `POST /shortcodes` then `POST /shortcodes/{id}/verify` → "We've sent KES 1 to your phone from Till 512345. Approve it." Poll `GET /shortcodes/{id}` until `verified_at` | "No approval yet. Check your phone or tap Resend." / `409`: "This till is already on CiftPay under another business. Contact support." |
-| 5 | `/onboarding/item` | Chooses a default item from 6 suggested (e.g. "Groceries", "Hardware", "Services") or types one; tax category defaults to B if VAT registered else D | `POST /items`, `PATCH /shortcodes/{id}` with `default_item_id` | — |
-| done | `/today` | Sees "You're live. Your next M-Pesa payment becomes a KRA invoice." toast | — | — |
+| — | `/login` | Enters phone; then the 6-digit code | `POST /auth/otp/request`, `POST /auth/otp/verify` → cookie + `orgs: []` → `/onboarding` | "That code didn't match." |
+| 1 | `BusinessForm` | Business name, KRA PIN (uppercased, 11 chars), VAT registered? checkbox | Format check client-side (`^[AP]\d{9}[A-Z]$`); `POST /orgs` → fiscal provider PIN lookup; session copy gets the new membership, `X-Org-Id` switches to it | `422 pin_unknown`: "KRA doesn't recognise this PIN. Check it on iTax and try again." · `409`: "A business with this PIN is already on CiftPay…" |
+| 2 | `ShortcodeForm` | Picks Till / Paybill / Pochi, enters number (Pochi accepts `07…`), optional label | `POST /shortcodes` (`auto_invoice: true`) | `409 shortcode_claimed`: "This number is already verified by another business. If it's yours, contact support." |
+| 3 | `VerifyShortcode` | Opens M-Pesa on their own phone and sends **exactly KES 1** to the number just added (Buy Goods / Pay Bill with account `CIFTPAY` / Send Money for Pochi) | `POST /shortcodes/{id}/verify` → `202 pending` with masked payer MSISDN, `pay` instructions and `expires_at` (10 min); best-effort Daraja RegisterURL; the PWA counts down and polls `GET /shortcodes/{id}` every 3 s until `verified`. The C2B confirmation settles the challenge server-side and **creates no payment/sale/invoice** | expired: "Time's up. Nothing was received from 2547•••••513." → **Start again** (new challenge) · claimed (another org won the race): copy as above with a support address · no network: "No connection…" → Retry |
+| done | `/today` | Taps **Go to Today** | — | — |
 
 Skippable: step 4 verify (can verify later; Attention will nag), step 5 (auto-invoice off until set).
 
