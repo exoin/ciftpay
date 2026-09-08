@@ -65,7 +65,7 @@ replay-webhook: ## Replay a Daraja payload: make replay-webhook FILE=tools/webho
 # override on the command line:
 #   make sandbox-verify SHORTCODE=600000 MSISDN=0140994513
 SHORTCODE ?= 600000
-MSISDN ?= 0140994513
+MSISDN ?= 254708374149
 
 .PHONY: daraja-fake
 daraja-fake: ## Run the in-process fake Daraja on :18090 (point DARAJA_BASE_URL at it)
