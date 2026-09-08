@@ -91,7 +91,7 @@ func TestConfirmation_DuplicateTransIDIngestedOnce(t *testing.T) {
 	ing := &fakeIngester{}
 	srv := newServer(t, ing)
 	body := fixture(t, "c2b_confirmation.json")
-	url := srv.URL + "/webhooks/mpesa/c2b/confirmation/t0k3n"
+	url := srv.URL + "/webhooks/daraja/c2b/confirmation/t0k3n"
 
 	for i := 0; i < 3; i++ {
 		status, ack := post(t, url, body)
