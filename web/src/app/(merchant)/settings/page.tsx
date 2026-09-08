@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Sheet } from "@/components/ui/Sheet";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { OrgSwitcher } from "@/components/shell/OrgSwitcher";
+import { ShortcodeForm } from "@/components/onboarding/ShortcodeForm";
+import { VerifyShortcode } from "@/components/onboarding/VerifyShortcode";
 import { qk, useCurrentOrg, useShortcodes } from "@/lib/api/queries";
 import { rawGet } from "@/lib/api/client";
 import { useLogout } from "@/lib/auth";
