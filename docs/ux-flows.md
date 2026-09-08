@@ -23,7 +23,7 @@ Companion to [`design-system.md`](design-system.md) (how it looks) and [`api.md`
 
 Bottom navigation (mobile): **Today · Payments · Invoices · Attention · More**. "More" opens Items, Settings, Reports (Phase 2), Help, Language, Sign out.
 
-## 2. Onboarding (target ≤ 3 minutes, 5 steps)
+## 2. Onboarding (target ≤ 3 minutes; shipped in §4.1)
 
 The progress indicator is a receipt printing line by line: each completed step appends a mono line to a `ReceiptCard` at the top of the screen ("PHONE  +2547•••345  ✓"). The final step prints the total line "YOU'RE LIVE".
 
