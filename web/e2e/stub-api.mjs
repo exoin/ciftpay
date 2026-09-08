@@ -212,7 +212,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(204).end();
     return;
   }
-  const handler = routes[`${req.method} ${url.pathname}`];
   res.setHeader("Content-Type", "application/json");
   if (!handler) {
     res.writeHead(404).end(JSON.stringify({ error: { code: "not_found", message: "No receipt with that code." } }));
