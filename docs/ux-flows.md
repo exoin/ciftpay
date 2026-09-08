@@ -35,7 +35,9 @@ One client screen, `/onboarding` (`OnboardingFlow.tsx`), with a three-segment `S
 | 3 | `VerifyShortcode` | Opens M-Pesa on their own phone and sends **exactly KES 1** to the number just added (Buy Goods / Pay Bill with account `CIFTPAY` / Send Money for Pochi) | `POST /shortcodes/{id}/verify` → `202 pending` with masked payer MSISDN, `pay` instructions and `expires_at` (10 min); best-effort Daraja RegisterURL; the PWA counts down and polls `GET /shortcodes/{id}` every 3 s until `verified`. The C2B confirmation settles the challenge server-side and **creates no payment/sale/invoice** | expired: "Time's up. Nothing was received from 2547•••••513." → **Start again** (new challenge) · claimed (another org won the race): copy as above with a support address · no network: "No connection…" → Retry |
 | done | `/today` | Taps **Go to Today** | — | — |
 
-Skippable: step 4 verify (can verify later; Attention will nag), step 5 (auto-invoice off until set).
+Also on step 3: **Pay from a different phone** (posts `{msisdn}` and reopens the challenge for that payer) and **Do this later** (to `/today`; Attention nags about the unverified shortcode). Without Daraja credentials (`make up` default) the api answers `200 verified` immediately and step 3 collapses to the success card. The default-item step from the original design is deferred to §4.5 Items; cash sales fall back to the shortcode's `default_item_id` once set.
+
+The same `ShortcodeForm` and `VerifyShortcode` power **Settings › Shortcodes**: an **Add** button opens a `Sheet` (form → KES 1 check → **Done**), every unverified row has a **Verify** button, and each row shows whether M-Pesa confirmations are connected (`c2b_urls_registered_at`).
 
 ## 3. Daily loop (merchant)
 
