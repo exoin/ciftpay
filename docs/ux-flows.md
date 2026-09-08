@@ -25,7 +25,7 @@ Bottom navigation (mobile): **Today · Payments · Invoices · Attention · More
 
 ## 2. Onboarding (target ≤ 3 minutes; shipped in §4.1)
 
-The progress indicator is a receipt printing line by line: each completed step appends a mono line to a `ReceiptCard` at the top of the screen ("PHONE  +2547•••345  ✓"). The final step prints the total line "YOU'RE LIVE".
+One client screen, `/onboarding` (`OnboardingFlow.tsx`), with a three-segment `StepIndicator` ("Step 2 of 3 · Till or Paybill"). Login and OTP stay on `/login`; a session whose `orgs` is empty is sent here by `LoginForm` and by `AppShell` (any merchant route). The flow skips step 1 when an org exists and leaves for `/today` when a verified shortcode exists; an unverified one reopens step 3.
 
 | Step | Screen | User does | System does | Failure copy |
 |---|---|---|---|---|
