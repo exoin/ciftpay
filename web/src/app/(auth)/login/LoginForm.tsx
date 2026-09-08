@@ -76,8 +76,9 @@ export function LoginForm() {
       noValidate
       className="space-y-4"
       onSubmit={codeForm.handleSubmit(async ({ code }) => {
-        await verify.mutateAsync({ msisdn, code });
-        router.replace(next);
+        const s = await verify.mutateAsync({ msisdn, code });
+        // A brand-new user has no business yet: onboarding comes before anything else.
+        router.replace(hasNoOrg(s) ? "/onboarding" : next);
       })}
     >
       <p className="text-sm text-ink-2">{t("codeSentTo", { msisdn: maskMsisdn(msisdn), minutes: Math.max(1, Math.round(expires / 60)) })}</p>
