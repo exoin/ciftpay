@@ -129,7 +129,7 @@ func TestConfirmation_ReversalIsFlagged(t *testing.T) {
 func TestConfirmation_BadTokenRejected(t *testing.T) {
 	ing := &fakeIngester{}
 	srv := newServer(t, ing)
-	status, _ := post(t, srv.URL+"/webhooks/mpesa/c2b/confirmation/wrong", fixture(t, "c2b_confirmation.json"))
+	status, _ := post(t, srv.URL+"/webhooks/daraja/c2b/confirmation/wrong", fixture(t, "c2b_confirmation.json"))
 	if status != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", status)
 	}
