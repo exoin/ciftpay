@@ -159,6 +159,23 @@ export function useCreateItem() {
   });
 }
 
+export function useCreateShortcode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Schemas["ShortcodeCreate"]) => unwrap(await api.POST("/shortcodes", { body })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.shortcodes });
+      void qc.invalidateQueries({ queryKey: qk.attention });
+    },
+  });
+}
+
+/**
+ * Opens (or refreshes) the own-Till control check. Resolves to `pending` with
+ * the payment instructions, or `verified` when the shortcode already is (or
+ * the api runs without Daraja credentials). `shortcode_claimed` surfaces as an
+ * `ApiRequestError` with status 409.
+ */
 export function useVerifyShortcode() {
   const qc = useQueryClient();
   return useMutation({
