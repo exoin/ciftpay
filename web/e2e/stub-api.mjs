@@ -184,15 +184,6 @@ const routes = {
   "GET /orgs/current": () => [200, { id: "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", name: "Mama Njeri Groceries", kra_pin_masked: "A•••••••••B", locale: "en", vat_registered: true }],
   "GET /billing/entitlement": () => [200, { plan: "Hustler", used: 12, limit: 30 }],
   "POST /auth/otp/request": () => [202, { expires_in_seconds: 300 }],
-  "POST /auth/otp/verify": () => [
-    200,
-    {
-      user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      csrf_token: "csrf-test",
-      expires_at: new Date(Date.now() + 3600_000).toISOString(),
-      orgs: [{ org_id: "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", name: "Mama Njeri Groceries", role: "owner", is_default: true }],
-    },
-  ],
 };
 
 const server = http.createServer((req, res) => {
