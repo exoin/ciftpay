@@ -86,9 +86,11 @@ The merchant then sends exactly KES 1 from that MSISDN to the shortcode. The C2B
 ### Daraja
 | Path | Purpose | Response |
 |---|---|---|
-| `POST /webhooks/mpesa/c2b/validation/{token}` | Pre-payment validation. CiftPay **always accepts** (`ResultCode 0`) — rejecting would block a customer's payment, which is not our role. Payload is stored as `webhook_events.kind='c2b_validation'`. | `{"ResultCode":0,"ResultDesc":"Accepted"}` |
-| `POST /webhooks/mpesa/c2b/confirmation/{token}` | Money moved. Stored with `external_id = mpesa:<TransID>`; duplicates return 200 without side effects; new events run the matcher and enqueue `SubmitInvoice` in the same transaction. | same |
-| `POST /webhooks/mpesa/stk/{token}` | STK result. `external_id = mpesa:stk:<CheckoutRequestID>`. Used for shortcode verification (Phase 1) and request-to-pay (Phase 2). | same |
+| `POST /webhooks/daraja/c2b/validation/{token}` | Pre-payment validation. CiftPay **always accepts** (`ResultCode 0`) — rejecting would block a customer's payment, which is not our role. Payload is stored as `webhook_events.kind='c2b_validation'`. | `{"ResultCode":0,"ResultDesc":"Accepted"}` |
+| `POST /webhooks/daraja/c2b/confirmation/{token}` | Money moved. Stored with `external_id = mpesa:<TransID>`; duplicates return 200 without side effects; new events first try to settle an open shortcode verification challenge (§4.1, no payment row), otherwise run the matcher and enqueue `SubmitInvoice` in the same transaction. | same |
+| `POST /webhooks/daraja/stk/{token}` | STK result. `external_id = mpesa:stk:<CheckoutRequestID>`. Request-to-pay (Phase 2); the Phase-0 `verify` purpose is kept for compatibility but no longer issued. | same |
+
+The path segment is `daraja`, not `mpesa`: Safaricom rejects any callback URL containing the word "MPESA" (`400.003.02`).
 
 Security: `{token}` must equal `DARAJA_WEBHOOK_TOKEN`; requests from outside the Safaricom IP allow-list are rejected with 404 when `DARAJA_IP_ALLOWLIST` is set (empty in dev). Bodies over 64 KB are rejected. Handlers must respond within 5 s; no external calls happen inside them.
 
