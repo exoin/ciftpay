@@ -131,12 +131,13 @@ Finance Act 2023: since **1 January 2024**, a business expense not supported by 
 **Sequencing:** 4.1 → 4.2 → 4.3 → 4.4 → 4.5 → 4.6 (UI can start in parallel with 4.2 once OpenAPI stubs exist).
 
 ### 4.1 Onboarding & shortcode verification (`internal/org`, `internal/mpesa`)
-- [ ] `POST /auth/otp/request` sends a 6-digit OTP via Africa's Talking; rate-limited 5/hour/MSISDN; codes hashed, 5-min TTL
-- [ ] `POST /auth/otp/verify` issues HttpOnly `SameSite=Lax` session cookie; CSRF token returned in body for mutations
-- [ ] `POST /orgs` with business name + KRA PIN: regex `^[AP]\d{9}[A-Z]$`, then iTax PIN-checker lookup; store `kra_pin_enc` + `pin_hash`
-- [ ] `POST /shortcodes` registers Till / Paybill / Pochi; `POST /shortcodes/{id}/verify` triggers a KES 1 STK push to the merchant's own MSISDN and marks `verified_at` on successful callback; a shortcode already verified by another org is rejected with `409 shortcode_claimed`
-- [ ] Daraja C2B `RegisterURL` called on verification with our `validation`/`confirmation` URLs (Phase-1 uses Daraja sandbox; production requires Safaricom Go-Live)
-- [ ] Onboarding completes in ≤ 3 minutes on a mid-range Android (measured with 3 design partners)
+- [x] `POST /auth/otp/request` sends a 6-digit OTP via Africa's Talking; rate-limited 5/hour/MSISDN (`OTPMaxPerHour`) plus an IP limit; codes hashed, 5-min TTL (`OTPTTL`)
+- [x] `POST /auth/otp/verify` issues HttpOnly `SameSite=Lax` session cookie; CSRF token returned in body for mutations
+- [x] `POST /orgs` with business name + KRA PIN: regex `^[AP]\d{9}[A-Z]$`, then PIN lookup through `fiscal.PINLookup` (mock / vendor `GET /taxpayers/{pin}`; unknown → `422 pin_unknown`, provider down → 201 unverified); store `kra_pin_enc` + `pin_hash` (2026-09-08)
+- [x] `POST /shortcodes` registers Till / Paybill / Pochi; `POST /shortcodes/{id}/verify` opens a 10-min **own-Till control check** — the merchant pays KES 1 from their own phone to the shortcode and the C2B confirmation marks `verified_at` without creating a payment (`shortcode_verifications`, migration `0002`); a shortcode already verified by another org is rejected with `409 shortcode_claimed`. *Deviation:* STK push replaced by own-Till C2B (no passkey per merchant, no PIN prompt; see `docs/data-model.md`) (2026-09-08)
+- [x] Daraja C2B `RegisterURL` called on verification with our `validation`/`confirmation` URLs, best effort, using `WEBHOOK_BASE_URL`; paths are `/webhooks/daraja/...` because Safaricom rejects URLs containing "mpesa". Verified once against the live sandbox through a cloudflared tunnel (shortcode `600000`, test MSISDN `254708374149`; runbook 2026-09-08 entries). Production still requires Safaricom Go-Live (§9.2)
+- [x] PWA `/onboarding` (business → shortcode → pay KES 1) + Settings add/verify sheet; Playwright 32/32 (mobile + desktop), vitest 26 (2026-09-08)
+- [ ] Onboarding completes in ≤ 3 minutes on a mid-range Android (measured with 3 design partners — needs the Daraja production shortcode, §9.2)
 
 ### 4.2 C2B ingestion & matching (`internal/mpesa`, `internal/ledger`)
 - [ ] `POST /webhooks/mpesa/c2b/confirmation/{token}`: verify path token + Daraja IP allow-list; store raw payload in `webhook_events` (`external_id = provider:TransID`); duplicate → `200` and no side effects
