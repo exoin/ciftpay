@@ -201,7 +201,7 @@ The verification loop can be driven from the CLI against the fake or the real sa
 - Document in `docs/runbooks/local-dev.md`: start `cloudflared tunnel --url http://localhost:8080`, set `WEBHOOK_BASE_URL`, register URLs for the sandbox test shortcode, create org/shortcode/verify with `0140994513`, simulate, observe `verified_at`.
 - Execute the run once with the credentials in `.env`; log the outcome (including whether the sandbox accepts a non-test MSISDN) as deviation entries.
 
-###   Step 5: Build the onboarding flow in the PWA
+### ✓ Step 5: Build the onboarding flow in the PWA
 A new user goes login → business → shortcode → pay-KES-1 verification → `/today` in one screen.
 
 - Add hooks: `useCreateOrg` (`auth.ts`: `writeSession` + `setActiveOrgId`), `useCreateShortcode`, `useShortcode(id, poll)`, updated `useVerifyShortcode` in `queries.ts`.
