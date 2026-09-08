@@ -1,5 +1,7 @@
 // Minimal CiftPay API stub for Playwright smoke tests. Shapes follow
-// api/openapi.yaml; only the endpoints the shell touches are implemented.
+// api/openapi.yaml; only the endpoints the shell and onboarding touch are
+// implemented. Onboarding routes keep a little in-memory state so a spec can
+// create a business, add a Till, open the KES 1 check and poll it to verified.
 import http from "node:http";
 
 const port = Number(process.env.STUB_PORT ?? 18080);
