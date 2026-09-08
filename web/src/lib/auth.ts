@@ -70,6 +70,33 @@ export function useVerifyOtp() {
   });
 }
 
+/**
+ * Creates the business and makes it the active org. The api returns the `Org`,
+ * not a new session, so the sessionStorage copy gets the membership appended
+ * (the caller is the owner; the first org is the default, as on the server).
+ */
+export function useCreateOrg() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Schemas["OrgCreate"]) => unwrap(await api.POST("/orgs", { body })),
+    onSuccess: (org) => {
+      const s = readSession();
+      if (s && !s.orgs.some((o) => o.org_id === org.id)) {
+        const next: Session = { ...s, orgs: [...s.orgs, { org_id: org.id, name: org.name, role: "owner", is_default: s.orgs.length === 0 }] };
+        writeSession(next);
+        qc.setQueryData(qk.session, next);
+      }
+      switchOrg(qc, org.id);
+      void qc.invalidateQueries({ queryKey: qk.orgs });
+    },
+  });
+}
+
+/** True when the signed-in user has not created or joined a business yet. */
+export function hasNoOrg(s: Session | null): boolean {
+  return s !== null && s.orgs.length === 0;
+}
+
 export function useLogout() {
   const qc = useQueryClient();
   const router = useRouter();
