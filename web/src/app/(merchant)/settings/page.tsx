@@ -157,7 +157,10 @@ export default function SettingsPage() {
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section>
-      <h2 className="border-b border-hairline pb-2">{title}</h2>
+      <div className="flex items-end justify-between gap-3 border-b border-hairline pb-2">
+        <h2>{title}</h2>
+        {action}
+      </div>
       <div className="mt-3">{children}</div>
     </section>
   );
