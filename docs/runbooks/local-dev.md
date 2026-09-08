@@ -139,7 +139,7 @@ All variables are documented in `.env.example`. The ones you will actually touch
 |---|---|---|
 | `FISCAL_ADAPTER` | `mock` | `mock`, `vendor` or `oscu`; keep `mock` unless you have integrator sandbox keys |
 | `MOCK_FAIL_MODE` | `none` | `none`, `retryable`, `terminal`; used to exercise the failure paths (see fiscal-failures.md) |
-| `DARAJA_WEBHOOK_TOKEN` | `dev-webhook-token` | path token on `/webhooks/mpesa/*/{token}`; `ciftctl replay-webhook` reads it |
+| `DARAJA_WEBHOOK_TOKEN` | `dev-webhook-token` | path token on `/webhooks/daraja/*/{token}`; `ciftctl replay-webhook` reads it |
 | `SESSION_SECRET`, `HASH_PEPPER` | dev values | change for anything that is not a laptop |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080` | what the browser calls (inlined at build time) |
 | `PUBLIC_BASE_URL` | `http://localhost:3000` | web origin used in SMS receipt links (`/r/<code>`) |
