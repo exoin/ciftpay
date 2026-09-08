@@ -60,7 +60,14 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        <Section title={t("shortcodes")}>
+        <Section
+          title={t("shortcodes")}
+          action={
+            <Button size="sm" variant="secondary" onClick={() => setSheet({ mode: "add" })}>
+              {t("addAction")}
+            </Button>
+          }
+        >
           {!shortcodes || shortcodes.data.length === 0 ? (
             <EmptyState>{t("addShortcode")}</EmptyState>
           ) : (
