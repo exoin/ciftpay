@@ -317,9 +317,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ShortcodeVerification"
-        "200":
-          description: Already verified (or verified immediately in local mode)
+                $ref: "#/components/schemas/Shortcode"
+        "409":
+          description: Already `verified` (`conflict`) or verified by another organisation (`shortcode_claimed`)
           content:
             application/json:
               schema:
