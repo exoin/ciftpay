@@ -22,8 +22,10 @@ import (
 // ErrDuplicate is returned when a TransID was already ingested.
 var ErrDuplicate = errors.New("ledger: duplicate transaction")
 
-// ErrUnknownShortcode is returned when no org owns the BusinessShortCode.
-var ErrUnknownShortcode = errors.New("ledger: unknown shortcode")
+// ErrUnknownShortcode is returned when no org holds the BusinessShortCode as
+// a verified shortcode (ADR-0008): pending or rejected rows do not count, so
+// money never lands in a ledger Safaricom has not confirmed.
+var ErrUnknownShortcode = errors.New("ledger: no verified shortcode")
 
 // Service applies matcher decisions to the database.
 type Service struct {
@@ -72,6 +74,7 @@ func (s *Service) IngestC2B(ctx context.Context, in C2BInput) (C2BResult, error)
 	// 1. Cross-tenant: store the raw event and resolve the shortcode.
 	var eventID *uuid.UUID
 	var sc gen.ResolveShortcodeRow
+	var unknown bool
 	err := s.DB.WithIngest(ctx, func(ctx context.Context, tx db.Tx) error {
 		id, err := tx.InsertWebhookEvent(ctx, gen.InsertWebhookEventParams{
 			Provider: "mpesa", Kind: in.Kind, ExternalID: "mpesa:" + in.TransID, Payload: in.Raw,
@@ -85,8 +88,11 @@ func (s *Service) IngestC2B(ctx context.Context, in C2BInput) (C2BResult, error)
 		eventID = &id
 		sc, err = s.ResolveForC2B(ctx, tx, in)
 		if errors.Is(err, pgx.ErrNoRows) {
-			_ = tx.MarkWebhookProcessed(ctx, gen.MarkWebhookProcessedParams{ID: id, Error: db.Ptr("unknown shortcode " + in.ShortCode)})
-			return ErrUnknownShortcode
+			// Commit the event with its reason (returning an error here would
+			// roll the insert back and lose the evidence); the caller still
+			// answers 200 so Daraja does not retry.
+			unknown = true
+			return tx.MarkWebhookProcessed(ctx, gen.MarkWebhookProcessedParams{ID: id, Error: db.Ptr("no verified shortcode " + in.ShortCode)})
 		}
 		return err
 	})
@@ -97,7 +103,17 @@ func (s *Service) IngestC2B(ctx context.Context, in C2BInput) (C2BResult, error)
 	if err != nil {
 		return res, err
 	}
+	if unknown {
+		return res, ErrUnknownShortcode
+	}
 	return s.ProcessStoredC2B(ctx, *eventID, sc, in)
+}
+
+// ResolveForC2B finds the org a C2B confirmation belongs to. Must run under
+// db.WithIngest. Only a verified shortcode resolves (the Administrative Gate,
+// ADR-0008); anything else is pgx.ErrNoRows.
+func (s *Service) ResolveForC2B(ctx context.Context, tx db.Tx, in C2BInput) (gen.ResolveShortcodeRow, error) {
+	return tx.ResolveShortcode(ctx, in.ShortCode)
 }
 
 // ProcessStoredC2B runs the tenant-scoped half of IngestC2B for a webhook
@@ -133,12 +149,6 @@ func (s *Service) applyPayment(ctx context.Context, tx db.Tx, sc gen.ResolveShor
 	if norm, err := crypto.NormaliseMSISDN(in.MSISDN); err == nil {
 		msisdnHash = s.Keys.Hash(norm)
 		msisdnEnc, _ = s.Keys.EncryptString(norm)
-	}
-
-	// The merchant's own KES 1 control payment settles the open challenge and
-	// is deliberately not recorded as a payment (plan.md §4.1).
-	if consumed, err := s.tryVerification(ctx, tx, sc, in, msisdnHash, res); consumed || err != nil {
-		return err
 	}
 
 	decision := Match(

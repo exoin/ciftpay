@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, unwrap, type Schemas } from "./client";
+import { api, postForm, unwrap, type Schemas } from "./client";
 
 /** Query keys, one namespace per resource so invalidation stays coarse and safe. */
 export const qk = {
@@ -65,17 +65,11 @@ export function useShortcodes(opts: { enabled?: boolean } = {}) {
   });
 }
 
-/**
- * One shortcode with the state of its latest control check. `poll` turns on
- * the 3 s refetch the onboarding screen uses while the merchant pays KES 1.
- */
-export function useShortcode(id: string | null | undefined, opts: { poll?: boolean } = {}) {
+export function useShortcode(id: string | null | undefined) {
   return useQuery({
     queryKey: qk.shortcode(id ?? ""),
     queryFn: async () => unwrap(await api.GET("/shortcodes/{id}", { params: { path: { id: id! } } })),
     enabled: Boolean(id),
-    refetchInterval: opts.poll ? 3_000 : false,
-    refetchIntervalInBackground: opts.poll,
   });
 }
 
@@ -171,20 +165,20 @@ export function useCreateShortcode() {
 }
 
 /**
- * Opens (or refreshes) the own-Till control check. Resolves to `pending` with
- * the payment instructions, or `verified` when the shortcode already is (or
- * the api runs without Daraja credentials). `shortcode_claimed` surfaces as an
- * `ApiRequestError` with status 409.
+ * Uploads the signed Safaricom authorization letter (multipart field `letter`).
+ * Resolves to the shortcode, still `pending_authorization` but with
+ * `authorization_letter_uploaded: true`. 409 `conflict` (already verified),
+ * 409 `shortcode_claimed` and 422 `validation` surface as `ApiRequestError`.
  */
-export function useVerifyShortcode() {
+export function useSubmitShortcodeAuthorization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: string | { id: string; msisdn?: string }): Promise<Schemas["ShortcodeVerification"]> => {
-      const { id, msisdn } = typeof vars === "string" ? { id: vars, msisdn: undefined } : vars;
-      return unwrap(await api.POST("/shortcodes/{id}/verify", { params: { path: { id } }, body: msisdn ? { msisdn } : {} }));
+    mutationFn: async ({ id, file }: { id: string; file: File }): Promise<Schemas["Shortcode"]> => {
+      const form = new FormData();
+      form.append("letter", file, file.name);
+      return postForm(`/shortcodes/${encodeURIComponent(id)}/authorization`, form);
     },
-    onSuccess: (_res, vars) => {
-      const id = typeof vars === "string" ? vars : vars.id;
+    onSuccess: (_sc, { id }) => {
       void qc.invalidateQueries({ queryKey: qk.shortcodes });
       void qc.invalidateQueries({ queryKey: qk.shortcode(id) });
       void qc.invalidateQueries({ queryKey: qk.attention });

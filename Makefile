@@ -59,13 +59,13 @@ seed: ## Insert the demo org, shortcode, item and user
 replay-webhook: ## Replay a Daraja payload: make replay-webhook FILE=tools/webhooks/stk_callback.json
 	cd $(BACKEND) && go run ./cmd/ciftctl replay-webhook ../$(FILE)
 
-# Shortcode verification loop (plan.md §4.1). Defaults target the Daraja
-# sandbox test shortcode and Safaricom's test MSISDN (the sandbox only delivers
-# C2B callbacks for its own test numbers, see docs/runbooks/local-dev.md);
-# override on the command line:
-#   make sandbox-verify SHORTCODE=600000 MSISDN=0140994513
+# Daraja sandbox tooling. Defaults target the sandbox test Till and Safaricom's
+# test MSISDN (the sandbox only delivers C2B callbacks for its own test
+# numbers, see docs/runbooks/local-dev.md); override on the command line:
+#   make sandbox-c2b SHORTCODE=600000 MSISDN=254708374149 AMOUNT=250
 SHORTCODE ?= 600000
 MSISDN ?= 254708374149
+AMOUNT ?= 1
 
 .PHONY: daraja-fake
 daraja-fake: ## Run the in-process fake Daraja on :18090 (point DARAJA_BASE_URL at it)
@@ -76,16 +76,19 @@ register-urls: ## Daraja RegisterURL for $(SHORTCODE) at WEBHOOK_BASE_URL (sandb
 	cd $(BACKEND) && go run ./cmd/ciftctl register-urls $(SHORTCODE)
 
 .PHONY: simulate-c2b
-simulate-c2b: ## Emit a KES 1 C2B from $(MSISDN) to $(SHORTCODE) (sandbox or fake)
-	cd $(BACKEND) && go run ./cmd/ciftctl simulate-c2b --shortcode $(SHORTCODE) --msisdn $(MSISDN) --amount 1 --ref CIFTPAY
+simulate-c2b: ## Emit a KES $(AMOUNT) C2B from $(MSISDN) to $(SHORTCODE) (sandbox or fake)
+	cd $(BACKEND) && go run ./cmd/ciftctl simulate-c2b --shortcode $(SHORTCODE) --msisdn $(MSISDN) --amount $(AMOUNT) $(if $(REF),--ref $(REF),)
 
-.PHONY: sandbox-verify
-sandbox-verify: ## Drive the own-Till verification against Daraja: register URLs then simulate the KES 1
+.PHONY: verify-shortcode
+verify-shortcode: ## Administrative Gate (ADR-0008): mark SHORTCODE (id or number) verified; REASON=... rejects instead
+	cd $(BACKEND) && go run ./cmd/ciftctl verify-shortcode $(SHORTCODE) $(if $(REASON),--reject "$(REASON)",) $(if $(NOTE),--note "$(NOTE)",)
+
+.PHONY: sandbox-c2b
+sandbox-c2b: ## Smoke the C2B pipe against Daraja: register URLs for SHORTCODE then simulate a payment to it
 	@echo "WEBHOOK_BASE_URL=$(WEBHOOK_BASE_URL) (for the real sandbox this must be a public tunnel, e.g. cloudflared tunnel --url http://localhost:8080)"
-	@echo "1. open the challenge in the app or: POST /shortcodes/{id}/verify"
+	@echo "The payment only reaches a ledger if SHORTCODE is 'verified' in CiftPay: make verify-shortcode SHORTCODE=$(SHORTCODE)"
 	$(MAKE) register-urls SHORTCODE=$(SHORTCODE)
-	$(MAKE) simulate-c2b SHORTCODE=$(SHORTCODE) MSISDN=$(MSISDN)
-	@echo "2. poll GET /shortcodes/{id} until verified=true (see docs/runbooks/local-dev.md)"
+	$(MAKE) simulate-c2b SHORTCODE=$(SHORTCODE) MSISDN=$(MSISDN) AMOUNT=$(AMOUNT)
 
 .PHONY: gen
 gen: gen-sqlc gen-api ## Regenerate sqlc code and the TypeScript API client

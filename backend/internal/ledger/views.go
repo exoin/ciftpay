@@ -20,12 +20,28 @@ type ShortcodeView struct {
 	Label         string     `json:"label"`
 	DefaultItemID *uuid.UUID `json:"default_item_id"`
 	AutoInvoice   bool       `json:"auto_invoice"`
-	Verified      bool       `json:"verified"`
-	VerifiedAt    *time.Time `json:"verified_at"`
+	// Status is the Administrative Gate state (ADR-0008):
+	// pending_authorization | verified | rejected. Verified mirrors it.
+	Status                      string     `json:"status"`
+	Verified                    bool       `json:"verified"`
+	VerifiedAt                  *time.Time `json:"verified_at"`
+	AuthorizationLetterUploaded bool       `json:"authorization_letter_uploaded"`
+	AuthorizationSubmittedAt    *time.Time `json:"authorization_submitted_at"`
+	RejectionReason             *string    `json:"rejection_reason"`
 	// C2BURLsRegisteredAt is when Daraja RegisterURL last succeeded for it.
 	C2BURLsRegisteredAt *time.Time `json:"c2b_urls_registered_at"`
-	// Verification is the latest control-check challenge (GET /shortcodes/{id}).
-	Verification *VerificationState `json:"verification,omitempty"`
+}
+
+// AdminShortcodeView is the AdminShortcode schema: a shortcode plus the
+// owning org, for the operator queue.
+type AdminShortcodeView struct {
+	ShortcodeView
+	OrgID      uuid.UUID  `json:"org_id"`
+	OrgName    string     `json:"org_name"`
+	OrgKRAPin  string     `json:"org_kra_pin"`
+	ReviewedBy *string    `json:"reviewed_by"`
+	ReviewedAt *time.Time `json:"reviewed_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 // PaymentView is the Payment schema.
@@ -138,9 +154,21 @@ type AttentionView struct {
 	ActionableCount      int             `json:"actionable_count"`
 }
 
-func toShortcode(s gen.MpesaShortcode) ShortcodeView {
+// ToShortcode maps a row to the API view (exported for the admin package).
+func ToShortcode(s gen.MpesaShortcode) ShortcodeView {
 	return ShortcodeView{ID: s.ID, Kind: s.Kind, Shortcode: s.Shortcode, Label: s.Label, DefaultItemID: s.DefaultItemID,
-		AutoInvoice: s.AutoInvoice, Verified: s.VerifiedAt != nil, VerifiedAt: s.VerifiedAt, C2BURLsRegisteredAt: s.C2bUrlsRegisteredAt}
+		AutoInvoice: s.AutoInvoice, Status: s.Status, Verified: s.Status == ShortcodeVerified, VerifiedAt: s.VerifiedAt,
+		AuthorizationLetterUploaded: s.AuthorizationLetterPath != nil, AuthorizationSubmittedAt: s.AuthorizationSubmittedAt,
+		RejectionReason: s.RejectionReason, C2BURLsRegisteredAt: s.C2bUrlsRegisteredAt}
+}
+
+func toShortcode(s gen.MpesaShortcode) ShortcodeView { return ToShortcode(s) }
+
+// ToAdminShortcode maps a queue row (with its org) to the operator view.
+func ToAdminShortcode(k *crypto.Keyring, s gen.MpesaShortcode, orgName string, kraPinEnc []byte) AdminShortcodeView {
+	pin, _ := k.DecryptString(kraPinEnc)
+	return AdminShortcodeView{ShortcodeView: ToShortcode(s), OrgID: s.OrgID, OrgName: orgName, OrgKRAPin: pin,
+		ReviewedBy: s.ReviewedBy, ReviewedAt: s.ReviewedAt, CreatedAt: s.CreatedAt}
 }
 
 func toPayment(k *crypto.Keyring, p gen.Payment, invoiceID *uuid.UUID) PaymentView {

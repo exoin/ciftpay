@@ -22,7 +22,8 @@ const config = [
     },
   },
   {
-    files: ["src/components/receipt/**/*.tsx", "src/app/r/**/*.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
+    // Receipts, and the Safaricom authorization letter (an English-only legal document), are not translated.
+    files: ["src/components/receipt/**/*.tsx", "src/app/r/**/*.{ts,tsx}", "src/app/(auth)/onboarding/letter/**/*.tsx", "src/**/*.test.{ts,tsx}"],
     rules: { "react/jsx-no-literals": "off" },
   },
 ];

@@ -72,6 +72,25 @@ export async function rawGet<T>(path: string): Promise<T> {
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
   const res = await fetch(`${apiBaseUrl()}${path}`, { credentials: "include", headers });
+  return readJson<T>(res);
+}
+
+/**
+ * Multipart POST (file uploads). openapi-fetch JSON-encodes bodies, so this
+ * mirrors its auth behaviour by hand: cookie, CSRF token and active org header.
+ * Content-Type is left unset so the browser adds the multipart boundary.
+ */
+export async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const headers = new Headers();
+  const csrf = getCsrfToken();
+  if (csrf) headers.set("X-CSRF-Token", csrf);
+  const org = getActiveOrgId();
+  if (org) headers.set("X-Org-Id", org);
+  const res = await fetch(`${apiBaseUrl()}${path}`, { method: "POST", credentials: "include", headers, body: form });
+  return readJson<T>(res);
+}
+
+async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let body: Schemas["Error"] | undefined;
     try {

@@ -360,4 +360,13 @@ Delivered 2026-09-08 (detailed plan: `.junie/plans/phase1-onboarding-shortcode-v
 - Tooling: `mpesatest` fake Daraja, `ciftctl daraja-fake | register-urls | simulate-c2b`, `make sandbox-verify`; one live sandbox run through cloudflared (findings in the runbook).
 - Web: `/onboarding` (BusinessForm → ShortcodeForm → VerifyShortcode), org-less redirects in `LoginForm`/`AppShell`, Settings add/verify sheet, EN/SW copy; vitest 26, Playwright 32/32.
 - Docs: `ux-flows.md` §2, `data-model.md`, `api.md` §4.1, runbook procedure + deviations; `plan.md` §4.1 ticked except the design-partner timing measurement.
-- **Next:** `plan.md` §4.2 C2B ingestion & matching (reconcile job, `TransactionStatus`, auto-match measurement).
+- **Superseded 2026-09-09 by Step 8** for the verification part.
+
+### ✓ Step 8: Phase 1 §4.1 pivot — the Administrative Gate (ADR-0008)
+Delivered 2026-09-09 (detailed plan: `.junie/plans/phase1-administrative-gate.md`). The KES 1 own-Till check proved customer control, not ownership, and could not succeed for an unmapped Till; ownership is now Safaricom's Go-Live paperwork.
+
+- Schema: migration `0003` drops `shortcode_verifications`, adds `mpesa_shortcodes.status` (`pending_authorization` | `verified` | `rejected`), letter path, reviewer, rejection reason; partial unique index on verified rows; `admin` RLS scope (`db.WithAdmin`).
+- Backend: `POST /shortcodes/{id}/authorization` (multipart letter → `internal/platform/storage`, `UPLOAD_DIR`); `internal/admin.Shortcodes` (`GET /admin/shortcodes`, letter download, `PATCH …/verify|reject`) shared with `ciftctl verify-shortcode`; `ResolveShortcode` filters `status = 'verified'` so unverified numbers never reach a ledger; `tryVerification`, `/verify`, the STK `verify` purpose, the unconfigured-Daraja auto-verify and `DARAJA_PASSKEY` removed; production refuses to start without Daraja credentials. Tests: `authorization_test.go` (4 DB-backed end-to-end scenarios).
+- Web: onboarding step 3 = `AuthorizationStep` (print pre-filled letter at `/onboarding/letter`, upload, submit → `/today`); Settings status chips + re-upload; stub API + Playwright rewritten.
+- Docs: ADR-0008, `plan.md` §4.1/§9, `api.md` §4.1, `data-model.md`, `ux-flows.md` §2, `compliance.md` §2, runbook procedure + deviations, `.env.example`, compose `uploads` volume.
+- **Next:** `plan.md` §4.2 C2B ingestion & matching (reconcile job, `TransactionStatus`, auto-match measurement) and the Safaricom partner arrangement (§9.2).

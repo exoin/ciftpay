@@ -19,7 +19,7 @@ import (
 	"github.com/ciftpay/ciftpay/internal/platform/db"
 	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
 	"github.com/ciftpay/ciftpay/internal/platform/httpx"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/ciftpay/ciftpay/internal/platform/storage"
 )
 
 // STKPusher is the slice of the Daraja client the request-to-pay path needs
@@ -27,12 +27,6 @@ import (
 type STKPusher interface {
 	Configured() bool
 	STKPush(ctx context.Context, shortcode, msisdn string, amountCents int64, accountRef, desc, webhookBaseURL string) (checkoutID, merchantID string, err error)
-}
-
-// Daraja is the slice of the Daraja client shortcode verification needs.
-type Daraja interface {
-	Configured() bool
-	RegisterC2BURLs(ctx context.Context, shortcode, webhookBaseURL string) error
 }
 
 // Retrier re-queues a NEEDS_REVIEW invoice (fiscal.Submitter).
@@ -45,12 +39,11 @@ type Handler struct {
 	S       *Service
 	Keys    *crypto.Keyring
 	STK     STKPusher
-	Daraja  Daraja
 	Retrier Retrier
+	// Files holds the uploaded Safaricom authorization letters (ADR-0008).
+	Files storage.Store
 	// PublicBaseURL is the web app buyers open receipt links on.
 	PublicBaseURL string
-	// WebhookBaseURL is the api's own public URL handed to Daraja for callbacks.
-	WebhookBaseURL string
 	// PendingLongAfter marks invoices still not acked after this as attention items.
 	PendingLongAfter time.Duration
 }
@@ -61,7 +54,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/shortcodes", h.createShortcode)
 	r.Get("/shortcodes/{id}", h.getShortcode)
 	r.Patch("/shortcodes/{id}", h.updateShortcode)
-	r.Post("/shortcodes/{id}/verify", h.verifyShortcode)
+	r.Post("/shortcodes/{id}/authorization", h.submitAuthorization)
 
 	r.Get("/payments", h.listPayments)
 	r.Post("/payments/{id}/convert", h.convertPayment)
@@ -121,6 +114,8 @@ func fail(w http.ResponseWriter, err error, msg string) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "Not found")
 	case errors.Is(err, ErrShortcodeClaimed):
 		httpx.Fail(w, http.StatusConflict, "shortcode_claimed", "This number is already verified by another business. If it is yours, contact support.")
+	case errors.Is(err, ErrAlreadyVerified):
+		httpx.Fail(w, http.StatusConflict, "conflict", "This shortcode is already verified.")
 	case errors.Is(err, fiscal.ErrIllegalTransition), errors.Is(err, ErrDuplicate):
 		httpx.Fail(w, http.StatusConflict, "conflict", err.Error())
 	case errors.As(err, new(*validationError)):
@@ -241,8 +236,6 @@ func (h *Handler) updateShortcode(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, toShortcode(out))
 }
 
-// getShortcode returns one shortcode with the state of its latest control
-// check, which the PWA polls while the merchant pays the KES 1.
 func (h *Handler) getShortcode(w http.ResponseWriter, r *http.Request) {
 	orgID, _ := org(r)
 	id, ok := idParam(w, r)
@@ -256,7 +249,6 @@ func (h *Handler) getShortcode(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		out = toShortcode(sc)
-		out.Verification = h.S.latestVerification(ctx, tx, id)
 		return nil
 	})
 	if err != nil {
@@ -285,112 +277,60 @@ func (h *Handler) claimedElsewhere(ctx context.Context, shortcode string, orgID 
 	return nil
 }
 
-// verifyShortcode opens the control check: the merchant pays exactly KES 1
-// from their own phone to this shortcode and the C2B confirmation settles the
-// challenge (Service.tryVerification). The body may override the payer MSISDN;
-// by default it is the session user's number. With no Daraja credentials
-// (local), the shortcode is verified immediately.
-func (h *Handler) verifyShortcode(w http.ResponseWriter, r *http.Request) {
+// submitAuthorization stores the signed Safaricom authorization letter
+// (multipart field "letter", image or PDF). It is the merchant's only step in
+// the Administrative Gate; an operator later marks the shortcode verified.
+func (h *Handler) submitAuthorization(w http.ResponseWriter, r *http.Request) {
 	orgID, userID := org(r)
 	id, ok := idParam(w, r)
 	if !ok {
 		return
 	}
-	var in struct {
-		MSISDN string `json:"msisdn"`
+	if h.Files == nil {
+		httpx.Fail(w, http.StatusNotImplemented, "not_implemented", "Uploads are not configured")
+		return
 	}
-	if r.ContentLength != 0 {
-		if err := httpx.Decode(r, &in); err != nil && !errors.Is(err, io.EOF) {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must be {} or {msisdn}")
-			return
-		}
+	// Slack above LetterMaxBytes for the multipart framing; the service
+	// enforces the exact file limit.
+	r.Body = http.MaxBytesReader(w, r.Body, LetterMaxBytes+64<<10)
+	mr, err := r.MultipartReader()
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must be multipart/form-data with a `letter` file")
+		return
 	}
 	var sc gen.MpesaShortcode
-	msisdn := in.MSISDN
-	if err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
-		var err error
-		if sc, err = tx.GetShortcode(ctx, id); err != nil {
-			return err
-		}
-		if msisdn != "" {
-			return nil
-		}
-		u, err := tx.GetUser(ctx, userID)
+	for {
+		part, err := mr.NextPart()
 		if err != nil {
-			return err
-		}
-		msisdn, err = h.Keys.DecryptString(u.MsisdnEnc)
-		return err
-	}); err != nil {
-		fail(w, err, "Could not load the shortcode")
-		return
-	}
-	if sc.VerifiedAt != nil {
-		httpx.JSON(w, http.StatusOK, map[string]any{"status": VerificationVerified, "shortcode": toShortcode(sc)})
-		return
-	}
-	msisdn, err := crypto.NormaliseMSISDN(msisdn)
-	if err != nil {
-		fail(w, invalid("msisdn is not a valid Kenyan number"), "")
-		return
-	}
-	if err := h.claimedElsewhere(r.Context(), sc.Shortcode, orgID); err != nil {
-		fail(w, err, "Could not check the shortcode")
-		return
-	}
-	actor := userID.String()
-	if h.Daraja == nil || !h.Daraja.Configured() {
-		err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
-			if err := tx.MarkShortcodeVerified(ctx, gen.MarkShortcodeVerifiedParams{ID: id, VerificationCheckoutID: db.Ptr("local-dev")}); err != nil {
-				if isUniqueViolation(err) {
-					return ErrShortcodeClaimed
-				}
-				return err
+			if errors.Is(err, io.EOF) {
+				fail(w, invalid("letter file is required"), "")
+				return
 			}
-			return tx.AppendAudit(ctx, gen.AppendAuditParams{OrgID: orgID, ActorType: "user", ActorID: &actor, Action: "shortcode.verified", Entity: "mpesa_shortcode", EntityID: id.String(), After: []byte(`{"mode":"local"}`)})
-		})
-		if err != nil {
-			fail(w, err, "Could not verify the shortcode")
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				fail(w, invalid("letter must be at most %d MB", LetterMaxBytes>>20), "")
+				return
+			}
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Malformed multipart body")
 			return
 		}
-		sc.VerifiedAt = db.Ptr(h.S.Now())
-		httpx.JSON(w, http.StatusOK, map[string]any{"status": VerificationVerified, "shortcode": toShortcode(sc)})
-		return
-	}
-
-	var v gen.ShortcodeVerification
-	err = h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
-		var err error
-		if v, err = h.S.OpenVerification(ctx, tx, orgID, id, h.Keys.Hash(msisdn)); err != nil {
-			return err
+		if part.FormName() != "letter" {
+			_ = part.Close()
+			continue
 		}
-		return tx.AppendAudit(ctx, gen.AppendAuditParams{OrgID: orgID, ActorType: "user", ActorID: &actor, Action: "shortcode.verification_started", Entity: "mpesa_shortcode", EntityID: id.String(), After: mustJSON(map[string]any{"verification_id": v.ID, "expires_at": v.ExpiresAt})})
-	})
-	if err != nil {
-		fail(w, err, "Could not start the verification")
-		return
-	}
-
-	// Best effort: point Daraja at us so the KES 1 (and every later payment)
-	// reaches the webhook. Failure is logged, never blocks the merchant.
-	if sc.C2bUrlsRegisteredAt == nil {
-		if err := h.Daraja.RegisterC2BURLs(r.Context(), sc.Shortcode, h.WebhookBaseURL); err != nil {
-			h.S.Log.Warn("c2b register url failed", "err", err, "shortcode", sc.Shortcode, "org", orgID)
-		} else {
-			_ = h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
-				return tx.MarkShortcodeC2BRegistered(ctx, id)
-			})
+		sc, err = h.S.SubmitAuthorization(r.Context(), h.Files, orgID, userID, id, part)
+		_ = part.Close()
+		if err != nil {
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				err = invalid("letter must be at most %d MB", LetterMaxBytes>>20)
+			}
+			fail(w, err, "Could not store the letter")
+			return
 		}
+		break
 	}
-
-	httpx.JSON(w, http.StatusAccepted, map[string]any{
-		"status":        VerificationPending,
-		"msisdn_masked": plog.MaskMSISDN(msisdn),
-		"pay": map[string]any{
-			"kind": sc.Kind, "shortcode": sc.Shortcode, "amount_cents": VerificationAmountCents, "account_ref": VerificationAccountRef,
-		},
-		"expires_at": v.ExpiresAt,
-	})
+	httpx.JSON(w, http.StatusOK, toShortcode(sc))
 }
 
 // ----------------------------------------------------------- payments
@@ -472,7 +412,7 @@ func (h *Handler) convertPayment(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return err
 			}
-			row := gen.ResolveShortcodeRow{ID: sc.ID, OrgID: sc.OrgID, Kind: sc.Kind, Shortcode: sc.Shortcode, DefaultItemID: in.ItemID, AutoInvoice: true, VerifiedAt: sc.VerifiedAt}
+			row := gen.ResolveShortcodeRow{ID: sc.ID, OrgID: sc.OrgID, Kind: sc.Kind, Shortcode: sc.Shortcode, DefaultItemID: in.ItemID, AutoInvoice: true, Status: sc.Status}
 			if row.DefaultItemID == nil {
 				row.DefaultItemID = sc.DefaultItemID
 			}
@@ -929,7 +869,7 @@ func (h *Handler) attention(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		for _, s := range scs {
-			if s.VerifiedAt == nil {
+			if s.Status != ShortcodeVerified {
 				out.UnverifiedShortcodes = append(out.UnverifiedShortcodes, toShortcode(s))
 			}
 		}

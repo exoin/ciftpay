@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { AuthorizationStep } from "@/components/onboarding/AuthorizationStep";
 import { BusinessForm } from "@/components/onboarding/BusinessForm";
 import { ShortcodeForm } from "@/components/onboarding/ShortcodeForm";
 import { StepIndicator, type OnboardingStep } from "@/components/onboarding/StepIndicator";
-import { VerifyShortcode } from "@/components/onboarding/VerifyShortcode";
 import { Button } from "@/components/ui/Button";
 import { LoadingRows } from "@/components/ui/LoadingRows";
 import type { Schemas } from "@/lib/api/client";
@@ -14,9 +14,11 @@ import { useShortcodes } from "@/lib/api/queries";
 import { readSession, useSession } from "@/lib/auth";
 
 /**
- * login → business → shortcode → pay-KES-1 → /today. Needs a session (else
- * /login?next=/onboarding). Skips the business step when the user already has
- * an org, and leaves for /today when a verified shortcode already exists.
+ * login → business → shortcode → authorization letter → /today. Needs a
+ * session (else /login?next=/onboarding). Skips the business step when the
+ * user already has an org, resumes at the letter step for a shortcode that is
+ * still waiting for one, and leaves for /today once a letter is uploaded or a
+ * shortcode is verified.
  */
 export function OnboardingFlow() {
   const t = useTranslations("onboarding");
@@ -41,17 +43,17 @@ export function OnboardingFlow() {
       return;
     }
     const list = shortcodes?.data ?? [];
-    if (list.some((s) => s.verified)) {
+    if (list.length === 0) {
+      setStep("shortcode");
+      return;
+    }
+    const needsLetter = list.find((s) => !s.verified && !s.authorization_letter_uploaded);
+    if (list.some((s) => s.verified) || !needsLetter) {
       router.replace("/today");
       return;
     }
-    const unverified = list[0];
-    if (unverified) {
-      setShortcode(unverified);
-      setStep("verify");
-    } else {
-      setStep("shortcode");
-    }
+    setShortcode(needsLetter);
+    setStep("authorization");
   }, [step, sessionPending, session, hasOrg, shortcodes, shortcodesReady, router]);
 
   if (!session || step === null) {
@@ -67,7 +69,7 @@ export function OnboardingFlow() {
           <ShortcodeForm
             onCreated={(sc) => {
               setShortcode(sc);
-              setStep("verify");
+              setStep("authorization");
             }}
           />
           <Button type="button" variant="ghost" block onClick={() => router.replace("/today")}>
@@ -75,8 +77,8 @@ export function OnboardingFlow() {
           </Button>
         </div>
       )}
-      {step === "verify" && shortcode && (
-        <VerifyShortcode key={shortcode.id} shortcode={shortcode} onVerified={setShortcode} onDone={() => router.replace("/today")} onLater={() => router.replace("/today")} />
+      {step === "authorization" && shortcode && (
+        <AuthorizationStep key={shortcode.id} shortcode={shortcode} onSubmitted={() => router.replace("/today")} onLater={() => router.replace("/today")} />
       )}
     </>
   );

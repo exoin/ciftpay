@@ -93,15 +93,21 @@ func run() error {
 	submitter := fiscal.NewSubmitter(d.DB, jc, d.Keys, provider, log)
 	billingSvc := billing.New(d.DB)
 	daraja := mpesa.NewClient(cfg.Daraja)
+	files, err := d.Files()
+	if err != nil {
+		return err
+	}
 
 	// Handlers.
 	orgH := &org.Handler{S: orgSvc, SecureCookie: !cfg.IsLocal()}
 	ledgerH := &ledger.Handler{
-		S: ledgerSvc, Keys: d.Keys, STK: stkAdapter{daraja}, Daraja: daraja, Retrier: submitter,
-		PublicBaseURL: cfg.PublicBaseURL, WebhookBaseURL: cfg.WebhookBaseURL,
+		S: ledgerSvc, Keys: d.Keys, STK: stkAdapter{daraja}, Retrier: submitter, Files: files,
+		PublicBaseURL: cfg.PublicBaseURL,
 	}
 	reportsH := &reports.Handler{S: reports.New(d.DB)}
-	adminH := &admin.Handler{S: admin.New(d.DB)}
+	adminH := &admin.Handler{S: admin.New(d.DB), Shortcodes: &admin.Shortcodes{
+		DB: d.DB, Keys: d.Keys, Files: files, Daraja: daraja, WebhookBaseURL: cfg.WebhookBaseURL, Log: log,
+	}}
 	receiptH := &publicapi.Handler{S: publicapi.New(d.DB, d.Keys), Log: log}
 	webhooks := &mpesa.Webhooks{Token: cfg.Daraja.WebhookToken, Ingest: ledgerSvc, Log: log}
 	if !cfg.IsLocal() {

@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingRows } from "@/components/ui/LoadingRows";
 import { Money } from "@/components/ui/Money";
-import { useToast } from "@/components/ui/Toast";
-import { useAttention, useVerifyShortcode } from "@/lib/api/queries";
-import { ApiRequestError, type Schemas } from "@/lib/api/client";
+import { useAttention } from "@/lib/api/queries";
+import type { Schemas } from "@/lib/api/client";
 import { formatKES } from "@/lib/format";
 import { ConvertPaymentSheet } from "@/components/sale/ConvertPaymentSheet";
 
@@ -18,9 +17,7 @@ import { ConvertPaymentSheet } from "@/components/sale/ConvertPaymentSheet";
 export default function AttentionPage() {
   const t = useTranslations("attention");
   const tc = useTranslations("common");
-  const toast = useToast();
   const { data, isPending } = useAttention();
-  const verify = useVerifyShortcode();
   const [selected, setSelected] = useState<Schemas["Payment"] | null>(null);
 
   if (isPending) {
@@ -74,20 +71,11 @@ export default function AttentionPage() {
               <Row
                 lead={t("unverifiedLead", { shortcode: sc.shortcode })}
                 action={
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={verify.isPending && verify.variables === sc.id}
-                    onClick={async () => {
-                      try {
-                        await verify.mutateAsync(sc.id);
-                      } catch (e) {
-                        toast.push(e instanceof ApiRequestError ? tc("errorGeneric", { message: e.message }) : tc("noConnection"), "error");
-                      }
-                    }}
-                  >
-                    {t("verify")}
-                  </Button>
+                  <Link href="/settings">
+                    <Button size="sm" variant="secondary">
+                      {t("verify")}
+                    </Button>
+                  </Link>
                 }
               />
             )}

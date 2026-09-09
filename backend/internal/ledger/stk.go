@@ -53,7 +53,7 @@ func (s *Service) IngestSTK(ctx context.Context, in STKInput) error {
 		}
 		// GetShortcode runs under ingest scope too; re-shape to ResolveShortcodeRow.
 		sc = gen.ResolveShortcodeRow{ID: scRow.ID, OrgID: scRow.OrgID, Kind: scRow.Kind, Shortcode: scRow.Shortcode,
-			DefaultItemID: scRow.DefaultItemID, AutoInvoice: scRow.AutoInvoice, VerifiedAt: scRow.VerifiedAt}
+			DefaultItemID: scRow.DefaultItemID, AutoInvoice: scRow.AutoInvoice, Status: scRow.Status}
 		return nil
 	})
 	if err != nil {
@@ -82,15 +82,12 @@ func (s *Service) IngestSTK(ctx context.Context, in STKInput) error {
 		return nil
 	}
 
-	// Verification pings (KES 1 to the merchant's own phone) mark the
-	// shortcode as controlled by this org and are not sales.
+	// Rows with purpose "verify" predate the Administrative Gate (ADR-0008);
+	// no payment ever verifies a shortcode any more, so they are recorded and
+	// otherwise ignored.
 	if req.Purpose == "verify" {
-		return s.DB.WithOrg(ctx, req.OrgID, func(ctx context.Context, tx db.Tx) error {
-			if err := tx.MarkShortcodeVerified(ctx, gen.MarkShortcodeVerifiedParams{ID: req.ShortcodeID, VerificationCheckoutID: db.Ptr(in.CheckoutRequestID)}); err != nil {
-				return err
-			}
-			return tx.AppendAudit(ctx, gen.AppendAuditParams{OrgID: req.OrgID, ActorType: "system", Action: "shortcode.verified", Entity: "mpesa_shortcode", EntityID: req.ShortcodeID.String()})
-		})
+		s.Log.Warn("ignoring legacy verify stk callback", "org", req.OrgID, "checkout", in.CheckoutRequestID)
+		return nil
 	}
 
 	// A paid request-to-pay is a payment. Use the C2B path so a later C2B

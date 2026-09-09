@@ -45,7 +45,7 @@ Roles: `owner` (everything), `staff` (no settings/plan), `accountant` (read + ex
 | 401 | `unauthenticated` | No/expired session, bad OTP |
 | 403 | `forbidden` | Role or org mismatch, CSRF failure |
 | 404 | `not_found` | Resource not in the active org (RLS makes foreign rows invisible, so also 404) |
-| 409 | `conflict`, `shortcode_claimed`, `already_converted`, `illegal_state` | Uniqueness or state-machine violations; `shortcode_claimed` = another org already **verified** that number (on `POST /shortcodes` and `POST /shortcodes/{id}/verify`) |
+| 409 | `conflict`, `shortcode_claimed`, `already_converted`, `illegal_state` | Uniqueness or state-machine violations; `shortcode_claimed` = another org already holds that number **verified** (on `POST /shortcodes` and `PATCH /admin/shortcodes/{id}/verify`); `conflict` on `POST /shortcodes/{id}/authorization` = already verified |
 | 422 | `validation_failed`, `pin_unknown` | Field-level errors in `details.fields`; `pin_unknown` = the fiscal provider's PIN lookup does not know the KRA PIN (`POST /orgs`) |
 | 429 | `rate_limited` | With `Retry-After` |
 | 500 | `internal` | Never leaks internals; `request_id` for support |
@@ -59,7 +59,8 @@ Roles: `owner` (everything), `staff` (no settings/plan), `accountant` (read + ex
 | System | `GET /healthz` | `{status, db, queue, version}`; 503 when degraded |
 | Auth | `POST /auth/otp/request`, `POST /auth/otp/verify`, `POST /auth/logout` | |
 | Orgs | `GET /orgs`, `POST /orgs`, `GET /orgs/current` | `POST` runs the PIN lookup through `fiscal.PINLookup` (mock: `P000000000Z` is unknown; vendor: `GET {base}/taxpayers/{pin}`); provider unavailable → 201 with `kra_pin_verified_at: null` |
-| Shortcodes | `GET/POST /shortcodes`, `GET/PATCH /shortcodes/{id}`, `POST /shortcodes/{id}/verify` | Verify = own-Till KES 1 control check, see §4.1 below; `GET /shortcodes/{id}` carries `verification {status, expires_at}` for polling |
+| Shortcodes | `GET/POST /shortcodes`, `GET/PATCH /shortcodes/{id}`, `POST /shortcodes/{id}/authorization` | Created as `status: pending_authorization`; the merchant uploads the signed Safaricom authorization letter, see §4.1 |
+| Admin | `GET /admin/shortcodes?status=`, `GET /admin/shortcodes/{id}/authorization`, `PATCH /admin/shortcodes/{id}/verify`, `PATCH /admin/shortcodes/{id}/reject`, `GET /admin/orgs`, `GET /admin/webhooks/dead`, `GET /admin/flags` | `admin` role only; the operator queue of the Administrative Gate |
 | Payments | `GET /payments?status=`, `GET /payments/{id}`, `POST /payments/{id}/convert` | Convert turns `unmatched` → sale + queued invoice |
 | Items | `GET/POST /items`, `GET /items/codes?q=` | Codes proxy `fiscal.Provider.LookupItemCodes` |
 | Sales | `GET/POST /sales` | `kind=open` (request-to-pay, Phase 2) or `cash` |
@@ -69,17 +70,19 @@ Roles: `owner` (everything), `staff` (no settings/plan), `accountant` (read + ex
 | Public | `GET /r/{code}` | No auth; edge-cacheable 60 s; the Next.js page renders from it |
 | Webhooks | see §5 | No session; token/signature based |
 
-### 4.1 Shortcode verification
+### 4.1 Shortcode authorization — the Administrative Gate ([ADR-0008](adr/0008-administrative-gate.md))
 
-`POST /shortcodes/{id}/verify` with body `{}` (or `{"msisdn": "07…"}` to pay from another phone):
+CiftPay never proves Till ownership by a payment. `Shortcode.status` is `pending_authorization | verified | rejected` (`verified` is the boolean shorthand); the transitions are:
 
-| Result | Response |
-|---|---|
-| already verified, or the api has no Daraja credentials (`APP_ENV=local` default) | `200 {"status":"verified","shortcode":{…}}` |
-| challenge opened or refreshed | `202 {"status":"pending","msisdn_masked":"2541•••••513","pay":{"kind":"till","shortcode":"600000","amount_cents":100,"account_ref":"CIFTPAY"},"expires_at":"…"}` |
-| another org already verified the number | `409 shortcode_claimed` |
+| Step | Who | Call | Effect |
+|---|---|---|---|
+| 1 | merchant | `POST /shortcodes` | `201`, `status: pending_authorization`. `409 shortcode_claimed` only if another org already holds the number **verified**; pending duplicates are allowed. |
+| 2 | merchant | `POST /shortcodes/{id}/authorization` (`multipart/form-data`, field `letter`, JPEG/PNG/WebP/PDF ≤ 10 MB, sniffed by content) | `200 Shortcode` with `authorization_letter_uploaded: true`, `authorization_submitted_at`; a `rejected` row returns to `pending_authorization`; `409 conflict` when already verified; `422 validation` for type/size/missing file. Audit `shortcode.authorization_submitted`. |
+| 3 | ops | `GET /admin/shortcodes?status=pending_authorization`, `GET /admin/shortcodes/{id}/authorization` | Queue with `org_name`, unmasked `org_kra_pin`; the letter streams with its content type. Ops forward the letter to Safaricom. |
+| 4a | ops, after Safaricom confirms the mapping | `PATCH /admin/shortcodes/{id}/verify {note?}` | `status: verified`, `verified_at`, `reviewed_by`; audit `shortcode.verified {mode: admin}`; then Daraja `RegisterURL` (best effort, `c2b_urls_registered_at`). `409 shortcode_claimed` if another org got there first. Same path from the shell: `ciftctl verify-shortcode <id|number>`. |
+| 4b | ops | `PATCH /admin/shortcodes/{id}/reject {reason}` | `status: rejected`, `rejection_reason` shown to the merchant; `409 conflict` on a verified row (revoke is not an API operation). |
 
-The merchant then sends exactly KES 1 from that MSISDN to the shortcode. The C2B confirmation (`POST /webhooks/daraja/c2b/confirmation/{token}`) that matches `{shortcode, msisdn_hash, amount_cents}` against an open challenge settles it: `verified_at` is set, `audit_log` gets `shortcode.verified`, and **no payment, sale or invoice is created**. The PWA polls `GET /shortcodes/{id}` every 3 s; the response's `verification.status` is `pending | verified | expired | failed`. On a 202 the api also calls Daraja `RegisterURL` for the shortcode (best effort; failure is logged and `c2b_urls_registered_at` stays null) using `WEBHOOK_BASE_URL` as the callback origin — that variable must be the api's public URL (a tunnel in sandbox runs), whereas `PUBLIC_BASE_URL` is the web app's. Runbook: `docs/runbooks/local-dev.md` §"Shortcode verification loop".
+**Ingest gate.** `POST /webhooks/daraja/c2b/confirmation/{token}` resolves the `BusinessShortCode` **only among `verified` rows**. Anything else is stored in `webhook_events`, marked processed with `error = no verified shortcode <n>` and acknowledged with 200 (Daraja must not retry) — no payment, sale or invoice. `RegisterURL` uses `WEBHOOK_BASE_URL` as the callback origin (the api's public URL, a tunnel in sandbox runs); `PUBLIC_BASE_URL` is the web app's. Runbook: `docs/runbooks/local-dev.md` §"Administrative Gate".
 
 ## 5. Webhooks (inbound)
 
@@ -87,8 +90,8 @@ The merchant then sends exactly KES 1 from that MSISDN to the shortcode. The C2B
 | Path | Purpose | Response |
 |---|---|---|
 | `POST /webhooks/daraja/c2b/validation/{token}` | Pre-payment validation. CiftPay **always accepts** (`ResultCode 0`) — rejecting would block a customer's payment, which is not our role. Payload is stored as `webhook_events.kind='c2b_validation'`. | `{"ResultCode":0,"ResultDesc":"Accepted"}` |
-| `POST /webhooks/daraja/c2b/confirmation/{token}` | Money moved. Stored with `external_id = mpesa:<TransID>`; duplicates return 200 without side effects; new events first try to settle an open shortcode verification challenge (§4.1, no payment row), otherwise run the matcher and enqueue `SubmitInvoice` in the same transaction. | same |
-| `POST /webhooks/daraja/stk/{token}` | STK result. `external_id = mpesa:stk:<CheckoutRequestID>`. Request-to-pay (Phase 2); the Phase-0 `verify` purpose is kept for compatibility but no longer issued. | same |
+| `POST /webhooks/daraja/c2b/confirmation/{token}` | Money moved. Stored with `external_id = mpesa:<TransID>`; duplicates return 200 without side effects; the shortcode must be `verified` (§4.1) or the event is parked with `no verified shortcode`; otherwise the matcher runs and `SubmitInvoice` is enqueued in the same transaction. | same |
+| `POST /webhooks/daraja/stk/{token}` | STK result. `external_id = mpesa:stk:<CheckoutRequestID>`. Request-to-pay (Phase 2); `STKPush` itself returns `ErrSTKNotConfigured` until then (no passkey). Legacy `verify`-purpose callbacks are logged and ignored. | same |
 
 The path segment is `daraja`, not `mpesa`: Safaricom rejects any callback URL containing the word "MPESA" (`400.003.02`).
 

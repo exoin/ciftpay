@@ -130,13 +130,16 @@ Finance Act 2023: since **1 January 2024**, a business expense not supported by 
 
 **Sequencing:** 4.1 → 4.2 → 4.3 → 4.4 → 4.5 → 4.6 (UI can start in parallel with 4.2 once OpenAPI stubs exist).
 
-### 4.1 Onboarding & shortcode verification (`internal/org`, `internal/mpesa`)
+### 4.1 Onboarding & shortcode authorization (`internal/org`, `internal/ledger`, `internal/admin`)
+
+> **Pivot 2026-09-09 — the Administrative Gate ([ADR-0008](docs/adr/0008-administrative-gate.md)).** The own-Till KES 1 control check shipped on 2026-09-08 proved *customer* control, not ownership, and could never succeed for a Till not yet mapped to CiftPay's Daraja app. Ownership is now proven by Safaricom's Go-Live paperwork: the merchant uploads the signed *CiftPay Safaricom Authorization Letter*, Safaricom checks it against the Till's KYC and maps it, and a CiftPay operator flips the shortcode to `verified`. No M-Pesa transaction, no B2B, no merchant Daraja credentials, no `DARAJA_PASSKEY`.
 - [x] `POST /auth/otp/request` sends a 6-digit OTP via Africa's Talking; rate-limited 5/hour/MSISDN (`OTPMaxPerHour`) plus an IP limit; codes hashed, 5-min TTL (`OTPTTL`)
 - [x] `POST /auth/otp/verify` issues HttpOnly `SameSite=Lax` session cookie; CSRF token returned in body for mutations
 - [x] `POST /orgs` with business name + KRA PIN: regex `^[AP]\d{9}[A-Z]$`, then PIN lookup through `fiscal.PINLookup` (mock / vendor `GET /taxpayers/{pin}`; unknown → `422 pin_unknown`, provider down → 201 unverified); store `kra_pin_enc` + `pin_hash` (2026-09-08)
-- [x] `POST /shortcodes` registers Till / Paybill / Pochi; `POST /shortcodes/{id}/verify` opens a 10-min **own-Till control check** — the merchant pays KES 1 from their own phone to the shortcode and the C2B confirmation marks `verified_at` without creating a payment (`shortcode_verifications`, migration `0002`); a shortcode already verified by another org is rejected with `409 shortcode_claimed`. *Deviation:* STK push replaced by own-Till C2B (no passkey per merchant, no PIN prompt; see `docs/data-model.md`) (2026-09-08)
-- [x] Daraja C2B `RegisterURL` called on verification with our `validation`/`confirmation` URLs, best effort, using `WEBHOOK_BASE_URL`; paths are `/webhooks/daraja/...` because Safaricom rejects URLs containing "mpesa". Verified once against the live sandbox through a cloudflared tunnel (shortcode `600000`, test MSISDN `254708374149`; runbook 2026-09-08 entries). Production still requires Safaricom Go-Live (§9.2)
-- [x] PWA `/onboarding` (business → shortcode → pay KES 1) + Settings add/verify sheet; Playwright 32/32 (mobile + desktop), vitest 26 (2026-09-08)
+- [x] `POST /shortcodes` registers Till / Paybill / Pochi as `status = pending_authorization` (migration `0003`; `shortcode_verifications` dropped); a number another org already holds **verified** → `409 shortcode_claimed`, pending duplicates are allowed until Safaricom decides. `POST /shortcodes/{id}/authorization` stores the signed letter (JPEG/PNG/WebP/PDF ≤ 10 MB, `UPLOAD_DIR`, admin-only download) (2026-09-09)
+- [x] Admin gate: `GET /admin/shortcodes?status=` queue with org name + KRA PIN, `PATCH /admin/shortcodes/{id}/verify|reject`, `ciftctl verify-shortcode <id|number> [--reject REASON]`; verify writes `shortcode.verified` to the audit log then calls Daraja `RegisterURL` (best effort, `WEBHOOK_BASE_URL`, paths `/webhooks/daraja/...` because Safaricom rejects URLs containing "mpesa"). **C2B ingest resolves only `verified` rows**; anything else is stored in `webhook_events` as `no verified shortcode <n>` and acked with 200. Sandbox: `make verify-shortcode SHORTCODE=600000 && make sandbox-c2b` (2026-09-09)
+- [x] PWA `/onboarding` (business → shortcode → authorization letter: print pre-filled letter at `/onboarding/letter`, sign, stamp, upload, "Submit for verification" → `/today`) + Settings status chips (Pending authorization / Verified / Rejected + reason) with re-upload (2026-09-09)
+- [ ] Ops procedure with Safaricom: letter batch → Safaricom maps → `verify`. Needs CiftPay's own production Go-Live and a technology-partner arrangement so third-party shortcode mapping is a routine ticket (§9.2)
 - [ ] Onboarding completes in ≤ 3 minutes on a mid-range Android (measured with 3 design partners — needs the Daraja production shortcode, §9.2)
 
 ### 4.2 C2B ingestion & matching (`internal/mpesa`, `internal/ledger`)
@@ -314,7 +317,8 @@ Full list with comments in [`.env.example`](.env.example). Summary:
 | `PUBLIC_BASE_URL` | api, worker | e.g. `https://ciftpay.co.ke` for receipt links |
 | `SESSION_SECRET` | api | cookie signing |
 | `MASTER_KEY_B64` | api, worker | 32-byte base64 master key for envelope encryption |
-| `DARAJA_ENV`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_PASSKEY`, `DARAJA_WEBHOOK_TOKEN` | api, worker | Safaricom Daraja |
+| `DARAJA_ENV`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_SHORTCODE` (`600000` in sandbox), `DARAJA_WEBHOOK_TOKEN` | api, worker | Safaricom Daraja. No passkey: CiftPay initiates no M-Pesa transactions in Phase 1 (ADR-0008) |
+| `UPLOAD_DIR` | api | Signed authorization letters (ADR-0008); compose volume `uploads` |
 | `FISCAL_ADAPTER` | worker | `mock` / `vendor` / `oscu` |
 | `FISCAL_VENDOR_BASE_URL`, `FISCAL_VENDOR_API_KEY` | worker | KRA-approved integrator |
 | `AT_USERNAME`, `AT_API_KEY`, `AT_SENDER_ID`, `AT_BASE_URL` | worker | Africa's Talking; `AT_BASE_URL` points at `sms-sink` locally |
@@ -324,7 +328,7 @@ Full list with comments in [`.env.example`](.env.example). Summary:
 
 Each account unblocks a specific Phase-1 item; open them in this order. Nothing in Phase 0 needs any of them.
 
-1. **Safaricom Daraja** — sandbox app (C2B, STK Push, Transaction Status, Reversal); later Go-Live with the design partners' shortcodes. Env: `DARAJA_ENV`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_PASSKEY`, `DARAJA_SHORTCODE`, `DARAJA_IP_ALLOWLIST`. Unblocks §4.1 (`RegisterURL`, KES 1 STK) and §4.2 (real C2B). Sandbox test MSISDN for STK: `254140994513`.
+1. **Safaricom Daraja** — sandbox app (C2B, Transaction Status, Reversal; STK Push only from Phase 2); then CiftPay's **own production Go-Live** and a **technology-partner / aggregator arrangement** so design partners' shortcodes can be mapped to CiftPay's app by signed authorization letter (ADR-0008). Env: `DARAJA_ENV`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_SHORTCODE` (`600000` sandbox), `DARAJA_IP_ALLOWLIST`. Unblocks §4.1 (`RegisterURL` after `verify`) and §4.2 (real C2B). Sandbox C2B test MSISDN: `254708374149`.
 2. **KRA-approved eTIMS integrator sandbox** — pick one from KRA's published list of approved third-party integrators; obtain API credentials and their item-code catalogue endpoint. Env: `FISCAL_ADAPTER=vendor`, `FISCAL_VENDOR_BASE_URL`, `FISCAL_VENDOR_API_KEY`. Unblocks §4.3 (`vendor` adapter must pass `providertest`).
 3. **Africa's Talking** — SMS sender ID (`CIFTPAY`), WhatsApp Business (Phase 2), USSD not needed. Env: `AT_USERNAME`, `AT_API_KEY`, `AT_SENDER_ID`, `AT_BASE_URL`. Unblocks §4.1 (real OTP) and §4.4 (buyer receipts, delivery reports).
 4. **ODPC** — register CiftPay as data controller & processor (Data Protection Act 2019). Required before the first real buyer MSISDN/PIN is stored (§4.2).
@@ -333,7 +337,7 @@ Each account unblocks a specific Phase-1 item; open them in this order. Nothing 
 7. **DCP partner** shortlist (Phase 3) — CBK-licensed Digital Credit Providers.
 
 ### 9.3 API surface v1 (see `api/openapi.yaml`)
-`POST /auth/otp/request` · `POST /auth/otp/verify` · `GET/POST /orgs` · `POST /shortcodes` · `POST /shortcodes/{id}/verify` · `GET /payments` · `POST /payments/{id}/convert` · `GET/POST /items` · `GET/POST /sales` · `GET /invoices` · `POST /invoices/{id}/retry` · `GET /reports/vat` · `GET /r/{code}` (public) · `POST /webhooks/daraja/c2b/validation/{token}` · `POST /webhooks/daraja/c2b/confirmation/{token}` · `POST /webhooks/daraja/stk/{token}` · `POST /webhooks/at/delivery` · `GET /healthz`
+`POST /auth/otp/request` · `POST /auth/otp/verify` · `GET/POST /orgs` · `POST /shortcodes` · `POST /shortcodes/{id}/authorization` · `GET /admin/shortcodes` · `PATCH /admin/shortcodes/{id}/verify|reject` · `GET /payments` · `POST /payments/{id}/convert` · `GET/POST /items` · `GET/POST /sales` · `GET /invoices` · `POST /invoices/{id}/retry` · `GET /reports/vat` · `GET /r/{code}` (public) · `POST /webhooks/daraja/c2b/validation/{token}` · `POST /webhooks/daraja/c2b/confirmation/{token}` · `POST /webhooks/daraja/stk/{token}` · `POST /webhooks/at/delivery` · `GET /healthz`
 
 ### 9.4 Fiscal port (Go)
 ```go

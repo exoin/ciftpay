@@ -69,7 +69,7 @@ func (r *Reconciler) Run(ctx context.Context) (Stats, error) {
 			return err
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.markError(ctx, ev, "unknown shortcode "+p.BusinessShortCode)
+			r.markError(ctx, ev, "no verified shortcode "+p.BusinessShortCode)
 			st.Failed++
 			continue
 		}

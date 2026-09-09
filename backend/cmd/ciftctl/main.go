@@ -4,8 +4,11 @@
 //	ciftctl seed                    demo org, shortcode 600123, default item, user, open KES 1 sale
 //	ciftctl replay-webhook <file>   POST a recorded Daraja payload to the local api
 //	ciftctl register-urls <shortcode>          Daraja RegisterURL for a shortcode at WEBHOOK_BASE_URL
-//	ciftctl simulate-c2b --shortcode --msisdn  Daraja sandbox C2B simulate (or the fake) for the KES 1 check
+//	ciftctl simulate-c2b --shortcode --msisdn  Daraja sandbox C2B simulate (or the fake)
 //	ciftctl daraja-fake [--addr :18090]        run the in-process fake Daraja for local end-to-end runs
+//	ciftctl verify-shortcode <id|number> [--reject REASON] [--note TEXT]
+//	                                           the Administrative Gate (ADR-0008): mark a shortcode
+//	                                           verified once Safaricom mapped it, or reject the letter
 package main
 
 import (
@@ -25,7 +28,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/ciftpay/ciftpay/internal/admin"
 	"github.com/ciftpay/ciftpay/internal/boot"
+	"github.com/ciftpay/ciftpay/internal/ledger"
 	"github.com/ciftpay/ciftpay/internal/mpesa"
 	"github.com/ciftpay/ciftpay/internal/mpesa/mpesatest"
 	"github.com/ciftpay/ciftpay/internal/platform/config"
@@ -68,6 +73,12 @@ func run(args []string) int {
 	case "daraja-fake":
 		cancel()
 		err = darajaFake(args[1:])
+	case "verify-shortcode":
+		if len(args) < 2 {
+			usage()
+			return 2
+		}
+		err = withDeps(ctx, func(ctx context.Context, d *boot.Deps) error { return verifyShortcode(ctx, d, args[1:]) })
 	default:
 		usage()
 		return 2
@@ -80,7 +91,59 @@ func run(args []string) int {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: ciftctl migrate | seed | replay-webhook <file.json> | register-urls <shortcode> | simulate-c2b --shortcode N --msisdn N [--amount KES] [--ref REF] | daraja-fake [--addr :18090]")
+	fmt.Fprintln(os.Stderr, "usage: ciftctl migrate | seed | replay-webhook <file.json> | register-urls <shortcode> | simulate-c2b --shortcode N --msisdn N [--amount KES] [--ref REF] | daraja-fake [--addr :18090] | verify-shortcode <id|number> [--reject REASON] [--note TEXT]")
+}
+
+// verifyShortcode is the operator's shell entry into the Administrative Gate.
+// It takes the row id or the shortcode number (which must be unambiguous) and
+// uses the same admin.Shortcodes path as PATCH /admin/shortcodes/{id}/verify.
+func verifyShortcode(ctx context.Context, d *boot.Deps, args []string) error {
+	fs := flag.NewFlagSet("verify-shortcode", flag.ContinueOnError)
+	reject := fs.String("reject", "", "reject with this reason instead of verifying")
+	note := fs.String("note", "", "free text for the audit row (e.g. Safaricom ticket)")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	files, err := d.Files()
+	if err != nil {
+		return err
+	}
+	svc := &admin.Shortcodes{DB: d.DB, Keys: d.Keys, Files: files, Daraja: mpesa.NewClient(d.Cfg.Daraja), WebhookBaseURL: d.Cfg.WebhookBaseURL, Log: d.Log}
+
+	id, err := uuid.Parse(args[0])
+	if err != nil {
+		rows, err := svc.FindByNumber(ctx, strings.TrimSpace(args[0]))
+		if err != nil {
+			return err
+		}
+		switch len(rows) {
+		case 0:
+			return fmt.Errorf("no shortcode %q", args[0])
+		case 1:
+			id = rows[0].ID
+		default:
+			fmt.Fprintf(os.Stderr, "shortcode %s is claimed by %d organisations; pass the row id:\n", args[0], len(rows))
+			for _, r := range rows {
+				fmt.Fprintf(os.Stderr, "  %s  org=%s  status=%s  letter=%v\n", r.ID, r.OrgID, r.Status, r.AuthorizationLetterPath != nil)
+			}
+			return errors.New("ambiguous shortcode")
+		}
+	}
+	var out ledger.AdminShortcodeView
+	if *reject != "" {
+		out, err = svc.Reject(ctx, id, "ciftctl", *reject)
+	} else {
+		out, err = svc.Verify(ctx, id, "ciftctl", *note)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s %s (%s, org %s) -> %s", out.Kind, out.Shortcode, out.OrgName, out.OrgID, out.Status)
+	if out.C2BURLsRegisteredAt != nil {
+		fmt.Print(", C2B URLs registered")
+	}
+	fmt.Println()
+	return nil
 }
 
 func withDeps(ctx context.Context, fn func(context.Context, *boot.Deps) error) error {
@@ -178,7 +241,9 @@ func seed(ctx context.Context, d *boot.Deps) error {
 			if err != nil {
 				return err
 			}
-			if err := tx.MarkShortcodeVerified(ctx, gen.MarkShortcodeVerifiedParams{ID: sc.ID, VerificationCheckoutID: db.Ptr("seed")}); err != nil {
+			// The seed skips the Administrative Gate so make replay-webhook
+			// has a verified shortcode to land on.
+			if _, err := tx.VerifyShortcode(ctx, gen.VerifyShortcodeParams{ID: sc.ID, ReviewedBy: db.Ptr("seed")}); err != nil {
 				return err
 			}
 		}

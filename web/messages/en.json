@@ -39,7 +39,8 @@
     "reversed": "Reversed",
     "partial": "Partial",
     "verified": "Verified",
-    "unverified": "Not verified"
+    "pendingAuthorization": "Pending authorization",
+    "rejected": "Rejected"
   },
   "login": {
     "title": "Sign in",
@@ -62,7 +63,7 @@
     "steps": {
       "business": "Business",
       "shortcode": "Till or Paybill",
-      "verify": "Prove it's yours"
+      "authorization": "Authorization letter"
     },
     "later": "Do this later",
     "goToday": "Go to Today",
@@ -100,41 +101,29 @@
       "claimed": "This number is already verified by another business. If it's yours, contact support.",
       "submit": "Add number"
     },
-    "verify": {
-      "title": "Pay KES 1 to your own {kind}",
-      "lead": "Send exactly KES 1 from {msisdn} to {shortcode}. It stays in your M-Pesa; CiftPay only sees the confirmation.",
-      "starting": "Getting ready…",
-      "how": "On your phone",
+    "authorization": {
+      "title": "Authorization document",
+      "lead": "Safaricom needs your written permission before it can send CiftPay the payment notifications for {shortcode}.",
+      "how": "What to do",
       "steps": {
-        "open": "Open M-Pesa → Lipa na M-Pesa",
-        "menuBuyGoods": "Choose Buy Goods and Services",
-        "menuPayBill": "Choose Pay Bill",
-        "menuPochi": "Choose Send Money",
-        "enterTill": "Till number: {value}",
-        "enterBusiness": "Business number: {value}",
-        "enterAccount": "Account number: {value}",
-        "enterPhone": "Phone number: {value}",
-        "amount": "Amount: KES 1",
-        "pin": "Enter your M-Pesa PIN and send"
+        "print": "Print the CiftPay Safaricom Authorization Letter.",
+        "sign": "Sign it as the registered owner.",
+        "stamp": "Add the business stamp.",
+        "upload": "Take a clear photo (or scan to PDF) and upload it here."
       },
-      "waiting": "Waiting for the confirmation…",
-      "timeLeft": "{time} left",
-      "verified": "Verified. Payments to {shortcode} now become KRA receipts.",
-      "expired": "Time's up. Nothing was received from {msisdn}.",
-      "expiredHint": "If you already paid, wait a minute and start again — the confirmation can lag.",
-      "claimed": "This number is already verified by another business.",
-      "claimedHint": "If it's yours, write to support@ciftpay.co.ke with your Till number and business name.",
-      "startAgain": "Start again",
-      "useOtherPhone": "Pay from a different phone",
-      "otherPhone": "Phone you'll pay from",
-      "otherPhoneInvalid": "That doesn't look like a Kenyan mobile number.",
-      "otherPhoneSubmit": "Use this number",
-      "kindNames": {
-        "till": "Till",
-        "paybill": "Paybill",
-        "pochi": "Pochi"
-      },
-      "done": "Go to Today",
+      "printLink": "Print the letter",
+      "note": "Safaricom checks the letter against the Till’s records and connects it to CiftPay. This usually takes 1–3 business days. You can use CiftPay meanwhile; M-Pesa payments start appearing once the Till is verified.",
+      "file": "Signed letter",
+      "choose": "Photo or PDF of the signed letter",
+      "browse": "Choose file",
+      "change": "Change",
+      "fileHint": "JPEG, PNG, WebP or PDF, up to 10 MB.",
+      "fileTypeInvalid": "That file type won’t work. Upload a photo (JPEG, PNG, WebP) or a PDF.",
+      "fileTooLarge": "That file is too big. Keep it under 10 MB.",
+      "fileRejected": "CiftPay couldn’t read that file. Try a clearer photo or a PDF under 10 MB.",
+      "alreadyVerified": "This number is already verified. Nothing more to do.",
+      "claimed": "This number is already verified by another business. If it’s yours, write to support@ciftpay.co.ke.",
+      "submit": "Submit for verification",
       "later": "Do this later"
     }
   },
@@ -197,11 +186,11 @@
     "unmatched": "Unmatched payments",
     "unmatchedLead": "We couldn't tell what {amount} from {msisdn} was for.",
     "unverified": "Unverified shortcodes",
-    "unverifiedLead": "Till {shortcode} isn't verified. We'll send KES 1 to your phone to confirm you control it.",
+    "unverifiedLead": "Till {shortcode} isn’t verified yet. Upload the signed Safaricom authorization letter in Settings.",
     "pendingLong": "KRA is slow",
     "pendingLongLead": "KRA is slow right now. We'll keep trying and text the buyer when it's through.",
     "fix": "Fix it",
-    "verify": "Verify now",
+    "verify": "Upload letter",
     "convert": "Make it a sale"
   },
   "items": {
@@ -241,11 +230,11 @@
     "signOut": "Sign out",
     "addAction": "Add",
     "addSheetTitle": "Add a Till or Paybill",
-    "verifyAction": "Verify",
-    "verifySheetTitle": "Prove it's yours",
-    "c2bRegistered": "M-Pesa confirmations connected",
-    "c2bNotRegistered": "M-Pesa confirmations not yet connected",
-    "done": "Done"
+    "done": "Done",
+    "uploadLetter": "Upload letter",
+    "letterSheetTitle": "Authorization letter",
+    "letterWaiting": "Letter uploaded · waiting for Safaricom",
+    "c2bConnected": "C2B connected"
   },
   "sale": {
     "title": "Record a sale",

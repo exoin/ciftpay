@@ -6,7 +6,8 @@ Companion to [`design-system.md`](design-system.md) (how it looks) and [`api.md`
 
 ```
 /login                         (auth)         phone → OTP
-/onboarding                    (auth)         business → shortcode → pay KES 1 to your own Till (one screen, 3 steps)
+/onboarding                    (auth)         business → shortcode → authorization letter (one screen, 3 steps)
+/onboarding/letter             (auth)         printable pre-filled Safaricom authorization letter (no shell)
 /today                         (merchant)     ▸ default after login
 /payments                      (merchant)
 /payments/[id]                 (merchant)     sheet on mobile, drawer on desktop
@@ -23,21 +24,21 @@ Companion to [`design-system.md`](design-system.md) (how it looks) and [`api.md`
 
 Bottom navigation (mobile): **Today · Payments · Invoices · Attention · More**. "More" opens Items, Settings, Reports (Phase 2), Help, Language, Sign out.
 
-## 2. Onboarding (target ≤ 3 minutes; shipped in §4.1)
+## 2. Onboarding (target ≤ 3 minutes of the merchant's time; shipped in §4.1, pivoted 2026-09-09 to the Administrative Gate — [ADR-0008](adr/0008-administrative-gate.md))
 
-One client screen, `/onboarding` (`OnboardingFlow.tsx`), with a three-segment `StepIndicator` ("Step 2 of 3 · Till or Paybill"). Login and OTP stay on `/login`; a session whose `orgs` is empty is sent here by `LoginForm` and by `AppShell` (any merchant route). The flow skips step 1 when an org exists and leaves for `/today` when a verified shortcode exists; an unverified one reopens step 3.
+One client screen, `/onboarding` (`OnboardingFlow.tsx`), with a three-segment `StepIndicator` ("Step 2 of 3 · Till or Paybill"). Login and OTP stay on `/login`; a session whose `orgs` is empty is sent here by `LoginForm` and by `AppShell` (any merchant route). The flow skips step 1 when an org exists, reopens step 3 for a shortcode that has no letter uploaded yet, and leaves for `/today` once a letter is uploaded or the shortcode is verified. There is no payment, countdown or polling anywhere in onboarding: CiftPay cannot and does not prove Till ownership itself — Safaricom does, from the signed letter.
 
 | Step | Component | User does | System does | Failure copy |
 |---|---|---|---|---|
 | — | `/login` | Enters phone; then the 6-digit code | `POST /auth/otp/request`, `POST /auth/otp/verify` → cookie + `orgs: []` → `/onboarding` | "That code didn't match." |
 | 1 | `BusinessForm` | Business name, KRA PIN (uppercased, 11 chars), VAT registered? checkbox | Format check client-side (`^[AP]\d{9}[A-Z]$`); `POST /orgs` → fiscal provider PIN lookup; session copy gets the new membership, `X-Org-Id` switches to it | `422 pin_unknown`: "KRA doesn't recognise this PIN. Check it on iTax and try again." · `409`: "A business with this PIN is already on CiftPay…" |
 | 2 | `ShortcodeForm` | Picks Till / Paybill / Pochi, enters number (Pochi accepts `07…`), optional label | `POST /shortcodes` (`auto_invoice: true`) | `409 shortcode_claimed`: "This number is already verified by another business. If it's yours, contact support." |
-| 3 | `VerifyShortcode` | Opens M-Pesa on their own phone and sends **exactly KES 1** to the number just added (Buy Goods / Pay Bill with account `CIFTPAY` / Send Money for Pochi) | `POST /shortcodes/{id}/verify` → `202 pending` with masked payer MSISDN, `pay` instructions and `expires_at` (10 min); best-effort Daraja RegisterURL; the PWA counts down and polls `GET /shortcodes/{id}` every 3 s until `verified`. The C2B confirmation settles the challenge server-side and **creates no payment/sale/invoice** | expired: "Time's up. Nothing was received from 2547•••••513." → **Start again** (new challenge) · claimed (another org won the race): copy as above with a support address · no network: "No connection…" → Retry |
-| done | `/today` | Taps **Go to Today** | — | — |
+| 3 | `AuthorizationStep` | Reads a four-step card: **Print the letter** (opens `/onboarding/letter?shortcode=<id>` — pre-filled with business name, KRA PIN, Till kind + number, the CiftPay Daraja app and the C2B-only scope; `window.print()` → PDF), sign as the registered owner, add the business stamp, take a clear photo or scan to PDF; picks the file (camera on mobile; JPEG/PNG/WebP/PDF ≤ 10 MB checked client-side) and taps **Submit for verification** | `POST /shortcodes/{id}/authorization` (multipart `letter`) → `200` with `authorization_letter_uploaded: true`; then `/today`. Ops forward the letter to Safaricom, who check the signatory against the Till's KYC and map it; an operator then flips the row to `verified` (`PATCH /admin/shortcodes/{id}/verify`) and Daraja RegisterURL runs | `422 validation`: "That file isn't a photo or PDF" / "…is bigger than 10 MB" · `409 conflict`: "This number is already verified" · `409 shortcode_claimed`: copy as above · no network: "No connection…" → Retry |
+| done | `/today` | — | Honest note shown on step 3 and in Settings: "Safaricom checks the letter against the Till's records and connects it to CiftPay. This usually takes 1–3 business days. You can use CiftPay meanwhile; M-Pesa payments start appearing once the Till is verified." | — |
 
-Also on step 3: **Pay from a different phone** (posts `{msisdn}` and reopens the challenge for that payer) and **Do this later** (to `/today`; Attention nags about the unverified shortcode). Without Daraja credentials (`make up` default) the api answers `200 verified` immediately and step 3 collapses to the success card. The default-item step from the original design is deferred to §4.5 Items; cash sales fall back to the shortcode's `default_item_id` once set.
+Also on step 3: **Do this later** (to `/today`; Attention lists the shortcode under *Pending authorization*). The default-item step from the original design is deferred to §4.5 Items; cash sales fall back to the shortcode's `default_item_id` once set. The letter page is English-only — it is a legal instrument addressed to Safaricom PLC.
 
-The same `ShortcodeForm` and `VerifyShortcode` power **Settings › Shortcodes**: an **Add** button opens a `Sheet` (form → KES 1 check → **Done**), every unverified row has a **Verify** button, and each row shows whether M-Pesa confirmations are connected (`c2b_urls_registered_at`).
+The same `ShortcodeForm` and `AuthorizationStep` power **Settings › Shortcodes**: an **Add** button opens a `Sheet` (form → letter step → **Done**); every row shows a status chip — **Pending authorization** (amber), **Verified** (green), **Rejected** (red, with the operator's `rejection_reason` under it) — plus "C2B connected" once `c2b_urls_registered_at` is set. Pending rows without a letter and rejected rows offer **Upload letter**; pending rows with a letter read "Letter uploaded · waiting for Safaricom".
 
 ## 3. Daily loop (merchant)
 
@@ -70,7 +71,7 @@ A single list, grouped, each item has exactly one button:
 |---|---|---|
 | Failed invoices | "KRA rejected KES 2,400 — item code missing" | `Fix item` → picker → `POST /invoices/{id}/retry` |
 | Unmatched payments | "KES 1,250 from 0712•••345, no BillRef" | `Convert` |
-| Unverified shortcodes | "Till 512345 not verified" | `Verify now` |
+| Unverified shortcodes | "Till 512345 waiting for Safaricom" / "Till 512345 rejected: stamp missing" | `Upload letter` (only when no letter yet or rejected; otherwise informational) |
 | Pending > 10 min | "KES 800 waiting for KRA for 14 min" | `View` (no action; informational, uses ochre) |
 | Plan limit (Phase 2) | "27 of 30 free invoices used" | `Upgrade` |
 
@@ -129,9 +130,9 @@ One SMS ≤ 160 GSM-7 characters; merchant names are truncated at 24 chars.
 | Duplicate Daraja callback | Nothing visible; `webhook_duplicates_total` metric increments |
 | Reversal after ACKED (Phase 2) | Invoice shows `CANCELLED` stamp with linked credit note; Attention item "Confirm credit note sent" |
 | Buyer PIN invalid format | Inline error "KRA PINs look like A123456789B"; never submitted |
-| Shortcode claimed by another org | `409 shortcode_claimed` on add or verify, or a challenge that ends `failed` → copy in §2; support address |
-| Merchant pays KES 2 (or from another phone) during verification | Treated as an ordinary payment (unmatched → Attention); the challenge stays pending and the card keeps saying exactly KES 1 |
-| Verification challenge expires | Card turns ochre; **Start again** opens a fresh 10-minute challenge and the old one is marked `expired` |
+| Shortcode claimed by another org | `409 shortcode_claimed` on add (another org already **verified** it) → copy in §2; support address. Two orgs may both be *pending* on one number — Safaricom's answer decides |
+| Payment lands on a Till that is not yet `verified` | Never reaches the ledger: stored in `webhook_events` as `no verified shortcode`, acked 200, no payment/sale/invoice; nothing is shown to the merchant |
+| Safaricom rejects the letter | Ops `reject` with a reason → Settings and Attention show **Rejected** + reason and **Upload letter**; a new upload returns the row to *Pending authorization* |
 | KRA down for > 1 h | Attention shows one grouped item "KRA is unavailable — 14 invoices waiting. We'll keep trying."; buyers already got the pending SMS |
 | Swahili overflow | Receipt lines wrap at 32 mono chars; merchant name truncates with "…" |
 | Month boundary in reports (Phase 2) | Period picker uses Africa/Nairobi; a note shows "Includes payments until 23:59 EAT on the 31st" |

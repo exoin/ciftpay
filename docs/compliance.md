@@ -28,15 +28,16 @@ CiftPay does **not** perform primary KYC. Both counterparties have already been 
 
 | Fact | Who verified it | How CiftPay relies on it |
 |---|---|---|
-| Owner of the M-Pesa shortcode | Safaricom (CBK-regulated; KYC + business registration for Till/Paybill) | Control check: KES 1 STK push to the MSISDN the user logged in with, charged against the merchant's own shortcode; success callback ⇒ `mpesa_shortcodes.verified_at` |
+| Owner of the M-Pesa shortcode | Safaricom (CBK-regulated; KYC + business registration for Till/Paybill) | **Administrative Gate** ([ADR-0008](adr/0008-administrative-gate.md)): the merchant uploads a signed and stamped authorization letter; Safaricom checks the signatory against the shortcode's KYC before mapping it to CiftPay's Daraja app; a CiftPay operator then records the outcome (`mpesa_shortcodes.status = 'verified'`). CiftPay performs no payment-based check and holds no merchant Daraja credentials |
 | Holder of the KRA PIN | KRA (PIN issuance) | Format check `^[AP]\d{9}[A-Z]$` + iTax PIN checker lookup returning taxpayer name; stored `kra_pin_verified_at` |
 | Phone ownership | Safaricom SIM registration | OTP to the MSISDN |
 | Business identity for eTIMS | KRA, during eTIMS onboarding through the integrator | `RegisterDevice` result stored in `orgs.fiscal_profile` |
 
 Rules:
-- A shortcode may be **verified by one org only** (partial unique index). A second claim returns `409 shortcode_claimed` and the first org is notified.
+- A shortcode may be **verified by one org only** (partial unique index `WHERE status = 'verified'`). A second claim on a verified number returns `409 shortcode_claimed`; several orgs may be *pending* on one number until Safaricom's answer decides.
+- No C2B confirmation reaches a tax ledger unless the shortcode is `verified`; other callbacks are parked in `webhook_events` and acknowledged.
 - Verification expires if RegisterURL callbacks stop arriving for 90 days (Phase 2).
-- CiftPay keeps evidence of the control check (`webhook_events` row of the KES 1 STK callback) for the life of the account.
+- CiftPay keeps the evidence of ownership — the uploaded letter (`authorization_letter_path`, admin-only access) and the `shortcode.verified` audit row naming the operator — for the life of the account.
 
 **AML note [counsel]:** CiftPay is not a "reporting institution" under the Proceeds of Crime and Anti-Money Laundering Act because it does not handle funds; nonetheless the admin back-office flags anomalous patterns (e.g. one MSISDN paying > 50 merchants/day) for the merchant's information only.
 

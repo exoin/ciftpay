@@ -114,6 +114,19 @@
   ::selection {
     background: var(--paper-3);
   }
+
+  /* Printable documents (the Safaricom authorization letter): plain white A4, no grain, no column limit. */
+  @media print {
+    body {
+      background: #fff;
+      background-image: none;
+    }
+    main {
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+  }
 }
 
 @layer components {

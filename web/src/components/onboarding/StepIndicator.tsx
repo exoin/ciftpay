@@ -1,9 +1,9 @@
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 
-export type OnboardingStep = "business" | "shortcode" | "verify";
+export type OnboardingStep = "business" | "shortcode" | "authorization";
 
-export const ONBOARDING_STEPS: OnboardingStep[] = ["business", "shortcode", "verify"];
+export const ONBOARDING_STEPS: OnboardingStep[] = ["business", "shortcode", "authorization"];
 
 /** Three short segments with the current step's name under them; no icons, no colour-only state. */
 export function StepIndicator({ current }: { current: OnboardingStep }) {

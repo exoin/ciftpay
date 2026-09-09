@@ -1,9 +1,12 @@
 // Package admin is the CiftPay back-office: org list, the webhook and fiscal
-// dead-letter views and feature flags. Routes require the admin role.
+// dead-letter views, feature flags and the shortcode authorization queue
+// (ADR-0008). Routes require the admin role.
 package admin
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -111,13 +114,30 @@ func (s *Service) Enabled(ctx context.Context, key string, orgID uuid.UUID) bool
 }
 
 // Handler serves /admin/* (mount behind RequireRole(admin)).
-type Handler struct{ S *Service }
+type Handler struct {
+	S *Service
+	// Shortcodes is the authorization queue; nil disables those routes.
+	Shortcodes *Shortcodes
+}
 
 // Mount registers the routes.
 func (h *Handler) Mount(r chi.Router) {
 	r.Get("/admin/orgs", h.orgs)
 	r.Get("/admin/webhooks/dead", h.dead)
 	r.Get("/admin/flags", h.flags)
+	if h.Shortcodes != nil {
+		h.MountShortcodes(r)
+	}
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr interface{ SQLState() string }
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
+}
+
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 func limitParam(r *http.Request) int32 {

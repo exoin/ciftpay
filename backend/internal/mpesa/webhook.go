@@ -85,7 +85,9 @@ func (h *Webhooks) confirmation(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Ingest.IngestC2B(r.Context(), in)
 	switch {
 	case errors.Is(err, ledger.ErrUnknownShortcode):
-		h.Log.Warn("c2b for unknown shortcode", "shortcode", p.BusinessShortCode, "trans_id", p.TransID)
+		// Stored, acknowledged, never ledgered: the Administrative Gate
+		// (ADR-0008) only lets verified shortcodes through.
+		h.Log.Warn("c2b for a shortcode without a verified owner", "shortcode", p.BusinessShortCode, "trans_id", p.TransID)
 	case err != nil:
 		h.Log.Error("c2b ingest failed", "err", err, "trans_id", p.TransID)
 		// Still 200: Daraja retries on non-200 and the event is stored; the

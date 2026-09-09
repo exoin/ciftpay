@@ -39,7 +39,8 @@
     "reversed": "Imerudishwa",
     "partial": "Sehemu",
     "verified": "Imethibitishwa",
-    "unverified": "Haijathibitishwa"
+    "pendingAuthorization": "Inasubiri idhini",
+    "rejected": "Imekataliwa"
   },
   "login": {
     "title": "Ingia",
@@ -62,7 +63,7 @@
     "steps": {
       "business": "Biashara",
       "shortcode": "Till au Paybill",
-      "verify": "Thibitisha ni yako"
+      "authorization": "Barua ya idhini"
     },
     "later": "Fanya baadaye",
     "goToday": "Nenda Leo",
@@ -100,41 +101,29 @@
       "claimed": "Nambari hii tayari imethibitishwa na biashara nyingine. Ikiwa ni yako, wasiliana na usaidizi.",
       "submit": "Ongeza nambari"
     },
-    "verify": {
-      "title": "Lipa KES 1 kwa {kind} yako mwenyewe",
-      "lead": "Tuma KES 1 haswa kutoka {msisdn} kwenda {shortcode}. Zinabaki kwenye M-Pesa yako; CiftPay inaona uthibitisho tu.",
-      "starting": "Inajiandaa…",
-      "how": "Kwenye simu yako",
+    "authorization": {
+      "title": "Hati ya idhini",
+      "lead": "Safaricom inahitaji ruhusa yako ya maandishi kabla ya kutuma CiftPay taarifa za malipo ya {shortcode}.",
+      "how": "Cha kufanya",
       "steps": {
-        "open": "Fungua M-Pesa → Lipa na M-Pesa",
-        "menuBuyGoods": "Chagua Buy Goods and Services",
-        "menuPayBill": "Chagua Pay Bill",
-        "menuPochi": "Chagua Send Money",
-        "enterTill": "Nambari ya Till: {value}",
-        "enterBusiness": "Nambari ya biashara: {value}",
-        "enterAccount": "Nambari ya akaunti: {value}",
-        "enterPhone": "Nambari ya simu: {value}",
-        "amount": "Kiasi: KES 1",
-        "pin": "Weka PIN yako ya M-Pesa utume"
+        "print": "Chapisha Barua ya Idhini ya CiftPay kwa Safaricom.",
+        "sign": "Tia sahihi kama mmiliki aliyesajiliwa.",
+        "stamp": "Weka muhuri wa biashara.",
+        "upload": "Piga picha iliyo wazi (au skani kuwa PDF) na upakie hapa."
       },
-      "waiting": "Inasubiri uthibitisho…",
-      "timeLeft": "Zimebaki {time}",
-      "verified": "Imethibitishwa. Malipo kwa {shortcode} sasa huwa risiti za KRA.",
-      "expired": "Muda umeisha. Hakuna kilichopokelewa kutoka {msisdn}.",
-      "expiredHint": "Kama tayari umelipa, subiri dakika moja uanze tena — uthibitisho unaweza kuchelewa.",
-      "claimed": "Nambari hii tayari imethibitishwa na biashara nyingine.",
-      "claimedHint": "Ikiwa ni yako, andikia support@ciftpay.co.ke ukitaja nambari ya Till na jina la biashara.",
-      "startAgain": "Anza tena",
-      "useOtherPhone": "Lipa kutoka simu nyingine",
-      "otherPhone": "Simu utakayolipa nayo",
-      "otherPhoneInvalid": "Hiyo haionekani kama nambari ya simu ya Kenya.",
-      "otherPhoneSubmit": "Tumia nambari hii",
-      "kindNames": {
-        "till": "Till",
-        "paybill": "Paybill",
-        "pochi": "Pochi"
-      },
-      "done": "Nenda Leo",
+      "printLink": "Chapisha barua",
+      "note": "Safaricom hukagua barua dhidi ya rekodi za Till na kuiunganisha na CiftPay. Kawaida huchukua siku 1–3 za kazi. Unaweza kutumia CiftPay wakati huo; malipo ya M-Pesa yataanza kuonekana Till ikithibitishwa.",
+      "file": "Barua iliyosainiwa",
+      "choose": "Picha au PDF ya barua iliyosainiwa",
+      "browse": "Chagua faili",
+      "change": "Badilisha",
+      "fileHint": "JPEG, PNG, WebP au PDF, isiyozidi MB 10.",
+      "fileTypeInvalid": "Aina hii ya faili haifai. Pakia picha (JPEG, PNG, WebP) au PDF.",
+      "fileTooLarge": "Faili hili ni kubwa mno. Lisizidi MB 10.",
+      "fileRejected": "CiftPay haikuweza kusoma faili hili. Jaribu picha iliyo wazi zaidi au PDF isiyozidi MB 10.",
+      "alreadyVerified": "Nambari hii tayari imethibitishwa. Hakuna kingine cha kufanya.",
+      "claimed": "Nambari hii tayari imethibitishwa na biashara nyingine. Ikiwa ni yako, andikia support@ciftpay.co.ke.",
+      "submit": "Tuma kwa uhakiki",
       "later": "Fanya baadaye"
     }
   },
@@ -197,11 +186,11 @@
     "unmatched": "Malipo yasiyolinganishwa",
     "unmatchedLead": "Hatukuweza kujua {amount} kutoka {msisdn} yalikuwa ya nini.",
     "unverified": "Shortcode zisizothibitishwa",
-    "unverifiedLead": "Till {shortcode} haijathibitishwa. Tutatuma KES 1 kwa simu yako kuthibitisha unaimiliki.",
+    "unverifiedLead": "Till {shortcode} bado haijathibitishwa. Pakia barua ya idhini ya Safaricom iliyosainiwa katika Mipangilio.",
     "pendingLong": "KRA iko polepole",
     "pendingLongLead": "KRA iko polepole sasa. Tutaendelea kujaribu na kumtumia mnunuzi SMS ikikamilika.",
     "fix": "Rekebisha",
-    "verify": "Thibitisha sasa",
+    "verify": "Pakia barua",
     "convert": "Fanya kuwa mauzo"
   },
   "items": {
@@ -241,11 +230,11 @@
     "signOut": "Ondoka",
     "addAction": "Ongeza",
     "addSheetTitle": "Ongeza Till au Paybill",
-    "verifyAction": "Thibitisha",
-    "verifySheetTitle": "Thibitisha ni yako",
-    "c2bRegistered": "Uthibitisho wa M-Pesa umeunganishwa",
-    "c2bNotRegistered": "Uthibitisho wa M-Pesa bado haujaunganishwa",
-    "done": "Imekamilika"
+    "done": "Imekamilika",
+    "uploadLetter": "Pakia barua",
+    "letterSheetTitle": "Barua ya idhini",
+    "letterWaiting": "Barua imepakiwa · inasubiri Safaricom",
+    "c2bConnected": "C2B imeunganishwa"
   },
   "sale": {
     "title": "Andika mauzo",

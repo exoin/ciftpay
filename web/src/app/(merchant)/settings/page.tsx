@@ -10,13 +10,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Sheet } from "@/components/ui/Sheet";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { OrgSwitcher } from "@/components/shell/OrgSwitcher";
+import { AuthorizationStep } from "@/components/onboarding/AuthorizationStep";
 import { ShortcodeForm } from "@/components/onboarding/ShortcodeForm";
-import { VerifyShortcode } from "@/components/onboarding/VerifyShortcode";
 import { qk, useCurrentOrg, useShortcodes } from "@/lib/api/queries";
 import { rawGet, type Schemas } from "@/lib/api/client";
 import { useLogout } from "@/lib/auth";
 import { setLocale } from "@/lib/i18n/actions";
 import { cn } from "@/lib/cn";
+import { shortcodeAction, shortcodeChip } from "@/lib/status";
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
@@ -27,8 +28,8 @@ export default function SettingsPage() {
   const qc = useQueryClient();
   const { data: org } = useCurrentOrg();
   const { data: shortcodes } = useShortcodes();
-  // The add/verify sheet: `add` shows the form, `verify` the KES 1 control check for one row.
-  const [sheet, setSheet] = useState<{ mode: "add" } | { mode: "verify"; shortcode: Schemas["Shortcode"] } | null>(null);
+  // The add/letter sheet: `add` shows the form, `letter` the authorization upload for one row.
+  const [sheet, setSheet] = useState<{ mode: "add" } | { mode: "letter"; shortcode: Schemas["Shortcode"] } | null>(null);
   const closeSheet = () => {
     setSheet(null);
     void qc.invalidateQueries({ queryKey: qk.shortcodes });
@@ -72,26 +73,32 @@ export default function SettingsPage() {
             <EmptyState>{t("addShortcode")}</EmptyState>
           ) : (
             <ul className="ruled">
-              {shortcodes.data.map((s) => (
-                <li key={s.id} className="flex min-h-[var(--row)] items-center justify-between gap-3 py-2">
-                  <span className="min-w-0">
-                    <span className="block font-mono">{s.shortcode}</span>
-                    <span className="block text-sm text-muted">
-                      {s.kind}
-                      {s.label ? ` · ${s.label}` : ""}
+              {shortcodes.data.map((s) => {
+                const chip = shortcodeChip(s.status);
+                const action = shortcodeAction(s);
+                return (
+                  <li key={s.id} className="flex min-h-[var(--row)] flex-wrap items-center justify-between gap-3 py-2">
+                    <span className="min-w-0 flex-1 basis-40">
+                      <span className="block font-mono">{s.shortcode}</span>
+                      <span className="block text-sm text-muted">
+                        {s.kind}
+                        {s.label ? ` · ${s.label}` : ""}
+                      </span>
+                      {s.status === "rejected" && s.rejection_reason && <span className="block text-xs text-red">{s.rejection_reason}</span>}
+                      {s.c2b_urls_registered_at && <span className="block text-xs text-muted">{t("c2bConnected")}</span>}
+                      {action === "waiting" && <span className="block text-xs text-muted">{t("letterWaiting")}</span>}
                     </span>
-                    <span className="block text-xs text-muted">{s.c2b_urls_registered_at ? t("c2bRegistered") : t("c2bNotRegistered")}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <StatusChip tone={s.verified ? "acked" : "pending"}>{s.verified ? ts("verified") : ts("unverified")}</StatusChip>
-                    {!s.verified && (
-                      <Button size="sm" variant="secondary" onClick={() => setSheet({ mode: "verify", shortcode: s })}>
-                        {t("verifyAction")}
-                      </Button>
-                    )}
-                  </span>
-                </li>
-              ))}
+                    <span className="flex shrink-0 items-center gap-2">
+                      <StatusChip tone={chip.tone}>{ts(chip.key)}</StatusChip>
+                      {action === "upload" && (
+                        <Button size="sm" variant="secondary" onClick={() => setSheet({ mode: "letter", shortcode: s })}>
+                          {t("uploadLetter")}
+                        </Button>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Section>
@@ -137,18 +144,9 @@ export default function SettingsPage() {
         </Section>
       </div>
 
-      <Sheet open={sheet !== null} onClose={closeSheet} title={sheet?.mode === "verify" ? t("verifySheetTitle") : t("addSheetTitle")} closeLabel={tc("close")}>
-        {sheet?.mode === "add" && <ShortcodeForm heading={false} onCreated={(sc) => setSheet({ mode: "verify", shortcode: sc })} />}
-        {sheet?.mode === "verify" && (
-          <VerifyShortcode
-            key={sheet.shortcode.id}
-            shortcode={sheet.shortcode}
-            heading="compact"
-            onVerified={() => void qc.invalidateQueries({ queryKey: qk.shortcodes })}
-            onDone={closeSheet}
-            doneLabel={t("done")}
-          />
-        )}
+      <Sheet open={sheet !== null} onClose={closeSheet} title={sheet?.mode === "letter" ? t("letterSheetTitle") : t("addSheetTitle")} closeLabel={tc("close")}>
+        {sheet?.mode === "add" && <ShortcodeForm heading={false} onCreated={(sc) => setSheet({ mode: "letter", shortcode: sc })} />}
+        {sheet?.mode === "letter" && <AuthorizationStep key={sheet.shortcode.id} shortcode={sheet.shortcode} heading="compact" onSubmitted={closeSheet} />}
       </Sheet>
     </>
   );
