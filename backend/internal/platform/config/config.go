@@ -110,6 +110,12 @@ func (c Config) Validate() error {
 		if c.Daraja.WebhookToken == "dev-webhook-token" {
 			return fmt.Errorf("config: DARAJA_WEBHOOK_TOKEN must be changed when APP_ENV=production")
 		}
+		if c.Daraja.ConsumerKey == "" || c.Daraja.ConsumerSecret == "" {
+			return fmt.Errorf("config: DARAJA_CONSUMER_KEY and DARAJA_CONSUMER_SECRET are required when APP_ENV=production")
+		}
+	}
+	if strings.TrimSpace(c.UploadDir) == "" {
+		return fmt.Errorf("config: UPLOAD_DIR must not be empty")
 	}
 	return nil
 }
