@@ -15,6 +15,7 @@ See `plan.md` section 2 ("How to work this plan") for when an ADR is required. I
 | [0005](0005-sqlc-no-orm.md) | Explicit SQL with sqlc + pgx + goose, no ORM, money as integer cents | Accepted |
 | [0006](0006-openapi-first.md) | OpenAPI-first contract in `api/openapi.yaml` | Accepted |
 | [0007](0007-rls-multitenancy.md) | Multi-tenancy by `org_id` column and forced Postgres RLS | Accepted |
+| [0008](0008-administrative-gate.md) | The Administrative Gate: shortcode ownership proven by Safaricom's authorization letter, recorded by an operator | Accepted |
 
 ## Numbering and naming
 
