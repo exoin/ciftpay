@@ -106,8 +106,8 @@ UPDATE stk_requests SET status = $2, result_code = $3, result_desc = $4 WHERE id
 UPDATE mpesa_shortcodes SET c2b_urls_registered_at = now() WHERE id = $1;
 
 -- name: CountVerifiedShortcodeElsewhere :one
--- Runs under app.scope = 'ingest' or any org scope: the partial unique index
--- is the arbiter, this is only the friendly pre-check behind shortcode_claimed.
+-- Runs under app.scope = 'ingest' or 'admin': the partial unique index is the
+-- arbiter, this is only the friendly pre-check behind shortcode_claimed.
 SELECT count(*) FROM mpesa_shortcodes
 WHERE shortcode = $1 AND org_id <> $2 AND verified_at IS NOT NULL;
 
