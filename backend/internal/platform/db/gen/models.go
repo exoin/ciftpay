@@ -245,20 +245,6 @@ type Session struct {
 	CreatedAt time.Time
 }
 
-type ShortcodeVerification struct {
-	ID          uuid.UUID
-	OrgID       uuid.UUID
-	ShortcodeID uuid.UUID
-	MsisdnHash  []byte
-	AmountCents int64
-	Status      string
-	TransID     *string
-	PaidAt      *time.Time
-	ExpiresAt   time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
 type StkRequest struct {
 	ID                uuid.UUID
 	OrgID             uuid.UUID
