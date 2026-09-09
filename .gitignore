@@ -25,3 +25,7 @@ out/
 /tmp/
 # ide.idea/
 .idea/
+
+# merchant uploads (UPLOAD_DIR default)
+/backend/var/
+/var/
