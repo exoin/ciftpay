@@ -66,7 +66,6 @@ type Querier interface {
 	// Idempotent intake. Returns zero rows when external_id was already seen.
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (uuid.UUID, error)
 	LatestOTP(ctx context.Context, msisdnHash []byte) (OtpCode, error)
-	LatestShortcodeVerification(ctx context.Context, shortcodeID uuid.UUID) (ShortcodeVerification, error)
 	ListFiscalSubmissions(ctx context.Context, invoiceID uuid.UUID) ([]FiscalSubmission, error)
 	ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error)
 	ListItems(ctx context.Context, orgID uuid.UUID) ([]Item, error)
