@@ -258,7 +258,6 @@ func (q *Queries) GetShortcode(ctx context.Context, id uuid.UUID) (MpesaShortcod
 		&i.DefaultItemID,
 		&i.AutoInvoice,
 		&i.VerifiedAt,
-		&i.VerificationCheckoutID,
 		&i.C2bUrlsRegisteredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
