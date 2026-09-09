@@ -1231,11 +1231,8 @@ components:
           properties:
             org_id:
               type: string
-              enum: [pending, verified, expired, failed]
-              description: >-
-                `failed` means another organisation verified the same number first
-                (`shortcode_claimed`)
-            expires_at:
+              format: uuid
+            org_name:
               type: string
               format: date-time
 
