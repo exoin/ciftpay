@@ -261,6 +261,52 @@ func (q *Queries) GetShortcode(ctx context.Context, id uuid.UUID) (MpesaShortcod
 		&i.C2bUrlsRegisteredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.AuthorizationLetterPath,
+		&i.AuthorizationSubmittedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.RejectionReason,
+	)
+	return i, err
+}
+
+const getShortcodeAdmin = `-- name: GetShortcodeAdmin :one
+SELECT s.id, s.org_id, s.kind, s.shortcode, s.label, s.default_item_id, s.auto_invoice, s.verified_at, s.c2b_urls_registered_at, s.created_at, s.updated_at, s.status, s.authorization_letter_path, s.authorization_submitted_at, s.reviewed_by, s.reviewed_at, s.rejection_reason, o.name AS org_name, o.kra_pin_enc AS org_kra_pin_enc
+FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
+WHERE s.id = $1
+`
+
+type GetShortcodeAdminRow struct {
+	MpesaShortcode MpesaShortcode
+	OrgName        string
+	OrgKraPinEnc   []byte
+}
+
+// Runs under app.scope = 'admin' (db.WithAdmin).
+func (q *Queries) GetShortcodeAdmin(ctx context.Context, id uuid.UUID) (GetShortcodeAdminRow, error) {
+	row := q.db.QueryRow(ctx, getShortcodeAdmin, id)
+	var i GetShortcodeAdminRow
+	err := row.Scan(
+		&i.MpesaShortcode.ID,
+		&i.MpesaShortcode.OrgID,
+		&i.MpesaShortcode.Kind,
+		&i.MpesaShortcode.Shortcode,
+		&i.MpesaShortcode.Label,
+		&i.MpesaShortcode.DefaultItemID,
+		&i.MpesaShortcode.AutoInvoice,
+		&i.MpesaShortcode.VerifiedAt,
+		&i.MpesaShortcode.C2bUrlsRegisteredAt,
+		&i.MpesaShortcode.CreatedAt,
+		&i.MpesaShortcode.UpdatedAt,
+		&i.MpesaShortcode.Status,
+		&i.MpesaShortcode.AuthorizationLetterPath,
+		&i.MpesaShortcode.AuthorizationSubmittedAt,
+		&i.MpesaShortcode.ReviewedBy,
+		&i.MpesaShortcode.ReviewedAt,
+		&i.MpesaShortcode.RejectionReason,
+		&i.OrgName,
+		&i.OrgKraPinEnc,
 	)
 	return i, err
 }
