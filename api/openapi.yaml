@@ -306,6 +306,7 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required: [letter]
               properties:
                 msisdn:
                   $ref: "#/components/schemas/Msisdn"
