@@ -86,7 +86,6 @@ type Querier interface {
 	MarkPaymentReversed(ctx context.Context, id uuid.UUID) error
 	MarkSalePaid(ctx context.Context, arg MarkSalePaidParams) error
 	MarkShortcodeC2BRegistered(ctx context.Context, id uuid.UUID) error
-	MarkShortcodeVerified(ctx context.Context, arg MarkShortcodeVerifiedParams) error
 	MarkWebhookProcessed(ctx context.Context, arg MarkWebhookProcessedParams) error
 	NextSaleRef(ctx context.Context, orgID uuid.UUID) (string, error)
 	ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoice, error)
