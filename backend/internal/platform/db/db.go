@@ -1,7 +1,8 @@
 // Package db owns the pgx pool and the tenant-scoping helpers that make RLS
-// work (ADR-0007). Every tenant read or write goes through WithOrg; the two
-// narrow exceptions are WithIngest (resolve a shortcode to its org) and
-// WithReceipt (public /r/{code} page).
+// work (ADR-0007). Every tenant read or write goes through WithOrg; the three
+// narrow exceptions are WithIngest (resolve a shortcode to its org), WithAdmin
+// (operators reading the shortcode queue, ADR-0008) and WithReceipt (public
+// /r/{code} page).
 package db
 
 import (
