@@ -24,6 +24,9 @@ USER nonroot:nonroot
 
 FROM base AS api
 COPY --from=build /out/api /out/ciftctl /app/
+# UPLOAD_DIR for the signed authorization letters (ADR-0008). Created in the
+# image so a fresh named volume inherits nonroot ownership.
+COPY --from=build --chown=nonroot:nonroot /out/uploads /var/lib/ciftpay/uploads
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]
 
