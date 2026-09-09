@@ -108,6 +108,9 @@ type Querier interface {
 	UpsertCustomerByMSISDN(ctx context.Context, arg UpsertCustomerByMSISDNParams) (Customer, error)
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)
 	VATPosition(ctx context.Context, arg VATPositionParams) (VATPositionRow, error)
+	// The operator's decision (admin endpoint or ciftctl). Runs under the owning
+	// org's scope; the partial unique index rejects a second verified owner.
+	VerifyShortcode(ctx context.Context, arg VerifyShortcodeParams) (MpesaShortcode, error)
 }
 
 var _ Querier = (*Queries)(nil)
