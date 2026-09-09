@@ -587,11 +587,9 @@ WHERE id = $1
 RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason
 `
 
-type SettleShortcodeVerificationParams struct {
-	ID      uuid.UUID
-	Status  string
-	TransID *string
-	PaidAt  *time.Time
+type SetShortcodeAuthorizationLetterParams struct {
+	ID                      uuid.UUID
+	AuthorizationLetterPath *string
 }
 
 func (q *Queries) SettleShortcodeVerification(ctx context.Context, arg SettleShortcodeVerificationParams) error {
