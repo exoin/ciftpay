@@ -673,7 +673,6 @@ func (q *Queries) UpdateShortcode(ctx context.Context, arg UpdateShortcodeParams
 		&i.DefaultItemID,
 		&i.AutoInvoice,
 		&i.VerifiedAt,
-		&i.VerificationCheckoutID,
 		&i.C2bUrlsRegisteredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
