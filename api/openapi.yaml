@@ -1201,6 +1201,8 @@ components:
           format: uuid
         auto_invoice:
           type: boolean
+        status:
+          $ref: "#/components/schemas/ShortcodeStatus"
         verified:
           type: boolean
         verified_at:
