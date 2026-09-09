@@ -1246,14 +1246,7 @@ components:
               format: date-time
             created_at:
               type: string
-              description: Account number to enter for Paybill numbers (ignored for Till/Pochi)
-              example: CIFTPAY
-        expires_at:
-          type: string
-          format: date-time
-          description: When the challenge lapses (status `pending`)
-        shortcode:
-          $ref: "#/components/schemas/Shortcode"
+              format: date-time
 
     PaymentStatus:
       type: string
