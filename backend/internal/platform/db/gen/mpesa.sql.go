@@ -14,7 +14,7 @@ import (
 
 const countVerifiedShortcodeElsewhere = `-- name: CountVerifiedShortcodeElsewhere :one
 SELECT count(*) FROM mpesa_shortcodes
-WHERE shortcode = $1 AND org_id <> $2 AND verified_at IS NOT NULL
+WHERE shortcode = $1 AND org_id <> $2 AND status = 'verified'
 `
 
 type CountVerifiedShortcodeElsewhereParams struct {
