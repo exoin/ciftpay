@@ -93,29 +93,8 @@ var ErrSTKNotConfigured = errors.New("mpesa: STK push is not available (no DARAJ
 // use is already routed (/webhooks/daraja/stk/{token}); the request itself is
 // disabled until CiftPay's own Paybill is live with a passkey.
 func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCents int64, accountRef, desc, webhookBaseURL string) (STKPushResult, error) {
-	ts := time.Now().In(Nairobi).Format("20060102150405")
-	password := base64.StdEncoding.EncodeToString([]byte(shortcode + c.cfg.Passkey + ts))
-	body := map[string]any{
-		"BusinessShortCode": shortcode,
-		"Password":          password,
-		"Timestamp":         ts,
-		"TransactionType":   "CustomerPayBillOnline",
-		"Amount":            amountCents / 100,
-		"PartyA":            msisdn,
-		"PartyB":            shortcode,
-		"PhoneNumber":       msisdn,
-		"CallBackURL":       fmt.Sprintf("%s/webhooks/daraja/stk/%s", webhookBaseURL, c.cfg.WebhookToken),
-		"AccountReference":  accountRef,
-		"TransactionDesc":   desc,
-	}
-	var out STKPushResult
-	if err := c.post(ctx, "/mpesa/stkpush/v1/processrequest", body, &out); err != nil {
-		return out, err
-	}
-	if out.ResponseCode != "0" {
-		return out, fmt.Errorf("mpesa: stk push rejected: %s %s", out.ResponseCode, out.ResponseDescription)
-	}
-	return out, nil
+	_, _, _, _, _, _ = shortcode, msisdn, amountCents, accountRef, desc, webhookBaseURL
+	return STKPushResult{}, ErrSTKNotConfigured
 }
 
 // SimulateC2B asks the Daraja *sandbox* to emit a C2B confirmation for
