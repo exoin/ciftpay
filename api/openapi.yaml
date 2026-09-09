@@ -1185,7 +1185,7 @@ components:
 
     Shortcode:
       type: object
-      required: [id, kind, shortcode, auto_invoice, verified]
+      required: [id, kind, shortcode, auto_invoice, status, verified, authorization_letter_uploaded]
       properties:
         id:
           type: string
