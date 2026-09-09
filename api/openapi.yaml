@@ -31,6 +31,7 @@ tags:
   - name: reports
   - name: public
   - name: webhooks
+  - name: admin
   - name: system
 
 security:
