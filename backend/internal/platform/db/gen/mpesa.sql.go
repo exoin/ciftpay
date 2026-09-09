@@ -243,7 +243,7 @@ func (q *Queries) GetSTKRequestByCheckoutID(ctx context.Context, checkoutRequest
 }
 
 const getShortcode = `-- name: GetShortcode :one
-SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, verification_checkout_id, c2b_urls_registered_at, created_at, updated_at FROM mpesa_shortcodes WHERE id = $1
+SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason FROM mpesa_shortcodes WHERE id = $1
 `
 
 func (q *Queries) GetShortcode(ctx context.Context, id uuid.UUID) (MpesaShortcode, error) {
