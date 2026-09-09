@@ -108,18 +108,23 @@ type Membership struct {
 }
 
 type MpesaShortcode struct {
-	ID                     uuid.UUID
-	OrgID                  uuid.UUID
-	Kind                   string
-	Shortcode              string
-	Label                  string
-	DefaultItemID          *uuid.UUID
-	AutoInvoice            bool
-	VerifiedAt             *time.Time
-	VerificationCheckoutID *string
-	C2bUrlsRegisteredAt    *time.Time
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	ID                       uuid.UUID
+	OrgID                    uuid.UUID
+	Kind                     string
+	Shortcode                string
+	Label                    string
+	DefaultItemID            *uuid.UUID
+	AutoInvoice              bool
+	VerifiedAt               *time.Time
+	C2bUrlsRegisteredAt      *time.Time
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	Status                   string
+	AuthorizationLetterPath  *string
+	AuthorizationSubmittedAt *time.Time
+	ReviewedBy               *string
+	ReviewedAt               *time.Time
+	RejectionReason          *string
 }
 
 type Notification struct {
