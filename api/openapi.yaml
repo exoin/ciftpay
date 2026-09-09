@@ -862,6 +862,10 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/DarajaC2B"
+      description: |
+        Only shortcodes with `status: verified` reach a ledger. A confirmation for any other
+        number is stored in `webhook_events`, marked processed with the error
+        `no verified shortcode <n>` and acknowledged with 200 (no payment, sale or invoice).
       responses:
         "200":
           description: Accepted (idempotent on TransID)
