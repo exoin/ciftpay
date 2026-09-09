@@ -116,7 +116,6 @@ func (q *Queries) CreateShortcode(ctx context.Context, arg CreateShortcodeParams
 		&i.DefaultItemID,
 		&i.AutoInvoice,
 		&i.VerifiedAt,
-		&i.VerificationCheckoutID,
 		&i.C2bUrlsRegisteredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
