@@ -37,7 +37,6 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateShortcode(ctx context.Context, arg CreateShortcodeParams) (MpesaShortcode, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	ExpireShortcodeVerifications(ctx context.Context) (int64, error)
 	FindCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error)
 	FindCustomerByMSISDNHash(ctx context.Context, arg FindCustomerByMSISDNHashParams) (Customer, error)
 	// Runs under app.scope = 'ingest' (db.WithIngest): the C2B confirmation carries
