@@ -101,3 +101,5 @@ services:
 
 volumes:
   pgdata:
+  # Signed Safaricom authorization letters (ADR-0008); never served publicly.
+  uploads:
