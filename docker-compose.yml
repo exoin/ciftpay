@@ -36,6 +36,7 @@ services:
       DARAJA_CONSUMER_SECRET: ${DARAJA_CONSUMER_SECRET:-}
       DARAJA_SHORTCODE: ${DARAJA_SHORTCODE:-600000}
       DARAJA_WEBHOOK_TOKEN: ${DARAJA_WEBHOOK_TOKEN:-dev-webhook-token}
+      UPLOAD_DIR: /var/lib/ciftpay/uploads
       FISCAL_ADAPTER: ${FISCAL_ADAPTER:-mock}
       AT_BASE_URL: http://sms-sink:8025
       AT_USERNAME: ${AT_USERNAME:-sandbox}
