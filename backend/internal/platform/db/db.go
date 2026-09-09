@@ -74,6 +74,13 @@ func (d *DB) WithIngest(ctx context.Context, fn func(ctx context.Context, tx Tx)
 	return d.scoped(ctx, "app.scope", "ingest", fn)
 }
 
+// WithAdmin runs fn with the cross-tenant operator scope: read-only access to
+// mpesa_shortcodes so the back-office can list the authorization queue and
+// find the owning org. Decisions are then written under WithOrg.
+func (d *DB) WithAdmin(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error {
+	return d.scoped(ctx, "app.scope", "admin", fn)
+}
+
 // WithReceipt runs fn with read access to exactly one invoice by receipt code.
 func (d *DB) WithReceipt(ctx context.Context, code string, fn func(ctx context.Context, tx Tx) error) error {
 	return d.scoped(ctx, "app.receipt_code", code, fn)
