@@ -90,10 +90,11 @@ type Querier interface {
 	NextSaleRef(ctx context.Context, orgID uuid.UUID) (string, error)
 	RejectShortcode(ctx context.Context, arg RejectShortcodeParams) (MpesaShortcode, error)
 	ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoice, error)
-	// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
-	// A verified row always wins; among unverified duplicates prefer_id (the row
-	// with an open KES 1 verification challenge for this payer) goes first.
-	ResolveShortcode(ctx context.Context, arg ResolveShortcodeParams) (ResolveShortcodeRow, error)
+	// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read
+	// of the payment path. The Administrative Gate (ADR-0008): only a shortcode an
+	// operator marked verified resolves, so money never reaches a ledger Safaricom
+	// has not confirmed. The partial unique index guarantees at most one row.
+	ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error)
 	RevokeSession(ctx context.Context, id uuid.UUID) error
 	SetInvoiceState(ctx context.Context, arg SetInvoiceStateParams) (Invoice, error)
 	SettleShortcodeVerification(ctx context.Context, arg SettleShortcodeVerificationParams) error
