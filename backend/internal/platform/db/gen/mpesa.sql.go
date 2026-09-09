@@ -363,6 +363,72 @@ func (q *Queries) ListShortcodes(ctx context.Context, orgID uuid.UUID) ([]MpesaS
 			&i.C2bUrlsRegisteredAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Status,
+			&i.AuthorizationLetterPath,
+			&i.AuthorizationSubmittedAt,
+			&i.ReviewedBy,
+			&i.ReviewedAt,
+			&i.RejectionReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listShortcodesByStatus = `-- name: ListShortcodesByStatus :many
+SELECT s.id, s.org_id, s.kind, s.shortcode, s.label, s.default_item_id, s.auto_invoice, s.verified_at, s.c2b_urls_registered_at, s.created_at, s.updated_at, s.status, s.authorization_letter_path, s.authorization_submitted_at, s.reviewed_by, s.reviewed_at, s.rejection_reason, o.name AS org_name, o.kra_pin_enc AS org_kra_pin_enc
+FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
+WHERE s.status = $1
+ORDER BY s.authorization_submitted_at NULLS LAST, s.created_at
+LIMIT $2
+`
+
+type ListShortcodesByStatusParams struct {
+	Status string
+	Limit  int32
+}
+
+type ListShortcodesByStatusRow struct {
+	MpesaShortcode MpesaShortcode
+	OrgName        string
+	OrgKraPinEnc   []byte
+}
+
+// Runs under app.scope = 'admin' (db.WithAdmin): the operator queue.
+func (q *Queries) ListShortcodesByStatus(ctx context.Context, arg ListShortcodesByStatusParams) ([]ListShortcodesByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listShortcodesByStatus, arg.Status, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListShortcodesByStatusRow{}
+	for rows.Next() {
+		var i ListShortcodesByStatusRow
+		if err := rows.Scan(
+			&i.MpesaShortcode.ID,
+			&i.MpesaShortcode.OrgID,
+			&i.MpesaShortcode.Kind,
+			&i.MpesaShortcode.Shortcode,
+			&i.MpesaShortcode.Label,
+			&i.MpesaShortcode.DefaultItemID,
+			&i.MpesaShortcode.AutoInvoice,
+			&i.MpesaShortcode.VerifiedAt,
+			&i.MpesaShortcode.C2bUrlsRegisteredAt,
+			&i.MpesaShortcode.CreatedAt,
+			&i.MpesaShortcode.UpdatedAt,
+			&i.MpesaShortcode.Status,
+			&i.MpesaShortcode.AuthorizationLetterPath,
+			&i.MpesaShortcode.AuthorizationSubmittedAt,
+			&i.MpesaShortcode.ReviewedBy,
+			&i.MpesaShortcode.ReviewedAt,
+			&i.MpesaShortcode.RejectionReason,
+			&i.OrgName,
+			&i.OrgKraPinEnc,
 		); err != nil {
 			return nil, err
 		}
