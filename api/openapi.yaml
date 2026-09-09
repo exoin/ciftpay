@@ -283,7 +283,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /shortcodes/{id}/verify:
+  /shortcodes/{id}/authorization:
     parameters:
       - $ref: "#/components/parameters/Id"
     post:
