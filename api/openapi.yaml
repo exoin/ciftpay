@@ -1174,6 +1174,15 @@ components:
         auto_invoice:
           type: boolean
 
+    ShortcodeStatus:
+      type: string
+      description: >-
+        `pending_authorization` — waiting for the signed Safaricom authorization letter and/or
+        Safaricom's mapping; `verified` — a CiftPay operator confirmed Safaricom mapped the
+        shortcode, C2B payments now reach the ledger; `rejected` — Safaricom or CiftPay refused
+        the letter (`rejection_reason`), upload a corrected one.
+      enum: [pending_authorization, verified, rejected]
+
     Shortcode:
       type: object
       required: [id, kind, shortcode, auto_invoice, verified]
