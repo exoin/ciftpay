@@ -338,31 +338,6 @@ func (q *Queries) InsertWebhookEvent(ctx context.Context, arg InsertWebhookEvent
 	return id, err
 }
 
-const latestShortcodeVerification = `-- name: LatestShortcodeVerification :one
-SELECT id, org_id, shortcode_id, msisdn_hash, amount_cents, status, trans_id, paid_at, expires_at, created_at, updated_at FROM shortcode_verifications
-WHERE shortcode_id = $1
-ORDER BY created_at DESC LIMIT 1
-`
-
-func (q *Queries) LatestShortcodeVerification(ctx context.Context, shortcodeID uuid.UUID) (ShortcodeVerification, error) {
-	row := q.db.QueryRow(ctx, latestShortcodeVerification, shortcodeID)
-	var i ShortcodeVerification
-	err := row.Scan(
-		&i.ID,
-		&i.OrgID,
-		&i.ShortcodeID,
-		&i.MsisdnHash,
-		&i.AmountCents,
-		&i.Status,
-		&i.TransID,
-		&i.PaidAt,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const listShortcodes = `-- name: ListShortcodes :many
 SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, verification_checkout_id, c2b_urls_registered_at, created_at, updated_at FROM mpesa_shortcodes WHERE org_id = $1 ORDER BY created_at
 `
