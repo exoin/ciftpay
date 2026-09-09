@@ -41,6 +41,8 @@ type Querier interface {
 	FindCustomerByMSISDNHash(ctx context.Context, arg FindCustomerByMSISDNHashParams) (Customer, error)
 	// Rule 2 of the matcher: same payer, same amount, created within the window.
 	FindPendingSTKRequest(ctx context.Context, arg FindPendingSTKRequestParams) (StkRequest, error)
+	// Runs under app.scope = 'admin' (db.WithAdmin): ciftctl accepts the number.
+	FindShortcodesByNumber(ctx context.Context, shortcode string) ([]MpesaShortcode, error)
 	GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
 	GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error)
 	// Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
