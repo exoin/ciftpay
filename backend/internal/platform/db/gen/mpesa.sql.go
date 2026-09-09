@@ -646,7 +646,7 @@ SET label = COALESCE($2, label),
     default_item_id = COALESCE($3, default_item_id),
     auto_invoice = COALESCE($4, auto_invoice)
 WHERE id = $1
-RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, verification_checkout_id, c2b_urls_registered_at, created_at, updated_at
+RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason
 `
 
 type UpdateShortcodeParams struct {
