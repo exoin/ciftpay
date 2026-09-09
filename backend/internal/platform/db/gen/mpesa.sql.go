@@ -172,6 +172,49 @@ func (q *Queries) FindPendingSTKRequest(ctx context.Context, arg FindPendingSTKR
 	return i, err
 }
 
+const findShortcodesByNumber = `-- name: FindShortcodesByNumber :many
+SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason FROM mpesa_shortcodes WHERE shortcode = $1 ORDER BY created_at
+`
+
+// Runs under app.scope = 'admin' (db.WithAdmin): ciftctl accepts the number.
+func (q *Queries) FindShortcodesByNumber(ctx context.Context, shortcode string) ([]MpesaShortcode, error) {
+	rows, err := q.db.Query(ctx, findShortcodesByNumber, shortcode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MpesaShortcode{}
+	for rows.Next() {
+		var i MpesaShortcode
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.Kind,
+			&i.Shortcode,
+			&i.Label,
+			&i.DefaultItemID,
+			&i.AutoInvoice,
+			&i.VerifiedAt,
+			&i.C2bUrlsRegisteredAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.AuthorizationLetterPath,
+			&i.AuthorizationSubmittedAt,
+			&i.ReviewedBy,
+			&i.ReviewedAt,
+			&i.RejectionReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSTKRequestByCheckoutID = `-- name: GetSTKRequestByCheckoutID :one
 SELECT id, org_id, sale_id, shortcode_id, msisdn_hash, amount_cents, checkout_request_id, merchant_request_id, purpose, status, result_code, result_desc, expires_at, created_at, updated_at FROM stk_requests WHERE checkout_request_id = $1
 `
