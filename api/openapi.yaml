@@ -235,7 +235,7 @@ paths:
         (ADR-0008). Until then no C2B payment to this number reaches the tax ledger.
       responses:
         "201":
-          description: Created (unverified)
+          description: Created (`pending_authorization`)
           content:
             application/json:
               schema:
