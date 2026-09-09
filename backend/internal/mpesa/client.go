@@ -15,9 +15,10 @@ import (
 	"github.com/ciftpay/ciftpay/internal/platform/config"
 )
 
-// Client is the outbound Daraja client. Phase 0 implements OAuth token
-// caching, C2B RegisterURL and STK push (used for the KES 1 control check in
-// shortcode verification and, in Phase 2, request-to-pay).
+// Client is the outbound Daraja client: OAuth token caching, C2B RegisterURL
+// and the sandbox C2B simulator. CiftPay initiates no M-Pesa transactions in
+// Phase 1 (ADR-0003, ADR-0008); STK push returns ErrSTKNotConfigured until
+// Phase 2 request-to-pay brings a passkey for CiftPay's own Paybill.
 type Client struct {
 	cfg  config.Daraja
 	http *http.Client
