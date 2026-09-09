@@ -28,6 +28,10 @@ type Config struct {
 	MasterKeyB64  string `env:"MASTER_KEY_B64" envDefault:"ZGV2LW1hc3Rlci1rZXktMzItYnl0ZXMtZm9yLWRldiE="`
 	HashPepper    string `env:"HASH_PEPPER" envDefault:"dev-hash-pepper-change-me"`
 
+	// UploadDir is where merchant uploads (the signed Safaricom authorization
+	// letters, ADR-0008) are kept. Never served publicly.
+	UploadDir string `env:"UPLOAD_DIR" envDefault:"./var/uploads"`
+
 	Daraja Daraja
 	Fiscal Fiscal
 	AT     AfricasTalking
