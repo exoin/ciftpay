@@ -291,10 +291,11 @@ paths:
       operationId: submitShortcodeAuthorization
       summary: Upload the signed Safaricom authorization letter
       description: |
-        Opens a 10-minute verification challenge: the merchant proves control of the
-        Till/Paybill/Pochi by paying **exactly KES 1** to it from their own phone (the MSISDN
-        of the current user, or `msisdn` in the body). No money is collected by CiftPay and no
-        M-Pesa PIN is ever requested by the app (ADR-0003).
+        The merchant prints the pre-filled *CiftPay Safaricom Authorization Letter*, signs and
+        stamps it and uploads a photo or PDF of it. CiftPay operators forward the letter to
+        Safaricom, who verify the signatory against the shortcode's KYC before mapping it to
+        CiftPay's Daraja app; the operator then marks the shortcode `verified`
+        (`PATCH /admin/shortcodes/{id}/verify`).
 
         The `202` body carries the instructions to show (`pay`). Verification completes when
         the matching C2B confirmation arrives; poll `GET /shortcodes/{id}` every few seconds
