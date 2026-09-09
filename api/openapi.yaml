@@ -308,8 +308,9 @@ paths:
               type: object
               required: [letter]
               properties:
-                msisdn:
-                  $ref: "#/components/schemas/Msisdn"
+                letter:
+                  type: string
+                  format: binary
       responses:
         "202":
           description: Challenge open; waiting for the merchant's KES 1 payment
