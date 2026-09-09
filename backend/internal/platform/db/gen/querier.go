@@ -57,6 +57,8 @@ type Querier interface {
 	GetSale(ctx context.Context, id uuid.UUID) (Sale, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetShortcode(ctx context.Context, id uuid.UUID) (MpesaShortcode, error)
+	// Runs under app.scope = 'admin' (db.WithAdmin).
+	GetShortcodeAdmin(ctx context.Context, id uuid.UUID) (GetShortcodeAdminRow, error)
 	GetSubscription(ctx context.Context, orgID uuid.UUID) (GetSubscriptionRow, error)
 	GetUsage(ctx context.Context, arg GetUsageParams) (UsageCounter, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
