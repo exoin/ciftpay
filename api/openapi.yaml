@@ -301,7 +301,7 @@ paths:
         Uploading again replaces the file; a `rejected` shortcode returns to
         `pending_authorization`. No M-Pesa transaction is involved (ADR-0003, ADR-0008).
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
