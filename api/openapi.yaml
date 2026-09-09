@@ -1209,6 +1209,15 @@ components:
         verified_at:
           type: [string, "null"]
           format: date-time
+        authorization_letter_uploaded:
+          type: boolean
+        authorization_submitted_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the latest letter was uploaded; null until the merchant uploads one
+        rejection_reason:
+          type: [string, "null"]
+          description: Set while `status == rejected`
         c2b_urls_registered_at:
           type: [string, "null"]
           format: date-time
