@@ -706,6 +706,126 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /admin/shortcodes:
+    get:
+      tags: [admin]
+      operationId: adminListShortcodes
+      summary: Shortcodes across all organisations (operator queue)
+      description: Requires the `admin` role. Defaults to the `pending_authorization` queue.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ShortcodeStatus"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminShortcode"
+
+  /admin/shortcodes/{id}/authorization:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [admin]
+      operationId: adminGetShortcodeAuthorization
+      summary: Download the uploaded authorization letter
+      responses:
+        "200":
+          description: The file as uploaded
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+            application/pdf: {}
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /admin/shortcodes/{id}/verify:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [admin]
+      operationId: adminVerifyShortcode
+      summary: Mark a shortcode verified once Safaricom has mapped it to CiftPay
+      description: |
+        The Administrative Gate (ADR-0008). Call this only after Safaricom has confirmed the
+        merchant's authorization letter and mapped the shortcode to CiftPay's Daraja app.
+        Sets `status: verified`, records the operator, writes the `shortcode.verified` audit
+        row and then calls Daraja `RegisterURL` for the shortcode (best effort, visible as
+        `c2b_urls_registered_at`). From this moment C2B confirmations for the number reach the
+        organisation's ledger.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  description: Free text kept in the audit row (e.g. Safaricom ticket number)
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminShortcode"
+        "409":
+          description: Another organisation already holds this number verified (`shortcode_claimed`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /admin/shortcodes/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [admin]
+      operationId: adminRejectShortcode
+      summary: Reject the authorization (Safaricom refused or the letter is unusable)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 500
+                  description: Shown to the merchant as `rejection_reason`
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminShortcode"
+        "409":
+          description: The shortcode is already `verified`; revoke is not supported through the API
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
   /webhooks/daraja/c2b/validation/{token}:
     post:
       tags: [webhooks]
