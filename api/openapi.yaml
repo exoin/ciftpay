@@ -1222,10 +1222,12 @@ components:
           type: [string, "null"]
           format: date-time
           description: When Daraja `RegisterURL` succeeded for this shortcode; null until then
-        verification:
-          description: State of the latest control-check challenge; absent when none was ever started
-          type: object
-          required: [status, expires_at]
+
+    AdminShortcode:
+      allOf:
+        - $ref: "#/components/schemas/Shortcode"
+        - type: object
+          required: [org_id, org_name, org_kra_pin, created_at]
           properties:
             status:
               type: string
