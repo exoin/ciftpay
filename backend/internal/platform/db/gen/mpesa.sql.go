@@ -556,11 +556,12 @@ type ResolveShortcodeRow struct {
 	OrgLocale     string
 }
 
-// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
-// A verified row always wins; among unverified duplicates prefer_id (the row
-// with an open KES 1 verification challenge for this payer) goes first.
-func (q *Queries) ResolveShortcode(ctx context.Context, arg ResolveShortcodeParams) (ResolveShortcodeRow, error) {
-	row := q.db.QueryRow(ctx, resolveShortcode, arg.Shortcode, arg.PreferID)
+// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read
+// of the payment path. The Administrative Gate (ADR-0008): only a shortcode an
+// operator marked verified resolves, so money never reaches a ledger Safaricom
+// has not confirmed. The partial unique index guarantees at most one row.
+func (q *Queries) ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error) {
+	row := q.db.QueryRow(ctx, resolveShortcode, shortcode)
 	var i ResolveShortcodeRow
 	err := row.Scan(
 		&i.ID,
