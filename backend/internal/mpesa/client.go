@@ -85,7 +85,13 @@ type STKPushResult struct {
 	CustomerMessage     string `json:"CustomerMessage"`
 }
 
-// STKPush asks the customer's phone to authorise amountCents to shortcode.
+// ErrSTKNotConfigured is returned by STKPush: Lipa na M-Pesa Online needs a
+// per-shortcode passkey, which CiftPay does not hold for anyone in Phase 1.
+var ErrSTKNotConfigured = errors.New("mpesa: STK push is not available (no DARAJA passkey; request-to-pay is Phase 2)")
+
+// STKPush is the Phase 2 request-to-pay entry point. The callback URL it will
+// use is already routed (/webhooks/daraja/stk/{token}); the request itself is
+// disabled until CiftPay's own Paybill is live with a passkey.
 func (c *Client) STKPush(ctx context.Context, shortcode, msisdn string, amountCents int64, accountRef, desc, webhookBaseURL string) (STKPushResult, error) {
 	ts := time.Now().In(Nairobi).Format("20060102150405")
 	password := base64.StdEncoding.EncodeToString([]byte(shortcode + c.cfg.Passkey + ts))
