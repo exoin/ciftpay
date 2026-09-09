@@ -22,8 +22,8 @@ type CountVerifiedShortcodeElsewhereParams struct {
 	OrgID     uuid.UUID
 }
 
-// Runs under app.scope = 'ingest' or any org scope: the partial unique index
-// is the arbiter, this is only the friendly pre-check behind shortcode_claimed.
+// Runs under app.scope = 'ingest' or 'admin': the partial unique index is the
+// arbiter, this is only the friendly pre-check behind shortcode_claimed.
 func (q *Queries) CountVerifiedShortcodeElsewhere(ctx context.Context, arg CountVerifiedShortcodeElsewhereParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countVerifiedShortcodeElsewhere, arg.Shortcode, arg.OrgID)
 	var count int64
