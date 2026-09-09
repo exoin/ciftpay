@@ -18,7 +18,7 @@ CiftPay is a zero-custody system. This is non-negotiable N1 in `plan.md`.
 
 - CiftPay never holds, routes, settles, refunds or disburses funds. Money moves from buyer to merchant entirely within M-Pesa; CiftPay only receives Daraja callbacks (`POST /webhooks/daraja/c2b/validation/{token}`, `POST /webhooks/daraja/c2b/confirmation/{token}`, `POST /webhooks/daraja/stk/{token}`) and fiscalises what it observes.
 - Shortcodes are always the merchant's own, registered and verified by the merchant. CiftPay does not operate aggregator shortcodes on behalf of merchants.
-- STK push initiated by CiftPay (request-to-pay, shortcode verification) always targets the merchant's own shortcode as the receiving party; CiftPay is never the payee for merchant sales.
+- STK push initiated by CiftPay (request-to-pay, Phase 2) always targets the merchant's own shortcode as the receiving party; CiftPay is never the payee for merchant sales. Shortcode ownership is never proven by a payment (ADR-0008).
 - Reversals are observed via Daraja callbacks and mirrored as credit notes; CiftPay does not initiate reversals of merchant funds.
 - Subscription fees are paid by the merchant via STK push to CiftPay's own Paybill. These are CiftPay's revenue for a software service and are not custody of merchant or buyer funds. They are accounted for in `internal/billing`, not in the merchant ledger.
 - Phase 3 financing is structured so that a CBK-licensed Digital Credit Provider lends and collects; CiftPay shares consented data and earns an origination fee. CiftPay never lends and never collects.
