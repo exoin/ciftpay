@@ -40,14 +40,15 @@ type Config struct {
 // Daraja holds the Safaricom API settings. There is deliberately no passkey:
 // CiftPay never initiates M-Pesa transactions in Phase 1 (ADR-0003, ADR-0008).
 type Daraja struct {
-	Env            string   `env:"DARAJA_ENV" envDefault:"sandbox"`
-	BaseURL        string   `env:"DARAJA_BASE_URL" envDefault:"https://sandbox.safaricom.co.ke"`
-	ConsumerKey    string   `env:"DARAJA_CONSUMER_KEY"`
-	ConsumerSecret string   `env:"DARAJA_CONSUMER_SECRET"`
-	Shortcode      string   `env:"DARAJA_SHORTCODE" envDefault:"174379"`
-	Passkey        string   `env:"DARAJA_PASSKEY"`
-	WebhookToken   string   `env:"DARAJA_WEBHOOK_TOKEN" envDefault:"dev-webhook-token"`
-	IPAllowlist    []string `env:"DARAJA_IP_ALLOWLIST" envSeparator:","`
+	Env            string `env:"DARAJA_ENV" envDefault:"sandbox"`
+	BaseURL        string `env:"DARAJA_BASE_URL" envDefault:"https://sandbox.safaricom.co.ke"`
+	ConsumerKey    string `env:"DARAJA_CONSUMER_KEY"`
+	ConsumerSecret string `env:"DARAJA_CONSUMER_SECRET"`
+	// Shortcode is CiftPay's own C2B shortcode (600000 in the sandbox), used by
+	// the sandbox tooling (ciftctl register-urls / simulate-c2b).
+	Shortcode    string   `env:"DARAJA_SHORTCODE" envDefault:"600000"`
+	WebhookToken string   `env:"DARAJA_WEBHOOK_TOKEN" envDefault:"dev-webhook-token"`
+	IPAllowlist  []string `env:"DARAJA_IP_ALLOWLIST" envSeparator:","`
 }
 
 // Fiscal selects and configures the fiscal.Provider adapter.
