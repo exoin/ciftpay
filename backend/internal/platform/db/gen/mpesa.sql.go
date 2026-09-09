@@ -360,7 +360,6 @@ func (q *Queries) ListShortcodes(ctx context.Context, orgID uuid.UUID) ([]MpesaS
 			&i.DefaultItemID,
 			&i.AutoInvoice,
 			&i.VerifiedAt,
-			&i.VerificationCheckoutID,
 			&i.C2bUrlsRegisteredAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
