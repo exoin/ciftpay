@@ -540,9 +540,7 @@ const resolveShortcode = `-- name: ResolveShortcode :one
 SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.status,
        o.name AS org_name, o.vat_registered, o.locale AS org_locale
 FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
-WHERE s.shortcode = $1
-ORDER BY (s.verified_at IS NOT NULL) DESC, (s.id = $2) DESC NULLS LAST, s.created_at
-LIMIT 1
+WHERE s.shortcode = $1 AND s.status = 'verified'
 `
 
 type ResolveShortcodeParams struct {
