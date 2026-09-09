@@ -297,16 +297,9 @@ paths:
         CiftPay's Daraja app; the operator then marks the shortcode `verified`
         (`PATCH /admin/shortcodes/{id}/verify`).
 
-        The `202` body carries the instructions to show (`pay`). Verification completes when
-        the matching C2B confirmation arrives; poll `GET /shortcodes/{id}` every few seconds
-        until `verified` is true or `verification.status` becomes `expired`/`failed`. The KES 1
-        is **not** recorded as a payment or sale. Calling again while a challenge is open
-        refreshes it (new `expires_at`).
-
-        When the challenge is created CiftPay also attempts Daraja `RegisterURL` for the
-        shortcode (best effort; success is visible as `c2b_urls_registered_at`).
-
-        Without Daraja credentials (`APP_ENV=local`) the shortcode is verified immediately and `200` is returned.
+        Accepted: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`, at most 10 MB.
+        Uploading again replaces the file; a `rejected` shortcode returns to
+        `pending_authorization`. No M-Pesa transaction is involved (ADR-0003, ADR-0008).
       requestBody:
         required: false
         content:
