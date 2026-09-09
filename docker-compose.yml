@@ -42,6 +42,8 @@ services:
       AT_USERNAME: ${AT_USERNAME:-sandbox}
       AT_API_KEY: ${AT_API_KEY:-dev-at-key}
       AT_SENDER_ID: ${AT_SENDER_ID:-CIFTPAY}
+    volumes:
+      - uploads:/var/lib/ciftpay/uploads
     ports:
       - "8080:8080"
     depends_on:
