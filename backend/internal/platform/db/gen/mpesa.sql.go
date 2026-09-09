@@ -120,11 +120,11 @@ func (q *Queries) CreateShortcode(ctx context.Context, arg CreateShortcodeParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		&i.TransID,
-		&i.PaidAt,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.AuthorizationLetterPath,
+		&i.AuthorizationSubmittedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.RejectionReason,
 	)
 	return i, err
 }
