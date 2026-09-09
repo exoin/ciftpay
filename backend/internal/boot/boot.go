@@ -27,6 +27,9 @@ type Deps struct {
 	Keys *crypto.Keyring
 }
 
+// Files opens the upload store (UPLOAD_DIR) for authorization letters.
+func (d *Deps) Files() (storage.Store, error) { return storage.NewLocal(d.Cfg.UploadDir) }
+
 // Load reads config, opens the database and builds the keyring.
 func Load(ctx context.Context) (*Deps, error) {
 	cfg, err := config.Load()
