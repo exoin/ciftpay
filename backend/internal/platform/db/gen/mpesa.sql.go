@@ -498,6 +498,44 @@ func (q *Queries) MarkWebhookProcessed(ctx context.Context, arg MarkWebhookProce
 	return err
 }
 
+const rejectShortcode = `-- name: RejectShortcode :one
+UPDATE mpesa_shortcodes
+SET status = 'rejected', verified_at = NULL, reviewed_by = $2, reviewed_at = now(), rejection_reason = $3
+WHERE id = $1
+RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason
+`
+
+type RejectShortcodeParams struct {
+	ID              uuid.UUID
+	ReviewedBy      *string
+	RejectionReason *string
+}
+
+func (q *Queries) RejectShortcode(ctx context.Context, arg RejectShortcodeParams) (MpesaShortcode, error) {
+	row := q.db.QueryRow(ctx, rejectShortcode, arg.ID, arg.ReviewedBy, arg.RejectionReason)
+	var i MpesaShortcode
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Kind,
+		&i.Shortcode,
+		&i.Label,
+		&i.DefaultItemID,
+		&i.AutoInvoice,
+		&i.VerifiedAt,
+		&i.C2bUrlsRegisteredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.AuthorizationLetterPath,
+		&i.AuthorizationSubmittedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.RejectionReason,
+	)
+	return i, err
+}
+
 const resolveShortcode = `-- name: ResolveShortcode :one
 SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.verified_at,
        o.name AS org_name, o.vat_registered, o.locale AS org_locale
