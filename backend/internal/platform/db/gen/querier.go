@@ -36,9 +36,6 @@ type Querier interface {
 	CreateSaleItem(ctx context.Context, arg CreateSaleItemParams) (SaleItem, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateShortcode(ctx context.Context, arg CreateShortcodeParams) (MpesaShortcode, error)
-	// Opens a KES 1 own-till challenge; any earlier open challenge for the same
-	// shortcode is closed first so at most one is pending per shortcode.
-	CreateShortcodeVerification(ctx context.Context, arg CreateShortcodeVerificationParams) (ShortcodeVerification, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	ExpireShortcodeVerifications(ctx context.Context) (int64, error)
 	FindCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error)
