@@ -543,11 +543,6 @@ FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
 WHERE s.shortcode = $1 AND s.status = 'verified'
 `
 
-type ResolveShortcodeParams struct {
-	Shortcode string
-	PreferID  *uuid.UUID
-}
-
 type ResolveShortcodeRow struct {
 	ID            uuid.UUID
 	OrgID         uuid.UUID
