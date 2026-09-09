@@ -1229,7 +1229,7 @@ components:
         - type: object
           required: [org_id, org_name, org_kra_pin, created_at]
           properties:
-            status:
+            org_id:
               type: string
               enum: [pending, verified, expired, failed]
               description: >-
