@@ -312,8 +312,8 @@ paths:
                   type: string
                   format: binary
       responses:
-        "202":
-          description: Challenge open; waiting for the merchant's KES 1 payment
+        "200":
+          description: Letter stored; status is `pending_authorization`
           content:
             application/json:
               schema:
