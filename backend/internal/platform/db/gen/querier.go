@@ -88,6 +88,7 @@ type Querier interface {
 	MarkShortcodeC2BRegistered(ctx context.Context, id uuid.UUID) error
 	MarkWebhookProcessed(ctx context.Context, arg MarkWebhookProcessedParams) error
 	NextSaleRef(ctx context.Context, orgID uuid.UUID) (string, error)
+	RejectShortcode(ctx context.Context, arg RejectShortcodeParams) (MpesaShortcode, error)
 	ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoice, error)
 	// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
 	// A verified row always wins; among unverified duplicates prefer_id (the row
