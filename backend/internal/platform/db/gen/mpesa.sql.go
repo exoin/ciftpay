@@ -339,7 +339,7 @@ func (q *Queries) InsertWebhookEvent(ctx context.Context, arg InsertWebhookEvent
 }
 
 const listShortcodes = `-- name: ListShortcodes :many
-SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, verification_checkout_id, c2b_urls_registered_at, created_at, updated_at FROM mpesa_shortcodes WHERE org_id = $1 ORDER BY created_at
+SELECT id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason FROM mpesa_shortcodes WHERE org_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListShortcodes(ctx context.Context, orgID uuid.UUID) ([]MpesaShortcode, error) {
