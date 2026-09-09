@@ -592,12 +592,29 @@ type SetShortcodeAuthorizationLetterParams struct {
 	AuthorizationLetterPath *string
 }
 
-func (q *Queries) SettleShortcodeVerification(ctx context.Context, arg SettleShortcodeVerificationParams) error {
-	_, err := q.db.Exec(ctx, settleShortcodeVerification,
-		arg.ID,
-		arg.Status,
-		arg.TransID,
-		arg.PaidAt,
+// The merchant uploaded (or replaced) the signed letter. A rejected row goes
+// back to the queue; a verified row is left alone by the handler.
+func (q *Queries) SetShortcodeAuthorizationLetter(ctx context.Context, arg SetShortcodeAuthorizationLetterParams) (MpesaShortcode, error) {
+	row := q.db.QueryRow(ctx, setShortcodeAuthorizationLetter, arg.ID, arg.AuthorizationLetterPath)
+	var i MpesaShortcode
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Kind,
+		&i.Shortcode,
+		&i.Label,
+		&i.DefaultItemID,
+		&i.AutoInvoice,
+		&i.VerifiedAt,
+		&i.C2bUrlsRegisteredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.AuthorizationLetterPath,
+		&i.AuthorizationSubmittedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.RejectionReason,
 	)
 	return err
 }
