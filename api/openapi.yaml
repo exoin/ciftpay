@@ -1244,33 +1244,7 @@ components:
             reviewed_at:
               type: [string, "null"]
               format: date-time
-
-    ShortcodeVerification:
-      type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum: [pending, verified]
-        msisdn_masked:
-          allOf:
-            - $ref: "#/components/schemas/MaskedMsisdn"
-          description: The phone the KES 1 must come from (status `pending`)
-        pay:
-          description: What to show the merchant (status `pending`)
-          type: object
-          required: [kind, shortcode, amount_cents, account_ref]
-          properties:
-            kind:
-              $ref: "#/components/schemas/ShortcodeKind"
-            shortcode:
-              type: string
-              example: "123456"
-            amount_cents:
-              type: integer
-              format: int64
-              example: 100
-            account_ref:
+            created_at:
               type: string
               description: Account number to enter for Paybill numbers (ignored for Till/Pochi)
               example: CIFTPAY
