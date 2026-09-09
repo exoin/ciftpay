@@ -570,7 +570,7 @@ func (q *Queries) ResolveShortcode(ctx context.Context, shortcode string) (Resol
 		&i.Shortcode,
 		&i.DefaultItemID,
 		&i.AutoInvoice,
-		&i.VerifiedAt,
+		&i.Status,
 		&i.OrgName,
 		&i.VatRegistered,
 		&i.OrgLocale,
