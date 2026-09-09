@@ -14,10 +14,11 @@ WHERE processed_at IS NULL AND received_at < now() - interval '2 minutes'
 ORDER BY received_at LIMIT $1;
 
 -- name: ResolveShortcode :one
--- Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read.
--- A verified row always wins; among unverified duplicates prefer_id (the row
--- with an open KES 1 verification challenge for this payer) goes first.
-SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.verified_at,
+-- Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read
+-- of the payment path. The Administrative Gate (ADR-0008): only a shortcode an
+-- operator marked verified resolves, so money never reaches a ledger Safaricom
+-- has not confirmed. The partial unique index guarantees at most one row.
+SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.status,
        o.name AS org_name, o.vat_registered, o.locale AS org_locale
 FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
 WHERE s.shortcode = $1
