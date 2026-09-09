@@ -323,9 +323,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ShortcodeVerification"
-        "409":
-          description: Shortcode already verified by another organisation (`shortcode_claimed`)
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Missing file, unsupported type or too large (`validation`)
           content:
             application/json:
               schema:
