@@ -85,7 +85,7 @@ func (q *Queries) CreateSTKRequest(ctx context.Context, arg CreateSTKRequestPara
 const createShortcode = `-- name: CreateShortcode :one
 INSERT INTO mpesa_shortcodes (org_id, kind, shortcode, label, default_item_id, auto_invoice)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, verification_checkout_id, c2b_urls_registered_at, created_at, updated_at
+RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason
 `
 
 type CreateShortcodeParams struct {
