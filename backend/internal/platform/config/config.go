@@ -37,7 +37,8 @@ type Config struct {
 	AT     AfricasTalking
 }
 
-// Daraja holds the Safaricom API settings.
+// Daraja holds the Safaricom API settings. There is deliberately no passkey:
+// CiftPay never initiates M-Pesa transactions in Phase 1 (ADR-0003, ADR-0008).
 type Daraja struct {
 	Env            string   `env:"DARAJA_ENV" envDefault:"sandbox"`
 	BaseURL        string   `env:"DARAJA_BASE_URL" envDefault:"https://sandbox.safaricom.co.ke"`
