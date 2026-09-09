@@ -77,6 +77,8 @@ type Querier interface {
 	ListSaleItems(ctx context.Context, saleID uuid.UUID) ([]SaleItem, error)
 	ListSales(ctx context.Context, arg ListSalesParams) ([]Sale, error)
 	ListShortcodes(ctx context.Context, orgID uuid.UUID) ([]MpesaShortcode, error)
+	// Runs under app.scope = 'admin' (db.WithAdmin): the operator queue.
+	ListShortcodesByStatus(ctx context.Context, arg ListShortcodesByStatusParams) ([]ListShortcodesByStatusRow, error)
 	ListUnprocessedWebhookEvents(ctx context.Context, limit int32) ([]WebhookEvent, error)
 	MarkNotificationDelivered(ctx context.Context, providerMessageID *string) error
 	MarkNotificationFailed(ctx context.Context, id uuid.UUID) error
