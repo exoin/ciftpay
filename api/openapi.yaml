@@ -1234,6 +1234,15 @@ components:
               format: uuid
             org_name:
               type: string
+            org_kra_pin:
+              allOf:
+                - $ref: "#/components/schemas/KraPin"
+              description: Unmasked so the operator can check it against the letter
+            reviewed_by:
+              type: [string, "null"]
+              description: Admin user id or `ciftctl` operator that took the last decision
+            reviewed_at:
+              type: [string, "null"]
               format: date-time
 
     ShortcodeVerification:
