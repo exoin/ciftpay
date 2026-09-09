@@ -550,7 +550,7 @@ type ResolveShortcodeRow struct {
 	Shortcode     string
 	DefaultItemID *uuid.UUID
 	AutoInvoice   bool
-	VerifiedAt    *time.Time
+	Status        string
 	OrgName       string
 	VatRegistered bool
 	OrgLocale     string
