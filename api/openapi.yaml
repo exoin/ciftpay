@@ -288,8 +288,8 @@ paths:
       - $ref: "#/components/parameters/Id"
     post:
       tags: [shortcodes]
-      operationId: verifyShortcode
-      summary: Start the control check (merchant pays KES 1 to their own shortcode)
+      operationId: submitShortcodeAuthorization
+      summary: Upload the signed Safaricom authorization letter
       description: |
         Opens a 10-minute verification challenge: the merchant proves control of the
         Till/Paybill/Pochi by paying **exactly KES 1** to it from their own phone (the MSISDN
