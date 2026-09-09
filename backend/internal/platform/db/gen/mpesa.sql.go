@@ -676,6 +676,51 @@ func (q *Queries) UpdateShortcode(ctx context.Context, arg UpdateShortcodeParams
 		&i.C2bUrlsRegisteredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.AuthorizationLetterPath,
+		&i.AuthorizationSubmittedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.RejectionReason,
+	)
+	return i, err
+}
+
+const verifyShortcode = `-- name: VerifyShortcode :one
+UPDATE mpesa_shortcodes
+SET status = 'verified', verified_at = now(), reviewed_by = $2, reviewed_at = now(), rejection_reason = NULL
+WHERE id = $1
+RETURNING id, org_id, kind, shortcode, label, default_item_id, auto_invoice, verified_at, c2b_urls_registered_at, created_at, updated_at, status, authorization_letter_path, authorization_submitted_at, reviewed_by, reviewed_at, rejection_reason
+`
+
+type VerifyShortcodeParams struct {
+	ID         uuid.UUID
+	ReviewedBy *string
+}
+
+// The operator's decision (admin endpoint or ciftctl). Runs under the owning
+// org's scope; the partial unique index rejects a second verified owner.
+func (q *Queries) VerifyShortcode(ctx context.Context, arg VerifyShortcodeParams) (MpesaShortcode, error) {
+	row := q.db.QueryRow(ctx, verifyShortcode, arg.ID, arg.ReviewedBy)
+	var i MpesaShortcode
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Kind,
+		&i.Shortcode,
+		&i.Label,
+		&i.DefaultItemID,
+		&i.AutoInvoice,
+		&i.VerifiedAt,
+		&i.C2bUrlsRegisteredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.AuthorizationLetterPath,
+		&i.AuthorizationSubmittedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.RejectionReason,
 	)
 	return i, err
 }
