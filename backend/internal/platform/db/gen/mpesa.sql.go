@@ -578,9 +578,11 @@ func (q *Queries) ResolveShortcode(ctx context.Context, shortcode string) (Resol
 	return i, err
 }
 
-const settleShortcodeVerification = `-- name: SettleShortcodeVerification :exec
-UPDATE shortcode_verifications
-SET status = $2, trans_id = $3, paid_at = $4
+const setShortcodeAuthorizationLetter = `-- name: SetShortcodeAuthorizationLetter :one
+UPDATE mpesa_shortcodes
+SET authorization_letter_path = $2, authorization_submitted_at = now(),
+    status = CASE WHEN status = 'verified' THEN status ELSE 'pending_authorization' END,
+    rejection_reason = CASE WHEN status = 'verified' THEN rejection_reason ELSE NULL END
 WHERE id = $1
 `
 
