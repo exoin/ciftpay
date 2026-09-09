@@ -1205,6 +1205,7 @@ components:
           $ref: "#/components/schemas/ShortcodeStatus"
         verified:
           type: boolean
+          description: Shorthand for `status == verified`
         verified_at:
           type: [string, "null"]
           format: date-time
