@@ -34,8 +34,47 @@ SELECT * FROM mpesa_shortcodes WHERE id = $1;
 -- name: ListShortcodes :many
 SELECT * FROM mpesa_shortcodes WHERE org_id = $1 ORDER BY created_at;
 
--- name: MarkShortcodeVerified :exec
-UPDATE mpesa_shortcodes SET verified_at = now(), verification_checkout_id = $2 WHERE id = $1;
+-- name: VerifyShortcode :one
+-- The operator's decision (admin endpoint or ciftctl). Runs under the owning
+-- org's scope; the partial unique index rejects a second verified owner.
+UPDATE mpesa_shortcodes
+SET status = 'verified', verified_at = now(), reviewed_by = $2, reviewed_at = now(), rejection_reason = NULL
+WHERE id = $1
+RETURNING *;
+
+-- name: RejectShortcode :one
+UPDATE mpesa_shortcodes
+SET status = 'rejected', verified_at = NULL, reviewed_by = $2, reviewed_at = now(), rejection_reason = $3
+WHERE id = $1
+RETURNING *;
+
+-- name: SetShortcodeAuthorizationLetter :one
+-- The merchant uploaded (or replaced) the signed letter. A rejected row goes
+-- back to the queue; a verified row is left alone by the handler.
+UPDATE mpesa_shortcodes
+SET authorization_letter_path = $2, authorization_submitted_at = now(),
+    status = CASE WHEN status = 'verified' THEN status ELSE 'pending_authorization' END,
+    rejection_reason = CASE WHEN status = 'verified' THEN rejection_reason ELSE NULL END
+WHERE id = $1
+RETURNING *;
+
+-- name: ListShortcodesByStatus :many
+-- Runs under app.scope = 'admin' (db.WithAdmin): the operator queue.
+SELECT sqlc.embed(s), o.name AS org_name, o.kra_pin_enc AS org_kra_pin_enc
+FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
+WHERE s.status = $1
+ORDER BY s.authorization_submitted_at NULLS LAST, s.created_at
+LIMIT $2;
+
+-- name: GetShortcodeAdmin :one
+-- Runs under app.scope = 'admin' (db.WithAdmin).
+SELECT sqlc.embed(s), o.name AS org_name, o.kra_pin_enc AS org_kra_pin_enc
+FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
+WHERE s.id = $1;
+
+-- name: FindShortcodesByNumber :many
+-- Runs under app.scope = 'admin' (db.WithAdmin): ciftctl accepts the number.
+SELECT * FROM mpesa_shortcodes WHERE shortcode = $1 ORDER BY created_at;
 
 -- name: UpdateShortcode :one
 UPDATE mpesa_shortcodes
