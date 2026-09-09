@@ -14,6 +14,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     go build -trimpath -ldflags="-s -w" -o /out/worker ./cmd/worker && \
     go build -trimpath -ldflags="-s -w" -o /out/ciftctl ./cmd/ciftctl && \
     go build -trimpath -ldflags="-s -w" -o /out/smssink ./cmd/smssink
+RUN mkdir -p /out/uploads
 
 FROM gcr.io/distroless/static-debian12:nonroot AS base
 WORKDIR /app
