@@ -484,20 +484,6 @@ func (q *Queries) MarkShortcodeC2BRegistered(ctx context.Context, id uuid.UUID) 
 	return err
 }
 
-const markShortcodeVerified = `-- name: MarkShortcodeVerified :exec
-UPDATE mpesa_shortcodes SET verified_at = now(), verification_checkout_id = $2 WHERE id = $1
-`
-
-type MarkShortcodeVerifiedParams struct {
-	ID                     uuid.UUID
-	VerificationCheckoutID *string
-}
-
-func (q *Queries) MarkShortcodeVerified(ctx context.Context, arg MarkShortcodeVerifiedParams) error {
-	_, err := q.db.Exec(ctx, markShortcodeVerified, arg.ID, arg.VerificationCheckoutID)
-	return err
-}
-
 const markWebhookProcessed = `-- name: MarkWebhookProcessed :exec
 UPDATE webhook_events SET processed_at = now(), error = $2 WHERE id = $1
 `
