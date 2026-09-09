@@ -20,8 +20,8 @@ type Querier interface {
 	CountInvoicesByState(ctx context.Context, orgID uuid.UUID) ([]CountInvoicesByStateRow, error)
 	CountPaymentsByStatus(ctx context.Context, orgID uuid.UUID) ([]CountPaymentsByStatusRow, error)
 	CountRecentOTPs(ctx context.Context, msisdnHash []byte) (int64, error)
-	// Runs under app.scope = 'ingest' or any org scope: the partial unique index
-	// is the arbiter, this is only the friendly pre-check behind shortcode_claimed.
+	// Runs under app.scope = 'ingest' or 'admin': the partial unique index is the
+	// arbiter, this is only the friendly pre-check behind shortcode_claimed.
 	CountVerifiedShortcodeElsewhere(ctx context.Context, arg CountVerifiedShortcodeElsewhereParams) (int64, error)
 	CreateFiscalSubmission(ctx context.Context, arg CreateFiscalSubmissionParams) (FiscalSubmission, error)
 	CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error)
