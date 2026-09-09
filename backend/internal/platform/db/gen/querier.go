@@ -97,7 +97,9 @@ type Querier interface {
 	ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error)
 	RevokeSession(ctx context.Context, id uuid.UUID) error
 	SetInvoiceState(ctx context.Context, arg SetInvoiceStateParams) (Invoice, error)
-	SettleShortcodeVerification(ctx context.Context, arg SettleShortcodeVerificationParams) error
+	// The merchant uploaded (or replaced) the signed letter. A rejected row goes
+	// back to the queue; a verified row is left alone by the handler.
+	SetShortcodeAuthorizationLetter(ctx context.Context, arg SetShortcodeAuthorizationLetterParams) (MpesaShortcode, error)
 	TodayTotals(ctx context.Context, orgID uuid.UUID) (TodayTotalsRow, error)
 	UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, error)
 	UpdateOrgFiscalProfile(ctx context.Context, arg UpdateOrgFiscalProfileParams) error
