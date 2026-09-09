@@ -616,7 +616,7 @@ func (q *Queries) SetShortcodeAuthorizationLetter(ctx context.Context, arg SetSh
 		&i.ReviewedAt,
 		&i.RejectionReason,
 	)
-	return err
+	return i, err
 }
 
 const updateSTKRequestResult = `-- name: UpdateSTKRequestResult :exec
