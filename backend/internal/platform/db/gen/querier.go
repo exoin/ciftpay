@@ -39,9 +39,6 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	FindCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error)
 	FindCustomerByMSISDNHash(ctx context.Context, arg FindCustomerByMSISDNHashParams) (Customer, error)
-	// Runs under app.scope = 'ingest' (db.WithIngest): the C2B confirmation carries
-	// only the number, so the open challenge decides which org is proving it.
-	FindOpenShortcodeVerification(ctx context.Context, arg FindOpenShortcodeVerificationParams) (ShortcodeVerification, error)
 	// Rule 2 of the matcher: same payer, same amount, created within the window.
 	FindPendingSTKRequest(ctx context.Context, arg FindPendingSTKRequestParams) (StkRequest, error)
 	GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
