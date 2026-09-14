@@ -8,24 +8,18 @@ import { Button } from "@/components/ui/Button";
 import { Field, SelectField } from "@/components/ui/Field";
 import { ApiRequestError, type Schemas } from "@/lib/api/client";
 import { useCreateShortcode } from "@/lib/api/queries";
-import { normaliseMsisdn } from "@/lib/format";
 
-const KINDS: Schemas["ShortcodeKind"][] = ["till", "paybill", "pochi"];
+/** Till and Paybill only: Daraja delivers no C2B callbacks for Pochi la Biashara. */
+const KINDS: Schemas["ShortcodeKind"][] = ["till", "paybill"];
 
-/** Server rule: 5–12 digits. Pochi numbers are phones, so local `07…` input is normalised first. */
+/** Server rule: 5–12 digits. */
 const schema = z
   .object({
-    kind: z.enum(["till", "paybill", "pochi"]),
+    kind: z.enum(["till", "paybill"]),
     shortcode: z.string().trim(),
     label: z.string().trim().max(60),
   })
-  .transform((v) => {
-    if (v.kind === "pochi") {
-      const n = normaliseMsisdn(v.shortcode);
-      return { ...v, shortcode: n ?? v.shortcode.replace(/\D/g, "") };
-    }
-    return { ...v, shortcode: v.shortcode.replace(/\s+/g, "") };
-  })
+  .transform((v) => ({ ...v, shortcode: v.shortcode.replace(/\s+/g, "") }))
   .refine((v) => /^\d{5,12}$/.test(v.shortcode), { path: ["shortcode"] });
 
 type Values = z.input<typeof schema>;
@@ -45,7 +39,7 @@ export function ShortcodeForm({ onCreated, heading = true }: { onCreated: (sc: S
     apiMessage = tc("noConnection");
   }
 
-  const numberHint = kind === "paybill" ? t("numberHintPaybill") : kind === "pochi" ? t("numberHintPochi") : t("numberHintTill");
+  const numberHint = kind === "paybill" ? t("numberHintPaybill") : t("numberHintTill");
 
   return (
     <form
@@ -73,9 +67,9 @@ export function ShortcodeForm({ onCreated, heading = true }: { onCreated: (sc: S
         label={t("number")}
         hint={numberHint}
         error={form.formState.errors.shortcode ? t("numberInvalid") : undefined}
-        inputMode={kind === "pochi" ? "tel" : "numeric"}
+        inputMode="numeric"
         autoComplete="off"
-        placeholder={kind === "pochi" ? "0712 345 678" : "600123"}
+        placeholder="600123"
         mono
         {...form.register("shortcode")}
       />

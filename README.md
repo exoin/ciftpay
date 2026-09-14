@@ -2,7 +2,7 @@
 
 **Compliant Invoicing & Fund Tracking for M-Pesa businesses in Kenya.**
 
-CiftPay listens to the M-Pesa payments a business already receives on its Till, Paybill or Pochi, turns each one into a KRA **eTIMS**-compliant invoice, sends the fiscal receipt to the buyer's phone, and keeps the books reconciled in real time. It never holds money: Safaricom still settles to the merchant exactly as before. CiftPay is the compliance and intelligence layer on top of the rail.
+CiftPay listens to the M-Pesa payments a business already receives on its Till or Paybill, turns each one into a KRA **eTIMS**-compliant invoice, sends the fiscal receipt to the buyer's phone, and keeps the books reconciled in real time. It never holds money: Safaricom still settles to the merchant exactly as before. CiftPay is the compliance and intelligence layer on top of the rail.
 
 Why it matters: since 1 January 2024 (Finance Act 2023) a business expense without an eTIMS invoice is non-deductible, so buyers are dropping suppliers who cannot issue one. Most of those suppliers get paid on M-Pesa and have no practical way to fiscalise 300 payments a day by hand.
 

@@ -220,7 +220,7 @@ paths:
     post:
       tags: [shortcodes]
       operationId: createShortcode
-      summary: Register a Till, Paybill or Pochi for the active org
+      summary: Register a Till or Paybill for the active org (Pochi la Biashara is not supported; Daraja delivers no C2B callbacks for it)
       requestBody:
         required: true
         content:
@@ -1143,7 +1143,7 @@ components:
 
     ShortcodeKind:
       type: string
-      enum: [till, paybill, pochi]
+      enum: [till, paybill]
 
     ShortcodeCreate:
       type: object

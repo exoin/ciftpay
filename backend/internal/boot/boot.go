@@ -10,6 +10,7 @@ import (
 
 	"github.com/ciftpay/ciftpay/internal/fiscal"
 	"github.com/ciftpay/ciftpay/internal/fiscal/mock"
+	"github.com/ciftpay/ciftpay/internal/fiscal/oscu"
 	"github.com/ciftpay/ciftpay/internal/fiscal/vendor"
 	"github.com/ciftpay/ciftpay/internal/notify"
 	"github.com/ciftpay/ciftpay/internal/platform/config"
@@ -52,8 +53,9 @@ func Load(ctx context.Context) (*Deps, error) {
 // Close releases resources.
 func (d *Deps) Close() { d.DB.Close() }
 
-// FiscalProvider builds the adapter selected by FISCAL_ADAPTER.
-func FiscalProvider(cfg config.Fiscal) (fiscal.Provider, error) {
+// FiscalProvider builds the adapter selected by FISCAL_ADAPTER. kra carries
+// CiftPay's own OSCU credentials for the `oscu` adapter (ADR-0009).
+func FiscalProvider(cfg config.Fiscal, kra config.KRA) (fiscal.Provider, error) {
 	switch cfg.Adapter {
 	case "mock":
 		mode, err := mock.ParseFailMode(cfg.MockFailMode)
@@ -63,8 +65,18 @@ func FiscalProvider(cfg config.Fiscal) (fiscal.Provider, error) {
 		return mock.New(mode), nil
 	case "vendor":
 		return vendor.New(vendor.Config{BaseURL: cfg.VendorBaseURL, APIKey: cfg.VendorAPIKey, Timeout: time.Duration(cfg.TimeoutSeconds) * time.Second})
+	case "oscu":
+		return oscu.New(OSCUConfig(kra, cfg))
 	default:
 		return nil, fmt.Errorf("boot: fiscal adapter %q is not available yet", cfg.Adapter)
+	}
+}
+
+// OSCUConfig maps the environment onto the direct KRA client's settings.
+func OSCUConfig(kra config.KRA, f config.Fiscal) oscu.Config {
+	return oscu.Config{
+		BaseURL: kra.BaseURL, ConsumerKey: kra.ConsumerKey, ConsumerSecret: kra.ConsumerSecret,
+		DeviceSerial: kra.DeviceSerial, DNSResolver: kra.DNSResolver, Timeout: time.Duration(f.TimeoutSeconds) * time.Second,
 	}
 }
 

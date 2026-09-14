@@ -80,7 +80,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	provider, err := boot.FiscalProvider(cfg.Fiscal)
+	provider, err := boot.FiscalProvider(cfg.Fiscal, cfg.KRA)
 	if err != nil {
 		return err
 	}

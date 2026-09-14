@@ -6,7 +6,7 @@ Accepted — 2026-09-09. Supersedes the own-Till KES 1 control check shipped und
 
 ## Context
 
-A merchant connects a Till, Paybill or Pochi la Biashara to CiftPay so that Daraja C2B confirmations for that number become sales, KRA invoices and receipts in *their* ledger. Before any payment is fiscalised CiftPay must know, with certainty, which organisation owns the number: attributing a payment to the wrong org means issuing a KRA invoice under the wrong PIN.
+A merchant connects a Till or Paybill to CiftPay (Pochi la Biashara is excluded: Daraja C2B RegisterURL does not cover it, so no confirmation could ever arrive) so that Daraja C2B confirmations for that number become sales, KRA invoices and receipts in *their* ledger. Before any payment is fiscalised CiftPay must know, with certainty, which organisation owns the number: attributing a payment to the wrong org means issuing a KRA invoice under the wrong PIN.
 
 The first implementation asked the merchant to pay **KES 1 to their own shortcode** from their phone and matched the C2B confirmation on `{shortcode, msisdn, amount}`. Two problems became clear once it was run against the sandbox and thought through for production:
 

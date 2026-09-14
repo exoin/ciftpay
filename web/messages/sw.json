@@ -88,13 +88,11 @@
       "kind": "Aina",
       "kinds": {
         "till": "Till (Buy Goods)",
-        "paybill": "Paybill",
-        "pochi": "Pochi la Biashara"
+        "paybill": "Paybill"
       },
       "number": "Nambari",
       "numberHintTill": "Nambari ya Till kwenye stika yako ya Lipa na M-Pesa, tarakimu 5 hadi 7",
       "numberHintPaybill": "Nambari ya biashara ya Paybill yako, tarakimu 5 hadi 7",
-      "numberHintPochi": "Nambari ya simu ya Pochi yako, k.m. 0712 345 678",
       "numberInvalid": "Tarakimu pekee, 5 hadi 12.",
       "label": "Jina (si lazima)",
       "labelHint": "Husaidia ukiwa na zaidi ya moja, k.m. Duka, Kiosk",

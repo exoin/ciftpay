@@ -34,6 +34,7 @@ type Config struct {
 
 	Daraja Daraja
 	Fiscal Fiscal
+	KRA    KRA
 	AT     AfricasTalking
 }
 
@@ -51,7 +52,8 @@ type Daraja struct {
 	IPAllowlist  []string `env:"DARAJA_IP_ALLOWLIST" envSeparator:","`
 }
 
-// Fiscal selects and configures the fiscal.Provider adapter.
+// Fiscal selects and configures the fiscal.Provider adapter. `oscu` reads its
+// credentials from KRA.
 type Fiscal struct {
 	Adapter        string `env:"FISCAL_ADAPTER" envDefault:"mock"`
 	VendorBaseURL  string `env:"FISCAL_VENDOR_BASE_URL"`
@@ -59,6 +61,31 @@ type Fiscal struct {
 	TimeoutSeconds int    `env:"FISCAL_TIMEOUT_SECONDS" envDefault:"20"`
 	MockFailMode   string `env:"MOCK_FAIL_MODE" envDefault:"none"`
 }
+
+// KRA holds CiftPay's own direct eTIMS OSCU developer credentials (ADR-0009).
+// The gateway issues OAuth tokens on GET /v1/token/generate with HTTP Basic
+// Base64(key:secret); the token then authorises the eTIMS OSCU calls.
+type KRA struct {
+	// Env is sandbox | production. Only the sandbox is wired until KRA
+	// certification; production refuses to start with sandbox URLs.
+	Env string `env:"KRA_OSCU_ENV" envDefault:"sandbox"`
+	// BaseURL is the API gateway origin (https://sbx.kra.go.ke in the sandbox).
+	BaseURL        string `env:"KRA_OSCU_BASE_URL" envDefault:"https://sbx.kra.go.ke"`
+	ConsumerKey    string `env:"KRA_OSCU_CONSUMER_KEY"`
+	ConsumerSecret string `env:"KRA_OSCU_CONSUMER_SECRET"`
+	// DeviceSerial is the dvcSrlNo registered on the eTIMS portal for the
+	// CiftPay OSCU; device initialisation (selectInitOsdcInfo) returns the
+	// cmcKey for it.
+	DeviceSerial string `env:"KRA_OSCU_DEVICE_SERIAL"`
+	// DNSResolver is the UDP address the KRA client resolves hostnames
+	// through. sbx.kra.go.ke has a DNSSEC misconfiguration that makes local
+	// validating resolvers (systemd-resolved) answer SERVFAIL, so the client
+	// bypasses them. Empty uses the system resolver.
+	DNSResolver string `env:"KRA_OSCU_DNS_RESOLVER" envDefault:"8.8.8.8:53"`
+}
+
+// Configured reports whether the OSCU credentials are present.
+func (k KRA) Configured() bool { return k.ConsumerKey != "" && k.ConsumerSecret != "" }
 
 // AfricasTalking holds the SMS/WhatsApp gateway settings.
 type AfricasTalking struct {
@@ -102,6 +129,19 @@ func (c Config) Validate() error {
 	}
 	if c.Fiscal.Adapter == "vendor" && (c.Fiscal.VendorBaseURL == "" || c.Fiscal.VendorAPIKey == "") {
 		return fmt.Errorf("config: FISCAL_ADAPTER=vendor requires FISCAL_VENDOR_BASE_URL and FISCAL_VENDOR_API_KEY")
+	}
+	switch c.KRA.Env {
+	case "sandbox", "production":
+	default:
+		return fmt.Errorf("config: KRA_OSCU_ENV %q is not one of sandbox|production", c.KRA.Env)
+	}
+	if c.Fiscal.Adapter == "oscu" {
+		if !c.KRA.Configured() {
+			return fmt.Errorf("config: FISCAL_ADAPTER=oscu requires KRA_OSCU_CONSUMER_KEY and KRA_OSCU_CONSUMER_SECRET")
+		}
+		if c.KRA.Env == "production" && strings.Contains(c.KRA.BaseURL, "sbx.") {
+			return fmt.Errorf("config: KRA_OSCU_ENV=production cannot use the sandbox KRA_OSCU_BASE_URL")
+		}
 	}
 	if c.IsProduction() {
 		if strings.HasPrefix(c.SessionSecret, "dev-") || strings.HasPrefix(c.HashPepper, "dev-") {

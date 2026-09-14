@@ -9,6 +9,9 @@
 //	ciftctl verify-shortcode <id|number> [--reject REASON] [--note TEXT]
 //	                                           the Administrative Gate (ADR-0008): mark a shortcode
 //	                                           verified once Safaricom mapped it, or reject the letter
+//	ciftctl kra-init --pin P000000000X [--branch 00] [--serial S]
+//	                                           direct KRA OSCU (ADR-0009): fetch a gateway token and run
+//	                                           selectInitOsdcInfo; prints the device info, masks the cmcKey
 package main
 
 import (
@@ -30,6 +33,7 @@ import (
 
 	"github.com/ciftpay/ciftpay/internal/admin"
 	"github.com/ciftpay/ciftpay/internal/boot"
+	"github.com/ciftpay/ciftpay/internal/fiscal/oscu"
 	"github.com/ciftpay/ciftpay/internal/ledger"
 	"github.com/ciftpay/ciftpay/internal/mpesa"
 	"github.com/ciftpay/ciftpay/internal/mpesa/mpesatest"
@@ -79,6 +83,8 @@ func run(args []string) int {
 			return 2
 		}
 		err = withDeps(ctx, func(ctx context.Context, d *boot.Deps) error { return verifyShortcode(ctx, d, args[1:]) })
+	case "kra-init":
+		err = kraInit(ctx, args[1:])
 	default:
 		usage()
 		return 2
@@ -91,7 +97,66 @@ func run(args []string) int {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: ciftctl migrate | seed | replay-webhook <file.json> | register-urls <shortcode> | simulate-c2b --shortcode N --msisdn N [--amount KES] [--ref REF] | daraja-fake [--addr :18090] | verify-shortcode <id|number> [--reject REASON] [--note TEXT]")
+	fmt.Fprintln(os.Stderr, "usage: ciftctl migrate | seed | replay-webhook <file.json> | register-urls <shortcode> | simulate-c2b --shortcode N --msisdn N [--amount KES] [--ref REF] | daraja-fake [--addr :18090] | verify-shortcode <id|number> [--reject REASON] [--note TEXT] | kra-init --pin PIN [--branch 00] [--serial S]")
+}
+
+// kraInit is the first live check of the direct OSCU path (ADR-0009): a
+// gateway token (GET + Basic, through the DNS override) and one
+// selectInitOsdcInfo. Needs no database. The cmcKey is a credential and is
+// only shown masked; storing it on the org is the RegisterDevice step.
+func kraInit(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("kra-init", flag.ContinueOnError)
+	pin := fs.String("pin", "", "taxpayer KRA PIN (sandbox test PIN from the developer portal)")
+	branch := fs.String("branch", "00", "branch office id")
+	serial := fs.String("serial", "", "device serial (default KRA_OSCU_DEVICE_SERIAL)")
+	tokenOnly := fs.Bool("token-only", false, "stop after the OAuth token")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if !cfg.KRA.Configured() {
+		return errors.New("KRA_OSCU_CONSUMER_KEY and KRA_OSCU_CONSUMER_SECRET are not set")
+	}
+	c, err := oscu.NewClient(boot.OSCUConfig(cfg.KRA, cfg.Fiscal))
+	if err != nil {
+		return err
+	}
+	start := time.Now()
+	tok, err := c.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("token: %w", err)
+	}
+	fmt.Printf("token ok (%d chars, %s, resolver=%s) in %s\n", len(tok), cfg.KRA.BaseURL, orSystem(cfg.KRA.DNSResolver), time.Since(start).Round(time.Millisecond))
+	if *tokenOnly {
+		return nil
+	}
+	if *pin == "" {
+		return errors.New("--pin is required (or pass --token-only)")
+	}
+	info, _, err := c.Initialize(ctx, *pin, *branch, *serial)
+	if err != nil {
+		return fmt.Errorf("selectInitOsdcInfo: %w", err)
+	}
+	fmt.Printf("device initialised: tin=%s taxpayer=%q bhfId=%s bhfNm=%q dvcId=%s sdcId=%s mrcNo=%s cmcKey=%s\n",
+		info.TIN, info.TaxpayerName, info.BranchID, info.BranchName, info.DeviceID, info.SDCID, info.MRCNo, mask(info.CmcKey))
+	return nil
+}
+
+func orSystem(s string) string {
+	if s == "" {
+		return "system"
+	}
+	return s
+}
+
+func mask(s string) string {
+	if len(s) <= 8 {
+		return strings.Repeat("*", len(s))
+	}
+	return s[:4] + strings.Repeat("*", len(s)-8) + s[len(s)-4:]
 }
 
 // verifyShortcode is the operator's shell entry into the Administrative Gate.

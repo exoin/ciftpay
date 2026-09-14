@@ -66,7 +66,7 @@ erDiagram
 |---|---|---|
 | id | uuid PK | |
 | org_id | uuid | RLS |
-| kind | text | `till` / `paybill` / `pochi` |
+| kind | text | `till` / `paybill` (migration `0004`; Pochi la Biashara excluded — Daraja delivers no C2B callbacks for it, legacy rows were set to `rejected`) |
 | shortcode | text | UNIQUE **among verified rows** (partial unique index `WHERE status = 'verified'`); several orgs may hold pending rows for one number |
 | label | text | "Main till" |
 | default_item_id | uuid → items | used for cash sales |

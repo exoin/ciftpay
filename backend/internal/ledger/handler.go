@@ -167,8 +167,13 @@ func (h *Handler) createShortcode(w http.ResponseWriter, r *http.Request) {
 	}
 	in.Shortcode = strings.TrimSpace(in.Shortcode)
 	switch {
-	case in.Kind != "till" && in.Kind != "paybill" && in.Kind != "pochi":
-		fail(w, invalid("kind must be till, paybill or pochi"), "")
+	case in.Kind == "pochi":
+		// Daraja C2B RegisterURL does not cover Pochi la Biashara, so no
+		// confirmation could ever reach CiftPay for one (plan.md §4.1).
+		fail(w, invalid("Pochi la Biashara is not supported: Safaricom does not deliver C2B callbacks for it. Register a Till or Paybill."), "")
+		return
+	case in.Kind != "till" && in.Kind != "paybill":
+		fail(w, invalid("kind must be till or paybill"), "")
 		return
 	case len(in.Shortcode) < 5 || len(in.Shortcode) > 12 || strings.Trim(in.Shortcode, "0123456789") != "":
 		fail(w, invalid("shortcode must be 5–12 digits"), "")

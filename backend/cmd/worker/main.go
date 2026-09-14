@@ -37,7 +37,7 @@ func run() error {
 	}
 	defer d.Close()
 
-	provider, err := boot.FiscalProvider(d.Cfg.Fiscal)
+	provider, err := boot.FiscalProvider(d.Cfg.Fiscal, d.Cfg.KRA)
 	if err != nil {
 		return err
 	}

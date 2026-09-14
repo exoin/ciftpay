@@ -88,13 +88,11 @@
       "kind": "Type",
       "kinds": {
         "till": "Till (Buy Goods)",
-        "paybill": "Paybill",
-        "pochi": "Pochi la Biashara"
+        "paybill": "Paybill"
       },
       "number": "Number",
       "numberHintTill": "The Till number on your Lipa na M-Pesa sticker, 5–7 digits",
       "numberHintPaybill": "Your Paybill business number, 5–7 digits",
-      "numberHintPochi": "The phone number of your Pochi, e.g. 0712 345 678",
       "numberInvalid": "Digits only, 5 to 12 of them.",
       "label": "Label (optional)",
       "labelHint": "Helps when you have more than one, e.g. Shop, Kiosk",
