@@ -33,6 +33,7 @@
     "pending": "Pending KRA",
     "failed": "Failed",
     "needsReview": "Needs a fix",
+    "taxPending": "Recorded · connect KRA to file",
     "matched": "Matched",
     "cash": "Cash sale",
     "unmatched": "Unmatched",
@@ -122,7 +123,26 @@
       "alreadyVerified": "This number is already verified. Nothing more to do.",
       "claimed": "This number is already verified by another business. If it’s yours, write to support@ciftpay.co.ke.",
       "submit": "Submit for verification",
-      "later": "Do this later"
+      "later": "Do this later",
+      "continue": "Continue",
+      "submitted": "Letter received. We'll email you once Safaricom confirms the mapping."
+    },
+    "letter": {
+      "title": "CiftPay Safaricom Authorization Letter",
+      "backLink": "Back",
+      "print": "Print",
+      "to": "To: Safaricom PLC",
+      "subject": "Subject: Authorization to map M-Pesa short code {shortcode} to CiftPay",
+      "body1": "I, the undersigned, being the registered owner of the M-Pesa short code {shortcode}{label}, authorize Safaricom PLC to map this short code to CiftPay's Daraja application so that CiftPay may receive C2B payment confirmations for it on my business's behalf.",
+      "body2": "CiftPay does not hold or move my M-Pesa funds; it only reads payment notifications to prepare KRA eTIMS receipts.",
+      "business": "Business name",
+      "pin": "KRA PIN",
+      "signatory": "Signatory name",
+      "idNumber": "National ID / Passport number",
+      "signature": "Signature",
+      "stamp": "Business stamp",
+      "date": "Date",
+      "fillHint": "Fields left blank are filled in by hand before signing."
     }
   },
   "today": {
@@ -232,7 +252,30 @@
     "uploadLetter": "Upload letter",
     "letterSheetTitle": "Authorization letter",
     "letterWaiting": "Letter uploaded · waiting for Safaricom",
-    "c2bConnected": "C2B connected"
+    "c2bConnected": "C2B connected",
+    "etims": {
+      "title": "KRA connection",
+      "lead": "Connect CiftPay directly to KRA eTIMS so your invoices are filed automatically. This is separate from M-Pesa — your sales are recorded either way.",
+      "status": {
+        "unconfigured": "Not connected",
+        "initialized": "Connected to KRA",
+        "failed": "Connection failed"
+      },
+      "pendingNote": "Sales are being recorded and will be filed with KRA automatically as soon as this is connected.",
+      "branchId": "Branch ID (bhfId)",
+      "branchIdHint": "Usually 00 for a single-location business.",
+      "deviceSerial": "Device serial (dvcSrlNo)",
+      "deviceSerialHint": "Issued by KRA, not by CiftPay.",
+      "deviceSerialInvalid": "Enter the device serial KRA gave you.",
+      "branchIdInvalid": "Branch ID must be two digits, e.g. 00.",
+      "howTitle": "Where do I get a device serial?",
+      "how1": "Sign up on the KRA eTIMS taxpayer portal with your business's KRA PIN.",
+      "how2": "Open a Service Request and choose OSCU (Online Sales Control Unit).",
+      "how3": "Once KRA approves the request, they give you a device serial. Enter it below.",
+      "portalLink": "Open the KRA eTIMS taxpayer portal",
+      "connect": "Connect to KRA",
+      "reconfigure": "Change device"
+    }
   },
   "sale": {
     "title": "Record a sale",
