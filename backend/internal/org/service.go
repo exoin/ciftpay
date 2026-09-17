@@ -18,10 +18,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
 
 // OTPSender delivers login codes (notify.Service in production, a logger locally).
@@ -46,6 +47,11 @@ type Service struct {
 	PIN           PINChecker
 	SessionSecret []byte
 	FiscalAdapter string
+	// Fiscal is the active fiscal.Provider, used only by ConfigureEtims
+	// (Tax Settings, ADR-0009). It is set directly by the composition root
+	// (cmd/api, cmd/worker) rather than threaded through New, since most
+	// callers (including every existing test) never need it.
+	Fiscal fiscal.Provider
 	// DevLogOTP logs the code instead of trusting SMS delivery (APP_ENV=local).
 	DevLogOTP bool
 	Log       *slog.Logger
