@@ -67,6 +67,36 @@ func (q *Queries) AckInvoice(ctx context.Context, arg AckInvoiceParams) (Invoice
 	return i, err
 }
 
+const activateTaxPendingInvoices = `-- name: ActivateTaxPendingInvoices :many
+UPDATE invoices SET state = 'QUEUED'
+WHERE org_id = $1 AND state = 'TAX_PENDING'
+RETURNING id
+`
+
+// Progressive onboarding (ADR-0009): once a merchant configures eTIMS, every
+// invoice that was withheld while etims_status was 'unconfigured' is queued
+// for submission in one batch. Returns the ids so the caller can enqueue one
+// SubmitInvoice job per invoice in the same transaction.
+func (q *Queries) ActivateTaxPendingInvoices(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, activateTaxPendingInvoices, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const appendAudit = `-- name: AppendAudit :exec
 INSERT INTO audit_log (org_id, actor_type, actor_id, action, entity, entity_id, before, after)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -152,6 +182,17 @@ func (q *Queries) CountInvoicesByState(ctx context.Context, orgID uuid.UUID) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const countTaxPendingInvoices = `-- name: CountTaxPendingInvoices :one
+SELECT count(*) FROM invoices WHERE org_id = $1 AND state = 'TAX_PENDING'
+`
+
+func (q *Queries) CountTaxPendingInvoices(ctx context.Context, orgID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countTaxPendingInvoices, orgID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createFiscalSubmission = `-- name: CreateFiscalSubmission :one
