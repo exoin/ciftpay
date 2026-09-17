@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal"
 )
 
 // Config configures the adapter.
