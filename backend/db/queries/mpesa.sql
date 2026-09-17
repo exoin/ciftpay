@@ -19,7 +19,7 @@ ORDER BY received_at LIMIT $1;
 -- operator marked verified resolves, so money never reaches a ledger Safaricom
 -- has not confirmed. The partial unique index guarantees at most one row.
 SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.status,
-       o.name AS org_name, o.vat_registered, o.locale AS org_locale
+       o.name AS org_name, o.vat_registered, o.locale AS org_locale, o.etims_status
 FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
 WHERE s.shortcode = $1 AND s.status = 'verified';
 
