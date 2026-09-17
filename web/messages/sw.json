@@ -33,7 +33,8 @@
     "pending": "Inasubiri KRA",
     "failed": "Imeshindwa",
     "needsReview": "Inahitaji kurekebishwa",
-    "matched": "Imelinganishwa",
+    "taxPending": "Imerekodiwa · unganisha KRA kuwasilisha",
+    "matched": "Imelingana",
     "cash": "Mauzo ya pesa taslimu",
     "unmatched": "Haijalinganishwa",
     "reversed": "Imerudishwa",
@@ -122,7 +123,26 @@
       "alreadyVerified": "Nambari hii tayari imethibitishwa. Hakuna kingine cha kufanya.",
       "claimed": "Nambari hii tayari imethibitishwa na biashara nyingine. Ikiwa ni yako, andikia support@ciftpay.co.ke.",
       "submit": "Tuma kwa uhakiki",
-      "later": "Fanya baadaye"
+      "later": "Fanya baadaye",
+      "continue": "Endelea",
+      "submitted": "Barua imepokelewa. Tutakutumia barua pepe Safaricom ikithibitisha muunganisho."
+    },
+    "letter": {
+      "title": "Barua ya Idhini ya CiftPay kwa Safaricom",
+      "backLink": "Rudi",
+      "print": "Chapisha",
+      "to": "Kwa: Safaricom PLC",
+      "subject": "Kichwa: Idhini ya kuunganisha nambari fupi {shortcode} na CiftPay",
+      "body1": "Mimi, niliyesaini hapa chini, nikiwa mmiliki aliyesajiliwa wa nambari fupi ya M-Pesa {shortcode}{label}, ninaipa Safaricom PLC idhini ya kuunganisha nambari hii fupi na programu ya Daraja ya CiftPay ili CiftPay ipokee taarifa za malipo ya C2B kwa niaba ya biashara yangu.",
+      "body2": "CiftPay haishikilii wala kusogeza fedha zangu za M-Pesa; inasoma tu taarifa za malipo kutayarisha risiti za eTIMS za KRA.",
+      "business": "Jina la biashara",
+      "pin": "PIN ya KRA",
+      "signatory": "Jina la msainishaji",
+      "idNumber": "Namba ya Kitambulisho / Pasipoti",
+      "signature": "Sahihi",
+      "stamp": "Muhuri wa biashara",
+      "date": "Tarehe",
+      "fillHint": "Sehemu zilizoachwa wazi zinajazwa kwa mkono kabla ya kusaini."
     }
   },
   "today": {
@@ -232,7 +252,30 @@
     "uploadLetter": "Pakia barua",
     "letterSheetTitle": "Barua ya idhini",
     "letterWaiting": "Barua imepakiwa · inasubiri Safaricom",
-    "c2bConnected": "C2B imeunganishwa"
+    "c2bConnected": "C2B imeunganishwa",
+    "etims": {
+      "title": "Muunganisho wa KRA",
+      "lead": "Unganisha CiftPay moja kwa moja na KRA eTIMS ili risiti zako ziwasilishwe kiotomatiki. Hii ni tofauti na M-Pesa — mauzo yako yanarekodiwa vyovyote vile.",
+      "status": {
+        "unconfigured": "Haijaunganishwa",
+        "initialized": "Imeunganishwa na KRA",
+        "failed": "Muunganisho umeshindwa"
+      },
+      "pendingNote": "Mauzo yanarekodiwa na yatawasilishwa kwa KRA kiotomatiki mara muunganisho huu utakapokamilika.",
+      "branchId": "Nambari ya Tawi (bhfId)",
+      "branchIdHint": "Kawaida 00 kwa biashara ya eneo moja.",
+      "deviceSerial": "Namba ya kifaa (dvcSrlNo)",
+      "deviceSerialHint": "Inatolewa na KRA, si na CiftPay.",
+      "deviceSerialInvalid": "Weka namba ya kifaa uliyopewa na KRA.",
+      "branchIdInvalid": "Nambari ya Tawi inapaswa kuwa na tarakimu mbili, mfano 00.",
+      "howTitle": "Ninapata wapi namba ya kifaa?",
+      "how1": "Jisajili kwenye tovuti ya walipa kodi ya eTIMS ya KRA ukitumia PIN ya biashara yako.",
+      "how2": "Fungua Service Request na uchague OSCU (Online Sales Control Unit).",
+      "how3": "KRA ikikubali ombi, watakupa namba ya kifaa. Iweke hapa chini.",
+      "portalLink": "Fungua tovuti ya walipa kodi ya eTIMS ya KRA",
+      "connect": "Unganisha na KRA",
+      "reconfigure": "Badilisha kifaa"
+    }
   },
   "sale": {
     "title": "Andika mauzo",
