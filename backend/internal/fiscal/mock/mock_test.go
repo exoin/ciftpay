@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/fiscal/mock"
-	"github.com/ciftpay/ciftpay/internal/fiscal/providertest"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal/mock"
+	"github.com/exoin/ciftpay/internal/fiscal/providertest"
 )
 
 func TestContract(t *testing.T) {
