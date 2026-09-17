@@ -111,3 +111,15 @@ WHERE org_id = $1 AND state = 'ACKED' AND acked_at >= $2 AND acked_at < $3;
 
 -- name: GetAckedInvoiceForSale :one
 SELECT * FROM invoices WHERE sale_id = $1 AND kind = 'INVOICE' AND state = 'ACKED' ORDER BY created_at DESC LIMIT 1;
+
+-- name: ActivateTaxPendingInvoices :many
+-- Progressive onboarding (ADR-0009): once a merchant configures eTIMS, every
+-- invoice that was withheld while etims_status was 'unconfigured' is queued
+-- for submission in one batch. Returns the ids so the caller can enqueue one
+-- SubmitInvoice job per invoice in the same transaction.
+UPDATE invoices SET state = 'QUEUED'
+WHERE org_id = $1 AND state = 'TAX_PENDING'
+RETURNING id;
+
+-- name: CountTaxPendingInvoices :one
+SELECT count(*) FROM invoices WHERE org_id = $1 AND state = 'TAX_PENDING';
