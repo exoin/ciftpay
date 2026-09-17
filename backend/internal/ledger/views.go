@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
 
 // API view types matching api/openapi.yaml schemas.
@@ -92,6 +92,7 @@ type SaleView struct {
 	SubtotalCents int64          `json:"subtotal_cents"`
 	TaxCents      int64          `json:"tax_cents"`
 	TotalCents    int64          `json:"total_cents"`
+	InvoiceID     *uuid.UUID     `json:"invoice_id"`
 	ClientRef     *string        `json:"client_ref"`
 	PaidAt        *time.Time     `json:"paid_at"`
 	CreatedAt     time.Time      `json:"created_at"`
