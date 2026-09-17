@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
 )
 
 // ErrNotFound is returned by helpers that translate pgx.ErrNoRows.
