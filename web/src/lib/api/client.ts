@@ -76,6 +76,21 @@ export async function rawGet<T>(path: string): Promise<T> {
 }
 
 /**
+ * Untyped JSON POST for endpoints the Go API serves but the OpenAPI contract
+ * does not yet describe (same contract debt as rawGet; see
+ * docs/runbooks/local-dev.md).
+ */
+export async function rawPost<T>(path: string, body?: unknown): Promise<T> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  const csrf = getCsrfToken();
+  if (csrf) headers.set("X-CSRF-Token", csrf);
+  const org = getActiveOrgId();
+  if (org) headers.set("X-Org-Id", org);
+  const res = await fetch(`${apiBaseUrl()}${path}`, { method: "POST", credentials: "include", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  return readJson<T>(res);
+}
+
+/**
  * Multipart POST (file uploads). openapi-fetch JSON-encodes bodies, so this
  * mirrors its auth behaviour by hand: cookie, CSRF token and active org header.
  * Content-Type is left unset so the browser adds the multipart boundary.

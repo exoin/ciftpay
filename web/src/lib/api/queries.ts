@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, postForm, unwrap, type Schemas } from "./client";
+import { api, postForm, rawGet, rawPost, unwrap, type Schemas } from "./client";
 
 /** Query keys, one namespace per resource so invalidation stays coarse and safe. */
 export const qk = {
@@ -18,7 +18,37 @@ export const qk = {
   shortcode: (id: string) => ["shortcodes", "detail", id] as const,
   attention: ["attention"] as const,
   entitlement: ["billing", "entitlement"] as const,
+  etims: ["org", "etims"] as const,
 };
+
+/** The org's direct-KRA OSCU configuration (ADR-0009). Not yet in
+ * api/openapi.yaml (contract debt, see docs/runbooks/local-dev.md). */
+export type EtimsSettings = {
+  status: "unconfigured" | "initialized" | "failed";
+  kra_bhf_id: string | null;
+  kra_device_serial: string | null;
+  failed_reason: string | null;
+  initialized_at: string | null;
+};
+
+export function useEtimsSettings() {
+  return useQuery({
+    queryKey: qk.etims,
+    queryFn: () => rawGet<EtimsSettings>("/org/etims"),
+  });
+}
+
+export function useConfigureEtims() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { kra_bhf_id?: string; kra_device_serial: string }) => rawPost<EtimsSettings>("/org/etims", body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.etims });
+      void qc.invalidateQueries({ queryKey: qk.invoices() });
+      void qc.invalidateQueries({ queryKey: qk.attention });
+    },
+  });
+}
 
 export function useToday() {
   return useQuery({
