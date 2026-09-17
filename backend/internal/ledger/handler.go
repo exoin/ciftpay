@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,13 +15,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	"github.com/ciftpay/ciftpay/internal/platform/httpx"
-	"github.com/ciftpay/ciftpay/internal/platform/storage"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/httpx"
+	"github.com/exoin/ciftpay/internal/platform/storage"
 )
+
+var pinRe = regexp.MustCompile(`^[AP][0-9]{9}[A-Z]$`)
 
 // STKPusher is the slice of the Daraja client the request-to-pay path needs
 // (mpesa.Client in production, a fake in tests).
@@ -590,6 +593,7 @@ func (h *Handler) getSale(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		out = toSale(s, lines)
+		out.InvoiceID = h.invoiceIDForSale(ctx, tx, &s.ID)
 		return nil
 	})
 	if err != nil {
@@ -609,7 +613,11 @@ type saleLineInput struct {
 }
 
 type saleInput struct {
+	Kind           string          `json:"kind"`
 	Lines          []saleLineInput `json:"lines"`
+	BuyerMSISDN    string          `json:"buyer_msisdn"`
+	BuyerPIN       string          `json:"buyer_pin"`
+	BuyerName      string          `json:"buyer_name"`
 	CustomerMSISDN string          `json:"customer_msisdn"`
 	CustomerName   string          `json:"customer_name"`
 	ClientRef      *string         `json:"client_ref"`
@@ -618,13 +626,21 @@ type saleInput struct {
 }
 
 // createSale records an open sale (to be matched by BillRef = ref) or, with
-// paid=true, a settled sale that is invoiced immediately.
+// paid=true or kind="cash", a settled sale that is invoiced immediately.
 func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 	orgID, userID := org(r)
 	var in saleInput
 	if err := httpx.Decode(r, &in); err != nil {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must be {lines[], customer_msisdn?, customer_name?, client_ref?, paid?}")
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must match {kind, lines[], buyer_msisdn?, buyer_pin?, buyer_name?, client_ref?}")
 		return
+	}
+	if in.Kind != "" && in.Kind != "open" && in.Kind != "cash" {
+		fail(w, invalid("kind must be 'open' or 'cash'"), "")
+		return
+	}
+	isPaid := in.Paid || in.Kind == "cash"
+	if in.Kind == "open" {
+		isPaid = false
 	}
 	if len(in.Lines) == 0 || len(in.Lines) > 50 {
 		fail(w, invalid("lines must contain 1–50 entries"), "")
@@ -633,21 +649,80 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 	var out SaleView
 	var inv *gen.Invoice
 	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
+		msisdn := in.BuyerMSISDN
+		if msisdn == "" {
+			msisdn = in.CustomerMSISDN
+		}
+		name := in.BuyerName
+		if name == "" {
+			name = in.CustomerName
+		}
+		pin := strings.ToUpper(strings.TrimSpace(in.BuyerPIN))
+
 		var customerID *uuid.UUID
-		if in.CustomerMSISDN != "" {
-			norm, err := crypto.NormaliseMSISDN(in.CustomerMSISDN)
-			if err != nil {
-				return invalid("customer_msisdn is not a valid Kenyan number")
+		if msisdn != "" || pin != "" || name != "" {
+			var encMSISDN, hashMSISDN []byte
+			if msisdn != "" {
+				norm, err := crypto.NormaliseMSISDN(msisdn)
+				if err != nil {
+					return invalid("buyer_msisdn is not a valid Kenyan number")
+				}
+				enc, err := h.Keys.EncryptString(norm)
+				if err != nil {
+					return err
+				}
+				encMSISDN = enc
+				hashMSISDN = h.Keys.Hash(norm)
 			}
-			enc, err := h.Keys.EncryptString(norm)
-			if err != nil {
-				return err
+			var encPIN, hashPIN []byte
+			if pin != "" {
+				if !pinRe.MatchString(pin) {
+					return invalid("buyer_pin must be a valid KRA PIN (A or P, 9 digits and a letter)")
+				}
+				enc, err := h.Keys.EncryptString(pin)
+				if err != nil {
+					return err
+				}
+				encPIN = enc
+				hashPIN = h.Keys.Hash(pin)
 			}
-			c, err := tx.UpsertCustomerByMSISDN(ctx, gen.UpsertCustomerByMSISDNParams{OrgID: orgID, Name: in.CustomerName, MsisdnEnc: enc, MsisdnHash: h.Keys.Hash(norm)})
-			if err != nil {
-				return err
+
+			var cid uuid.UUID
+			var found bool
+			if len(hashPIN) > 0 {
+				err := tx.Tx.QueryRow(ctx, `SELECT id FROM customers WHERE org_id = $1 AND kra_pin_hash = $2`, orgID, hashPIN).Scan(&cid)
+				if err == nil {
+					found = true
+					if name != "" {
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND name = ''`, name, cid)
+					}
+					if len(encMSISDN) > 0 {
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET msisdn_enc = $1, msisdn_hash = $2 WHERE id = $3 AND msisdn_hash IS NULL`, encMSISDN, hashMSISDN, cid)
+					}
+				}
 			}
-			customerID = &c.ID
+			if !found && len(hashMSISDN) > 0 {
+				err := tx.Tx.QueryRow(ctx, `SELECT id FROM customers WHERE org_id = $1 AND msisdn_hash = $2`, orgID, hashMSISDN).Scan(&cid)
+				if err == nil {
+					found = true
+					if name != "" {
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND name = ''`, name, cid)
+					}
+					if len(encPIN) > 0 {
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET kra_pin_enc = $1, kra_pin_hash = $2 WHERE id = $3 AND kra_pin_hash IS NULL`, encPIN, hashPIN, cid)
+					}
+				}
+			}
+			if !found {
+				err := tx.Tx.QueryRow(ctx, `INSERT INTO customers (org_id, name, msisdn_enc, msisdn_hash, kra_pin_enc, kra_pin_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+					orgID, name, encMSISDN, hashMSISDN, encPIN, hashPIN).Scan(&cid)
+				if err == nil {
+					found = true
+				}
+			}
+			if found {
+				customerID = &cid
+			}
 		}
 		type line struct {
 			saleLineInput
@@ -714,7 +789,7 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 		}
 		status, kind := "open", "open"
 		var paidAt *time.Time
-		if in.Paid {
+		if isPaid {
 			status, kind = "paid", "cash"
 			paidAt = db.Ptr(h.S.Now())
 		}
@@ -737,7 +812,7 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 			}
 			items = append(items, it)
 		}
-		if in.Paid {
+		if isPaid {
 			created, err := h.S.CreateInvoiceForSale(ctx, tx, orgID, sale.ID, nil, *paidAt)
 			if err != nil {
 				return err
@@ -745,6 +820,9 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 			inv = &created
 		}
 		out = toSale(sale, items)
+		if inv != nil {
+			out.InvoiceID = &inv.ID
+		}
 		actor := userID.String()
 		return tx.AppendAudit(ctx, gen.AppendAuditParams{OrgID: orgID, ActorType: "user", ActorID: &actor, Action: "sale.created", Entity: "sale", EntityID: sale.ID.String()})
 	})
@@ -752,11 +830,7 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 		fail(w, err, "Could not create the sale")
 		return
 	}
-	resp := map[string]any{"sale": out}
-	if inv != nil {
-		resp["invoice"] = toInvoice(h.Keys, h.PublicBaseURL, *inv)
-	}
-	httpx.JSON(w, http.StatusCreated, resp)
+	httpx.JSON(w, http.StatusCreated, out)
 }
 
 // ----------------------------------------------------------- invoices
