@@ -538,7 +538,7 @@ func (q *Queries) RejectShortcode(ctx context.Context, arg RejectShortcodeParams
 
 const resolveShortcode = `-- name: ResolveShortcode :one
 SELECT s.id, s.org_id, s.kind, s.shortcode, s.default_item_id, s.auto_invoice, s.status,
-       o.name AS org_name, o.vat_registered, o.locale AS org_locale
+       o.name AS org_name, o.vat_registered, o.locale AS org_locale, o.etims_status
 FROM mpesa_shortcodes s JOIN orgs o ON o.id = s.org_id
 WHERE s.shortcode = $1 AND s.status = 'verified'
 `
@@ -554,6 +554,7 @@ type ResolveShortcodeRow struct {
 	OrgName       string
 	VatRegistered bool
 	OrgLocale     string
+	EtimsStatus   string
 }
 
 // Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read
@@ -574,6 +575,7 @@ func (q *Queries) ResolveShortcode(ctx context.Context, shortcode string) (Resol
 		&i.OrgName,
 		&i.VatRegistered,
 		&i.OrgLocale,
+		&i.EtimsStatus,
 	)
 	return i, err
 }
