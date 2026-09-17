@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ciftpay/ciftpay/internal/mpesa"
-	"github.com/ciftpay/ciftpay/internal/mpesa/mpesatest"
-	"github.com/ciftpay/ciftpay/internal/platform/config"
+	"github.com/exoin/ciftpay/internal/mpesa"
+	"github.com/exoin/ciftpay/internal/mpesa/mpesatest"
+	"github.com/exoin/ciftpay/internal/platform/config"
 )
 
 func fakeClient(t *testing.T) (*mpesa.Client, *mpesatest.Server) {
