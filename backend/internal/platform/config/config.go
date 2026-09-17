@@ -80,8 +80,21 @@ type KRA struct {
 	// DNSResolver is the UDP address the KRA client resolves hostnames
 	// through. sbx.kra.go.ke has a DNSSEC misconfiguration that makes local
 	// validating resolvers (systemd-resolved) answer SERVFAIL, so the client
-	// bypasses them. Empty uses the system resolver.
+	// bypasses them. Empty uses the system resolver. This is a narrowly-scoped
+	// workaround (it only affects the oscu HTTP client's own transport, and is
+	// fully opt-out-able) for a local/sandbox DNS quirk; production
+	// infrastructure should still fix its resolver rather than lean on this
+	// long-term.
 	DNSResolver string `env:"KRA_OSCU_DNS_RESOLVER" envDefault:"8.8.8.8:53"`
+
+	// TestPIN, TestBhfID and TestDeviceSerial are a KRA sandbox developer-portal
+	// test identity, used only by the oscu package's own smoke test
+	// (TestLiveSandbox, skipped unless all three are set) and by `ciftctl
+	// kra-init`'s flag defaults, so the direct OSCU path can be exercised
+	// before any merchant has configured orgs.kra_bhf_id / kra_device_serial.
+	TestPIN          string `env:"KRA_OSCU_TEST_PIN"`
+	TestBhfID        string `env:"KRA_OSCU_TEST_BHF_ID" envDefault:"00"`
+	TestDeviceSerial string `env:"KRA_OSCU_TEST_DEVICE_SERIAL"`
 }
 
 // Configured reports whether the OSCU credentials are present.
