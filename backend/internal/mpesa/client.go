@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/platform/config"
+	"github.com/exoin/ciftpay/internal/platform/config"
 )
 
 // Client is the outbound Daraja client: OAuth token caching, C2B RegisterURL
