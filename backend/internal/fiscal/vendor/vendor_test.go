@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/fiscal/mock"
-	"github.com/ciftpay/ciftpay/internal/fiscal/providertest"
-	"github.com/ciftpay/ciftpay/internal/fiscal/vendor"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal/mock"
+	"github.com/exoin/ciftpay/internal/fiscal/providertest"
+	"github.com/exoin/ciftpay/internal/fiscal/vendor"
 )
 
 // fakeIntegrator is an httptest server that behaves like a KRA-approved
