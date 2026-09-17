@@ -1,4 +1,4 @@
-module github.com/ciftpay/ciftpay
+module github.com/exoin/ciftpay
 
 go 1.22.2
 
