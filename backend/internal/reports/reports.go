@@ -11,10 +11,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	"github.com/ciftpay/ciftpay/internal/platform/httpx"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/httpx"
 )
 
 // Nairobi is the reporting time zone.
