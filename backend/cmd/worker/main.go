@@ -12,12 +12,12 @@ import (
 
 	"github.com/riverqueue/river"
 
-	"github.com/ciftpay/ciftpay/internal/boot"
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/ledger"
-	"github.com/ciftpay/ciftpay/internal/mpesa"
-	"github.com/ciftpay/ciftpay/internal/notify"
-	"github.com/ciftpay/ciftpay/internal/platform/jobs"
+	"github.com/exoin/ciftpay/internal/boot"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/ledger"
+	"github.com/exoin/ciftpay/internal/mpesa"
+	"github.com/exoin/ciftpay/internal/notify"
+	"github.com/exoin/ciftpay/internal/platform/jobs"
 )
 
 func main() {
