@@ -15,6 +15,25 @@ SELECT * FROM orgs ORDER BY created_at DESC LIMIT $1;
 -- name: UpdateOrgFiscalProfile :exec
 UPDATE orgs SET fiscal_profile = $2 WHERE id = $1;
 
+-- name: SetEtimsConfigured :one
+-- The merchant's direct-OSCU device initialisation succeeded (ADR-0009):
+-- persist what RegisterDevice returned and flip the progressive-onboarding
+-- gate open. kra_cmc_key_enc is envelope-encrypted like kra_pin_enc, never
+-- stored in clear (docs/data-model.md §4).
+UPDATE orgs
+SET etims_status = 'initialized', kra_bhf_id = $2, kra_device_serial = $3,
+    kra_cmc_key_enc = $4, fiscal_profile = $5, etims_failed_reason = NULL, etims_initialized_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: SetEtimsFailed :one
+-- RegisterDevice was rejected or unreachable; the merchant sees
+-- etims_failed_reason and can fix their inputs and retry.
+UPDATE orgs
+SET etims_status = 'failed', etims_failed_reason = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: CreateUser :one
 INSERT INTO users (msisdn_enc, msisdn_hash, name, locale)
 VALUES ($1, $2, $3, $4)
