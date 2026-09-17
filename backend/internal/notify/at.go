@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/platform/config"
+	"github.com/exoin/ciftpay/internal/platform/config"
 )
 
 // Sender is the transport abstraction: Africa's Talking in production, the

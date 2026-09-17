@@ -13,12 +13,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	"github.com/ciftpay/ciftpay/internal/platform/httpx"
-	"github.com/ciftpay/ciftpay/internal/platform/jobs"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/httpx"
+	"github.com/exoin/ciftpay/internal/platform/jobs"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
 
 // ErrNoRecipient is returned when neither the payment nor the customer has a
