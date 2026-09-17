@@ -12,6 +12,12 @@ type State string
 // Invoice states. See docs/architecture.md §4.
 const (
 	StateDraft           State = "DRAFT"
+	// StateTaxPending holds an invoice that was created for a paid sale but
+	// cannot be submitted yet because the org's etims_status is not
+	// "initialized" (progressive onboarding, ADR-0009). It never times out or
+	// retries on its own: only ActivateTaxPending (run once the merchant
+	// configures eTIMS) moves it to QUEUED.
+	StateTaxPending      State = "TAX_PENDING"
 	StateQueued          State = "QUEUED"
 	StateSubmitted       State = "SUBMITTED"
 	StateAcked           State = "ACKED"
@@ -25,6 +31,7 @@ var ErrIllegalTransition = errors.New("fiscal: illegal state transition")
 
 var transitions = map[State][]State{
 	StateDraft:           {StateQueued},
+	StateTaxPending:      {StateQueued},
 	StateQueued:          {StateSubmitted},
 	StateSubmitted:       {StateAcked, StateFailedRetryable, StateFailedTerminal},
 	StateFailedRetryable: {StateQueued, StateFailedTerminal},
@@ -39,8 +46,9 @@ func (s State) Valid() bool {
 	return ok
 }
 
-// Terminal reports whether no automatic transition leaves s.
-func (s State) Terminal() bool { return s == StateAcked || s == StateNeedsReview }
+// Terminal reports whether no automatic transition leaves s: nothing but a
+// merchant/admin action (retry, or configuring eTIMS) moves it further.
+func (s State) Terminal() bool { return s == StateAcked || s == StateNeedsReview || s == StateTaxPending }
 
 // CanTransition reports whether from → to is allowed.
 func CanTransition(from, to State) bool {
