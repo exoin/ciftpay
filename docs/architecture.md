@@ -15,7 +15,7 @@ graph TD
     ETIMS[KRA eTIMS<br/>via approved integrator]
     AT[Africa's Talking<br/>SMS / WhatsApp]
   end
-  subgraph Go module github.com/ciftpay/ciftpay
+  subgraph Go module github.com/exoin/ciftpay
     API[cmd/api<br/>chi HTTP]
     WK[cmd/worker<br/>River jobs]
     CTL[cmd/ciftctl<br/>migrate · seed · replay-webhook]
