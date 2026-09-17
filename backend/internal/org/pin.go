@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal"
 )
 
 // FiscalPINChecker asks the fiscal provider whether KRA knows a PIN. When the
