@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
 
 // Roles a membership can carry.
