@@ -19,7 +19,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ciftpay/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db"
 )
 
 // EnvAdminURL names the superuser connection string used to create and drop
