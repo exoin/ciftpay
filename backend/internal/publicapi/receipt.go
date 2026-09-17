@@ -13,12 +13,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	"github.com/ciftpay/ciftpay/internal/platform/httpx"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/httpx"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
 
 // ErrNotFound is returned for unknown or malformed codes.
