@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/fiscal/mock"
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/dbtest"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal/mock"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/dbtest"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
 )
 
 // noLookup is a fiscal.Provider without the PIN lookup capability.
