@@ -35,7 +35,11 @@ type OrgFiscalProfile struct {
 	Name          string
 	KRAPIN        string
 	VATRegistered bool
-	BranchID      string // KRA branch office id, "00" for head office
+	BranchID      string // KRA branch office id (bhfId), "00" for head office
+	// DeviceSerial is the dvcSrlNo KRA issued to this merchant for direct OSCU
+	// registration (ADR-0009). Adapters that do not need a per-org device
+	// serial (vendor, mock) ignore it.
+	DeviceSerial string
 }
 
 // DeviceRef is returned by RegisterDevice.
@@ -72,6 +76,11 @@ type Invoice struct {
 	TaxCents      int64
 	TotalCents    int64
 	PaymentMethod string // "MOBILE_MONEY"
+	// DeviceProfile is the opaque adapter-specific payload RegisterDevice
+	// stored on orgs.fiscal_profile (ADR-0009: for `oscu` this carries the
+	// device serial and the encrypted-at-rest cmcKey). Adapters that do not
+	// need it (vendor, mock) ignore it.
+	DeviceProfile json.RawMessage
 }
 
 // CreditNote reverses an acked invoice in full or in part.
@@ -83,6 +92,8 @@ type CreditNote struct {
 	Reason          string
 	Lines           []Line
 	TotalCents      int64
+	// DeviceProfile: see Invoice.DeviceProfile.
+	DeviceProfile json.RawMessage
 }
 
 // Ack is what KRA (through the adapter) returns for an accepted document.
