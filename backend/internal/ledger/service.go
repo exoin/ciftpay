@@ -11,12 +11,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	"github.com/ciftpay/ciftpay/internal/platform/jobs"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/jobs"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
 
 // ErrDuplicate is returned when a TransID was already ingested.
@@ -262,12 +262,28 @@ func (s *Service) createCashSale(ctx context.Context, tx db.Tx, sc gen.ResolveSh
 	return sale, err
 }
 
-// CreateInvoiceForSale creates a QUEUED invoice for a paid sale and enqueues
-// the fiscal job in the same transaction. Exported for the manual convert path.
+// CreateInvoiceForSale creates an invoice for a paid sale and, once the org
+// has configured eTIMS, enqueues the fiscal job in the same transaction.
+// Exported for the manual convert path.
+//
+// Progressive onboarding (ADR-0009): while orgs.etims_status is not
+// "initialized" the invoice is created in TAX_PENDING instead of QUEUED and
+// no fiscal job is enqueued, so the sale is still recorded in the ledger but
+// KRA never sees it until the merchant configures their KRA credentials.
+// ActivateTaxPending moves every such invoice to QUEUED in one batch once
+// they do.
 func (s *Service) CreateInvoiceForSale(ctx context.Context, tx db.Tx, orgID, saleID uuid.UUID, paymentID *uuid.UUID, issuedAt time.Time) (gen.Invoice, error) {
 	sale, err := tx.GetSale(ctx, saleID)
 	if err != nil {
 		return gen.Invoice{}, err
+	}
+	org, err := tx.GetOrg(ctx, orgID)
+	if err != nil {
+		return gen.Invoice{}, err
+	}
+	state := fiscal.StateQueued
+	if org.EtimsStatus != "initialized" {
+		state = fiscal.StateTaxPending
 	}
 	var buyerName string
 	var buyerPinEnc, buyerPinHash []byte
@@ -283,7 +299,7 @@ func (s *Service) CreateInvoiceForSale(ctx context.Context, tx db.Tx, orgID, sal
 			return gen.Invoice{}, err
 		}
 		inv, err = tx.CreateInvoice(ctx, gen.CreateInvoiceParams{
-			OrgID: orgID, SaleID: saleID, PaymentID: paymentID, Kind: "INVOICE", State: string(fiscal.StateQueued),
+			OrgID: orgID, SaleID: saleID, PaymentID: paymentID, Kind: "INVOICE", State: string(state),
 			BuyerPinEnc: buyerPinEnc, BuyerPinHash: buyerPinHash, BuyerName: buyerName, ReceiptCode: code,
 			SubtotalCents: sale.SubtotalCents, TaxCents: sale.TaxCents, TotalCents: sale.TotalCents, IssuedAt: issuedAt,
 		})
@@ -294,17 +310,51 @@ func (s *Service) CreateInvoiceForSale(ctx context.Context, tx db.Tx, orgID, sal
 			return gen.Invoice{}, err
 		}
 	}
-	if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: inv.ID}, nil); err != nil {
-		return gen.Invoice{}, err
+	if state == fiscal.StateQueued {
+		if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: inv.ID}, nil); err != nil {
+			return gen.Invoice{}, err
+		}
+		// "Your receipt is being prepared" only if KRA has not acked by then; the
+		// notify worker skips it for an ACKED invoice (plan.md §4.4).
+		if err := s.Jobs.EnqueueAfterTx(ctx, tx.Tx, jobs.SendReceiptArgs{OrgID: orgID, InvoiceID: inv.ID, Template: "receipt_pending"}, jobs.PendingReceiptDelay); err != nil {
+			return gen.Invoice{}, err
+		}
 	}
-	// "Your receipt is being prepared" only if KRA has not acked by then; the
-	// notify worker skips it for an ACKED invoice (plan.md §4.4).
-	if err := s.Jobs.EnqueueAfterTx(ctx, tx.Tx, jobs.SendReceiptArgs{OrgID: orgID, InvoiceID: inv.ID, Template: "receipt_pending"}, jobs.PendingReceiptDelay); err != nil {
-		return gen.Invoice{}, err
+	action := "invoice.created"
+	if state == fiscal.StateTaxPending {
+		action = "invoice.tax_pending"
 	}
 	return inv, tx.AppendAudit(ctx, gen.AppendAuditParams{
-		OrgID: orgID, ActorType: "system", Action: "invoice.created", Entity: "invoice", EntityID: inv.ID.String(),
+		OrgID: orgID, ActorType: "system", Action: action, Entity: "invoice", EntityID: inv.ID.String(),
 	})
+}
+
+// ActivateTaxPending moves every TAX_PENDING invoice for an org to QUEUED and
+// enqueues its fiscal job, in one transaction. Call it right after the
+// merchant's eTIMS configuration succeeds (etims_status -> initialized).
+// Returns how many invoices were activated.
+func (s *Service) ActivateTaxPending(ctx context.Context, orgID uuid.UUID) (int, error) {
+	var ids []uuid.UUID
+	err := s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		ids, err = tx.ActivateTaxPendingInvoices(ctx, orgID)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: id}, nil); err != nil {
+				return err
+			}
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		return tx.AppendAudit(ctx, gen.AppendAuditParams{
+			OrgID: orgID, ActorType: "system", Action: "invoice.tax_pending_activated",
+			Entity: "org", EntityID: orgID.String(), After: []byte(fmt.Sprintf(`{"count":%d}`, len(ids))),
+		})
+	})
+	return len(ids), err
 }
 
 func (s *Service) applyReversal(ctx context.Context, tx db.Tx, sc gen.ResolveShortcodeRow, in C2BInput, eventID *uuid.UUID, res *C2BResult) error {
