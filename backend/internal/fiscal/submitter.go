@@ -12,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
-	"github.com/ciftpay/ciftpay/internal/platform/jobs"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/platform/jobs"
 )
 
 // Submitter drives invoices through the state machine using a Provider. It is
@@ -108,7 +108,7 @@ func (s *Submitter) Submit(ctx context.Context, orgID, invoiceID uuid.UUID) (Res
 	if kind == "CREDIT_NOTE" {
 		ack, subErr = s.Provider.SubmitCreditNote(ctx, CreditNote{
 			ID: doc.ID, OrgID: doc.OrgID, OriginalKRANo: parentKRANo, OriginalInvoice: doc,
-			Reason: "M-Pesa reversal", Lines: doc.Lines, TotalCents: doc.TotalCents,
+			Reason: "M-Pesa reversal", Lines: doc.Lines, TotalCents: doc.TotalCents, DeviceProfile: doc.DeviceProfile,
 		})
 	} else {
 		ack, subErr = s.Provider.SubmitInvoice(ctx, doc)
@@ -215,6 +215,7 @@ func (s *Submitter) buildDocument(ctx context.Context, tx db.Tx, inv gen.Invoice
 		ID: inv.ID.String(), OrgID: inv.OrgID.String(), SellerPIN: sellerPIN, SellerName: org.Name, BranchID: prof.BranchID,
 		BuyerPIN: buyerPIN, BuyerName: inv.BuyerName, IssuedAt: inv.IssuedAt, Lines: lines,
 		SubtotalCents: inv.SubtotalCents, TaxCents: inv.TaxCents, TotalCents: inv.TotalCents, PaymentMethod: "MOBILE_MONEY",
+		DeviceProfile: org.FiscalProfile,
 	}, nil
 }
 
