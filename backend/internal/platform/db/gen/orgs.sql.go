@@ -105,7 +105,7 @@ func (q *Queries) CreateOTP(ctx context.Context, arg CreateOTPParams) (OtpCode, 
 const createOrg = `-- name: CreateOrg :one
 INSERT INTO orgs (name, kra_pin_enc, kra_pin_hash, vat_registered, locale)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at
+RETURNING id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at
 `
 
 type CreateOrgParams struct {
@@ -137,6 +137,12 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Org, erro
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EtimsStatus,
+		&i.KraBhfID,
+		&i.KraDeviceSerial,
+		&i.KraCmcKeyEnc,
+		&i.EtimsFailedReason,
+		&i.EtimsInitializedAt,
 	)
 	return i, err
 }
@@ -216,7 +222,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getOrg = `-- name: GetOrg :one
-SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at FROM orgs WHERE id = $1
+SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at FROM orgs WHERE id = $1
 `
 
 func (q *Queries) GetOrg(ctx context.Context, id uuid.UUID) (Org, error) {
@@ -234,12 +240,18 @@ func (q *Queries) GetOrg(ctx context.Context, id uuid.UUID) (Org, error) {
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EtimsStatus,
+		&i.KraBhfID,
+		&i.KraDeviceSerial,
+		&i.KraCmcKeyEnc,
+		&i.EtimsFailedReason,
+		&i.EtimsInitializedAt,
 	)
 	return i, err
 }
 
 const getOrgByPINHash = `-- name: GetOrgByPINHash :one
-SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at FROM orgs WHERE kra_pin_hash = $1
+SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at FROM orgs WHERE kra_pin_hash = $1
 `
 
 func (q *Queries) GetOrgByPINHash(ctx context.Context, kraPinHash []byte) (Org, error) {
@@ -257,6 +269,12 @@ func (q *Queries) GetOrgByPINHash(ctx context.Context, kraPinHash []byte) (Org, 
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EtimsStatus,
+		&i.KraBhfID,
+		&i.KraDeviceSerial,
+		&i.KraCmcKeyEnc,
+		&i.EtimsFailedReason,
+		&i.EtimsInitializedAt,
 	)
 	return i, err
 }
@@ -407,7 +425,7 @@ func (q *Queries) ListMembershipsForUser(ctx context.Context, userID uuid.UUID) 
 }
 
 const listOrgs = `-- name: ListOrgs :many
-SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at FROM orgs ORDER BY created_at DESC LIMIT $1
+SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at FROM orgs ORDER BY created_at DESC LIMIT $1
 `
 
 func (q *Queries) ListOrgs(ctx context.Context, limit int32) ([]Org, error) {
@@ -431,6 +449,12 @@ func (q *Queries) ListOrgs(ctx context.Context, limit int32) ([]Org, error) {
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EtimsStatus,
+			&i.KraBhfID,
+			&i.KraDeviceSerial,
+			&i.KraCmcKeyEnc,
+			&i.EtimsFailedReason,
+			&i.EtimsInitializedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -449,6 +473,96 @@ UPDATE sessions SET revoked_at = now() WHERE id = $1
 func (q *Queries) RevokeSession(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, revokeSession, id)
 	return err
+}
+
+const setEtimsConfigured = `-- name: SetEtimsConfigured :one
+UPDATE orgs
+SET etims_status = 'initialized', kra_bhf_id = $2, kra_device_serial = $3,
+    kra_cmc_key_enc = $4, fiscal_profile = $5, etims_failed_reason = NULL, etims_initialized_at = now()
+WHERE id = $1
+RETURNING id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at
+`
+
+type SetEtimsConfiguredParams struct {
+	ID              uuid.UUID
+	KraBhfID        *string
+	KraDeviceSerial *string
+	KraCmcKeyEnc    []byte
+	FiscalProfile   []byte
+}
+
+// The merchant's direct-OSCU device initialisation succeeded (ADR-0009):
+// persist what RegisterDevice returned and flip the progressive-onboarding
+// gate open. kra_cmc_key_enc is envelope-encrypted like kra_pin_enc, never
+// stored in clear (docs/data-model.md §4).
+func (q *Queries) SetEtimsConfigured(ctx context.Context, arg SetEtimsConfiguredParams) (Org, error) {
+	row := q.db.QueryRow(ctx, setEtimsConfigured,
+		arg.ID,
+		arg.KraBhfID,
+		arg.KraDeviceSerial,
+		arg.KraCmcKeyEnc,
+		arg.FiscalProfile,
+	)
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.KraPinEnc,
+		&i.KraPinHash,
+		&i.KraPinVerifiedAt,
+		&i.VatRegistered,
+		&i.FiscalProfile,
+		&i.Locale,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EtimsStatus,
+		&i.KraBhfID,
+		&i.KraDeviceSerial,
+		&i.KraCmcKeyEnc,
+		&i.EtimsFailedReason,
+		&i.EtimsInitializedAt,
+	)
+	return i, err
+}
+
+const setEtimsFailed = `-- name: SetEtimsFailed :one
+UPDATE orgs
+SET etims_status = 'failed', etims_failed_reason = $2
+WHERE id = $1
+RETURNING id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at
+`
+
+type SetEtimsFailedParams struct {
+	ID                uuid.UUID
+	EtimsFailedReason *string
+}
+
+// RegisterDevice was rejected or unreachable; the merchant sees
+// etims_failed_reason and can fix their inputs and retry.
+func (q *Queries) SetEtimsFailed(ctx context.Context, arg SetEtimsFailedParams) (Org, error) {
+	row := q.db.QueryRow(ctx, setEtimsFailed, arg.ID, arg.EtimsFailedReason)
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.KraPinEnc,
+		&i.KraPinHash,
+		&i.KraPinVerifiedAt,
+		&i.VatRegistered,
+		&i.FiscalProfile,
+		&i.Locale,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EtimsStatus,
+		&i.KraBhfID,
+		&i.KraDeviceSerial,
+		&i.KraCmcKeyEnc,
+		&i.EtimsFailedReason,
+		&i.EtimsInitializedAt,
+	)
+	return i, err
 }
 
 const updateOrgFiscalProfile = `-- name: UpdateOrgFiscalProfile :exec
