@@ -8,16 +8,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/fiscal/mock"
-	"github.com/ciftpay/ciftpay/internal/fiscal/oscu"
-	"github.com/ciftpay/ciftpay/internal/fiscal/vendor"
-	"github.com/ciftpay/ciftpay/internal/notify"
-	"github.com/ciftpay/ciftpay/internal/platform/config"
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	plog "github.com/ciftpay/ciftpay/internal/platform/log"
-	"github.com/ciftpay/ciftpay/internal/platform/storage"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal/mock"
+	"github.com/exoin/ciftpay/internal/fiscal/oscu"
+	"github.com/exoin/ciftpay/internal/fiscal/vendor"
+	"github.com/exoin/ciftpay/internal/notify"
+	"github.com/exoin/ciftpay/internal/platform/config"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
+	"github.com/exoin/ciftpay/internal/platform/storage"
 )
 
 // Deps are the process-wide singletons.
