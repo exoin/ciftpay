@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal"
 )
 
 // Factory returns a fresh, healthy provider for one sub-test.
