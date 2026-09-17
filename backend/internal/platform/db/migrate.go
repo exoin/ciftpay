@@ -11,7 +11,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
-	migrations "github.com/ciftpay/ciftpay/db/migrations"
+	migrations "github.com/exoin/ciftpay/db/migrations"
 )
 
 // Migrate applies goose migrations from backend/db/migrations (embedded) and
