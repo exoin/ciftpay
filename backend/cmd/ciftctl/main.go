@@ -31,16 +31,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ciftpay/ciftpay/internal/admin"
-	"github.com/ciftpay/ciftpay/internal/boot"
-	"github.com/ciftpay/ciftpay/internal/fiscal/oscu"
-	"github.com/ciftpay/ciftpay/internal/ledger"
-	"github.com/ciftpay/ciftpay/internal/mpesa"
-	"github.com/ciftpay/ciftpay/internal/mpesa/mpesatest"
-	"github.com/ciftpay/ciftpay/internal/platform/config"
-	"github.com/ciftpay/ciftpay/internal/platform/crypto"
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/admin"
+	"github.com/exoin/ciftpay/internal/boot"
+	"github.com/exoin/ciftpay/internal/fiscal/oscu"
+	"github.com/exoin/ciftpay/internal/ledger"
+	"github.com/exoin/ciftpay/internal/mpesa"
+	"github.com/exoin/ciftpay/internal/mpesa/mpesatest"
+	"github.com/exoin/ciftpay/internal/platform/config"
+	"github.com/exoin/ciftpay/internal/platform/crypto"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/db/gen"
 )
 
 func main() {
