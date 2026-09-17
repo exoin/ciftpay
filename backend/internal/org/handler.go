@@ -1,6 +1,7 @@
 package org
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"net/http"
@@ -9,14 +10,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ciftpay/ciftpay/internal/platform/db"
-	"github.com/ciftpay/ciftpay/internal/platform/httpx"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/platform/db"
+	"github.com/exoin/ciftpay/internal/platform/httpx"
 )
 
-// Handler serves /auth/* and /orgs*.
+// Handler serves /auth/*, /orgs* and /org/etims.
 type Handler struct {
 	S            *Service
 	SecureCookie bool // Secure attribute; off for plain-http local dev
+	// OnEtimsConfigured runs after ConfigureEtims succeeds (composition root
+	// wires it to ledger.Service.ActivateTaxPending); nil skips it. Kept as a
+	// callback rather than a dependency so org never imports ledger.
+	OnEtimsConfigured func(ctx context.Context, orgID uuid.UUID)
 }
 
 // MountPublic registers the unauthenticated auth routes.
@@ -32,6 +38,8 @@ func (h *Handler) MountPrivate(r chi.Router) {
 	r.Get("/orgs", h.listOrgs)
 	r.Post("/orgs", h.createOrg)
 	r.With(RequireOrg).Get("/orgs/current", h.currentOrg)
+	r.With(RequireOrg).Get("/org/etims", h.getEtims)
+	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Post("/org/etims", h.configureEtims)
 }
 
 // Authenticate resolves the session cookie into an httpx.Principal on the
@@ -199,4 +207,49 @@ func (h *Handler) currentOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, o)
+}
+
+func (h *Handler) getEtims(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	out, err := h.S.GetEtimsSettings(r.Context(), p.OrgID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not load the tax settings")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+// configureEtims is Tax Settings' "Connect to KRA" action: it runs direct
+// OSCU device initialisation for the org's own PIN and the branch id/device
+// serial given here, and requeues any invoices that were held back while
+// eTIMS was unconfigured (progressive onboarding, ADR-0009).
+func (h *Handler) configureEtims(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	var in struct {
+		KRABhfID       string `json:"kra_bhf_id"`
+		KRADeviceSerial string `json:"kra_device_serial"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must be {kra_bhf_id?, kra_device_serial}")
+		return
+	}
+	out, err := h.S.ConfigureEtims(r.Context(), p.OrgID, in.KRABhfID, in.KRADeviceSerial)
+	switch {
+	case errors.Is(err, ErrEtimsBadBranch), errors.Is(err, ErrEtimsSerialRequired):
+		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", err.Error())
+	case errors.Is(err, ErrNoFiscalProvider):
+		httpx.Fail(w, http.StatusNotImplemented, "not_implemented", "This deployment has no direct KRA connection configured")
+	case err != nil && fiscal.Classify(err) == fiscal.ClassRetryable:
+		httpx.Fail(w, http.StatusServiceUnavailable, "unavailable", "KRA could not be reached; try again shortly")
+	case err != nil:
+		httpx.JSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error": map[string]string{"code": "etims_rejected", "message": err.Error()},
+			"data":  out,
+		})
+	default:
+		if h.OnEtimsConfigured != nil {
+			h.OnEtimsConfigured(r.Context(), p.OrgID)
+		}
+		httpx.JSON(w, http.StatusOK, out)
+	}
 }
