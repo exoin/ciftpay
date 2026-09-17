@@ -15,19 +15,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 
-	"github.com/ciftpay/ciftpay/internal/admin"
-	"github.com/ciftpay/ciftpay/internal/billing"
-	"github.com/ciftpay/ciftpay/internal/boot"
-	"github.com/ciftpay/ciftpay/internal/fiscal"
-	"github.com/ciftpay/ciftpay/internal/ledger"
-	"github.com/ciftpay/ciftpay/internal/mpesa"
-	"github.com/ciftpay/ciftpay/internal/notify"
-	"github.com/ciftpay/ciftpay/internal/org"
-	"github.com/ciftpay/ciftpay/internal/platform/httpx"
-	"github.com/ciftpay/ciftpay/internal/platform/jobs"
-	"github.com/ciftpay/ciftpay/internal/publicapi"
-	"github.com/ciftpay/ciftpay/internal/reports"
+	"github.com/exoin/ciftpay/internal/admin"
+	"github.com/exoin/ciftpay/internal/billing"
+	"github.com/exoin/ciftpay/internal/boot"
+	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/ledger"
+	"github.com/exoin/ciftpay/internal/mpesa"
+	"github.com/exoin/ciftpay/internal/notify"
+	"github.com/exoin/ciftpay/internal/org"
+	"github.com/exoin/ciftpay/internal/platform/httpx"
+	"github.com/exoin/ciftpay/internal/platform/jobs"
+	"github.com/exoin/ciftpay/internal/publicapi"
+	"github.com/exoin/ciftpay/internal/reports"
 )
 
 func main() {
@@ -98,8 +99,25 @@ func run() error {
 		return err
 	}
 
+	// Tax Settings (ADR-0009): the org service needs the live fiscal provider
+	// only for ConfigureEtims; wired here rather than through org.New so every
+	// other caller (including tests) is unaffected.
+	orgSvc.Fiscal = provider
+
 	// Handlers.
-	orgH := &org.Handler{S: orgSvc, SecureCookie: !cfg.IsLocal()}
+	orgH := &org.Handler{
+		S: orgSvc, SecureCookie: !cfg.IsLocal(),
+		// Configuring eTIMS unblocks whatever invoices were held back while the
+		// org was unconfigured (progressive onboarding); org has no dependency
+		// on ledger, so this is wired here instead.
+		OnEtimsConfigured: func(ctx context.Context, orgID uuid.UUID) {
+			if n, err := ledgerSvc.ActivateTaxPending(ctx, orgID); err != nil {
+				log.Error("activate tax-pending invoices failed", "org", orgID, "err", err)
+			} else if n > 0 {
+				log.Info("activated tax-pending invoices", "org", orgID, "count", n)
+			}
+		},
+	}
 	ledgerH := &ledger.Handler{
 		S: ledgerSvc, Keys: d.Keys, STK: stkAdapter{daraja}, Retrier: submitter, Files: files,
 		PublicBaseURL: cfg.PublicBaseURL,
