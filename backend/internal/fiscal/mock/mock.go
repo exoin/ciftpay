@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ciftpay/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal"
 )
 
 // FailMode selects how the adapter fails. It maps to MOCK_FAIL_MODE.
