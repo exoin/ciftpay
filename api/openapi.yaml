@@ -1457,7 +1457,10 @@ components:
 
     InvoiceState:
       type: string
-      enum: [DRAFT, QUEUED, SUBMITTED, ACKED, FAILED_RETRYABLE, FAILED_TERMINAL, NEEDS_REVIEW]
+      description: >-
+        `TAX_PENDING` (ADR-0009): the sale is recorded but the org has not yet configured
+        direct KRA eTIMS (Tax Settings); it moves to `QUEUED` automatically once they do.
+      enum: [DRAFT, TAX_PENDING, QUEUED, SUBMITTED, ACKED, FAILED_RETRYABLE, FAILED_TERMINAL, NEEDS_REVIEW]
 
     Invoice:
       type: object
