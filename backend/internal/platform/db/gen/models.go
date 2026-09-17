@@ -147,17 +147,23 @@ type Notification struct {
 }
 
 type Org struct {
-	ID               uuid.UUID
-	Name             string
-	KraPinEnc        []byte
-	KraPinHash       []byte
-	KraPinVerifiedAt *time.Time
-	VatRegistered    bool
-	FiscalProfile    []byte
-	Locale           string
-	Status           string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                 uuid.UUID
+	Name               string
+	KraPinEnc          []byte
+	KraPinHash         []byte
+	KraPinVerifiedAt   *time.Time
+	VatRegistered      bool
+	FiscalProfile      []byte
+	Locale             string
+	Status             string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	EtimsStatus        string
+	KraBhfID           *string
+	KraDeviceSerial    *string
+	KraCmcKeyEnc       []byte
+	EtimsFailedReason  *string
+	EtimsInitializedAt *time.Time
 }
 
 type OtpCode struct {
