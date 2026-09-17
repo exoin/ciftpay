@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/ui/StatusChip";
 import { OrgSwitcher } from "@/components/shell/OrgSwitcher";
 import { AuthorizationStep } from "@/components/onboarding/AuthorizationStep";
 import { ShortcodeForm } from "@/components/onboarding/ShortcodeForm";
+import { EtimsSection } from "@/components/settings/EtimsSection";
 import { qk, useCurrentOrg, useShortcodes } from "@/lib/api/queries";
 import { rawGet, type Schemas } from "@/lib/api/client";
 import { useLogout } from "@/lib/auth";
@@ -101,6 +102,10 @@ export default function SettingsPage() {
               })}
             </ul>
           )}
+        </Section>
+
+        <Section title={t("etims.title")}>
+          <EtimsSection />
         </Section>
 
         <Section title={t("language")}>
