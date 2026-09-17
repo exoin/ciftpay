@@ -12,6 +12,11 @@ import (
 
 type Querier interface {
 	AckInvoice(ctx context.Context, arg AckInvoiceParams) (Invoice, error)
+	// Progressive onboarding (ADR-0009): once a merchant configures eTIMS, every
+	// invoice that was withheld while etims_status was 'unconfigured' is queued
+	// for submission in one batch. Returns the ids so the caller can enqueue one
+	// SubmitInvoice job per invoice in the same transaction.
+	ActivateTaxPendingInvoices(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
 	AppendAudit(ctx context.Context, arg AppendAuditParams) error
 	AttachPaymentToSale(ctx context.Context, arg AttachPaymentToSaleParams) error
 	BumpOTPAttempts(ctx context.Context, id uuid.UUID) error
@@ -20,6 +25,7 @@ type Querier interface {
 	CountInvoicesByState(ctx context.Context, orgID uuid.UUID) ([]CountInvoicesByStateRow, error)
 	CountPaymentsByStatus(ctx context.Context, orgID uuid.UUID) ([]CountPaymentsByStatusRow, error)
 	CountRecentOTPs(ctx context.Context, msisdnHash []byte) (int64, error)
+	CountTaxPendingInvoices(ctx context.Context, orgID uuid.UUID) (int64, error)
 	// Runs under app.scope = 'ingest' or 'admin': the partial unique index is the
 	// arbiter, this is only the friendly pre-check behind shortcode_claimed.
 	CountVerifiedShortcodeElsewhere(ctx context.Context, arg CountVerifiedShortcodeElsewhereParams) (int64, error)
@@ -96,6 +102,14 @@ type Querier interface {
 	// has not confirmed. The partial unique index guarantees at most one row.
 	ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error)
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	// The merchant's direct-OSCU device initialisation succeeded (ADR-0009):
+	// persist what RegisterDevice returned and flip the progressive-onboarding
+	// gate open. kra_cmc_key_enc is envelope-encrypted like kra_pin_enc, never
+	// stored in clear (docs/data-model.md §4).
+	SetEtimsConfigured(ctx context.Context, arg SetEtimsConfiguredParams) (Org, error)
+	// RegisterDevice was rejected or unreachable; the merchant sees
+	// etims_failed_reason and can fix their inputs and retry.
+	SetEtimsFailed(ctx context.Context, arg SetEtimsFailedParams) (Org, error)
 	SetInvoiceState(ctx context.Context, arg SetInvoiceStateParams) (Invoice, error)
 	// The merchant uploaded (or replaced) the signed letter. A rejected row goes
 	// back to the queue; a verified row is left alone by the handler.
