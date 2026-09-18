@@ -325,7 +325,19 @@
     "deadLetter": "Foleni ya dead-letter",
     "orgSearch": "Tafuta organisation",
     "flags": "Feature flags",
-    "empty": "Hakuna kilichokwama. Foleni iko wazi."
+    "empty": "Hakuna kilichokwama. Foleni iko wazi.",
+    "shortcodesTitle": "Foleni ya Nambari za M-Pesa",
+    "shortcodesLead": "Kagua barua zilizosainiwa za Safaricom na thibitisha nambari za biashara.",
+    "pendingOnly": "Zinazosubiri idhini",
+    "allShortcodes": "Zote",
+    "verifyBtn": "Thibitisha",
+    "rejectBtn": "Kataa",
+    "viewLetterBtn": "Tazama barua",
+    "noLetter": "Hakuna barua iliyopakiwa",
+    "emptyShortcodes": "Hakuna nambari kwenye foleni hii.",
+    "rejectPrompt": "Weka sababu ya kukataa (angalau herufi 3):",
+    "verifySuccess": "Nambari imethibitishwa kikamilifu.",
+    "rejectSuccess": "Nambari imekataliwa."
   },
   "receipt": {
     "title": "Risiti ya KRA {code}",

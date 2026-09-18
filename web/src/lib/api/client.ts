@@ -80,6 +80,16 @@ export async function rawGet<T>(path: string): Promise<T> {
  * does not yet describe (same contract debt as rawGet; see
  * docs/runbooks/local-dev.md).
  */
+export async function rawPatch<T>(path: string, body?: unknown): Promise<T> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  const csrf = getCsrfToken();
+  if (csrf) headers.set("X-CSRF-Token", csrf);
+  const org = getActiveOrgId();
+  if (org) headers.set("X-Org-Id", org);
+  const res = await fetch(`${apiBaseUrl()}${path}`, { method: "PATCH", credentials: "include", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  return readJson<T>(res);
+}
+
 export async function rawPost<T>(path: string, body?: unknown): Promise<T> {
   const headers = new Headers({ "Content-Type": "application/json" });
   const csrf = getCsrfToken();

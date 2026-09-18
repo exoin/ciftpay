@@ -325,7 +325,19 @@
     "deadLetter": "Dead-letter queue",
     "orgSearch": "Find an organisation",
     "flags": "Feature flags",
-    "empty": "Nothing stuck. The queue is clear."
+    "empty": "Nothing stuck. The queue is clear.",
+    "shortcodesTitle": "M-Pesa Shortcodes Queue",
+    "shortcodesLead": "Review signed Safaricom authorization letters and verify shortcodes.",
+    "pendingOnly": "Pending authorization",
+    "allShortcodes": "All",
+    "verifyBtn": "Verify",
+    "rejectBtn": "Reject",
+    "viewLetterBtn": "View letter",
+    "noLetter": "No letter uploaded",
+    "emptyShortcodes": "No shortcodes waiting in this queue.",
+    "rejectPrompt": "Enter rejection reason (minimum 3 characters):",
+    "verifySuccess": "Shortcode verified successfully.",
+    "rejectSuccess": "Shortcode rejected."
   },
   "receipt": {
     "title": "KRA receipt {code}",
