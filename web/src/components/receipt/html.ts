@@ -117,11 +117,129 @@ export function receiptDocumentHtml(doc: ReceiptDocument): string {
     head(title, `${rc.seller.name} · ${formatKES(rc.total_cents)}`, locale, css) +
     `<main class="doc">${receiptCardHtml(doc)}` +
     `<p class="doc-lead">${e(lead)}</p>` +
-    // "Save to phone" is a plain download link; no JS required.
+    `<div class="doc-actions">` +
+    // Primary action: Save to phone as plain text download (works everywhere, zero JS)
     `<a class="doc-save" href="${e(save)}" download="ciftpay-${e(rc.receipt_code)}.txt">${e(t("save"))}</a>` +
+    // Image download button via canvas script
+    `<button type="button" class="doc-save" id="btn-save-img" onclick="downloadReceiptImage()">${e(t("saveImage"))}</button>` +
+    // Print button
+    `<button type="button" class="doc-save" onclick="window.print()">${e(t("print"))}</button>` +
+    `</div>` +
     `<footer class="doc-foot"><a href="https://ciftpay.co.ke/?utm_source=receipt&amp;utm_medium=footer&amp;utm_campaign=issue_yours">${e(t("cta"))}</a></footer>` +
-    `</main></body></html>`
+    `</main>` +
+    canvasScript(rc) +
+    `</body></html>`
   );
+}
+
+function canvasScript(rc: PublicReceipt): string {
+  const jsonRc = JSON.stringify(rc).replace(/</g, "\\u003c");
+  return `<script>
+function downloadReceiptImage() {
+  var rc = ${jsonRc};
+  var width = 420;
+  var padding = 24;
+  var itemsHeight = (rc.lines ? rc.lines.length : 0) * 24;
+  var height = 360 + itemsHeight;
+  var canvas = document.createElement("canvas");
+  var dpr = window.devicePixelRatio || 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  var ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = "#F6F1E7";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "rgba(18, 17, 15, 0.15)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(8, 8, width - 16, height - 16);
+  var y = 36;
+  ctx.fillStyle = "#12110F";
+  ctx.font = "bold 18px monospace, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(rc.seller.name, width / 2, y);
+  y += 20;
+  ctx.font = "12px monospace, sans-serif";
+  ctx.fillStyle = "#59544D";
+  ctx.fillText(rc.kind === "CREDIT_NOTE" ? "CREDIT NOTE" : "TAX INVOICE", width / 2, y);
+  y += 18;
+  ctx.fillText("PIN " + rc.seller.kra_pin + (rc.kra_invoice_no ? " · KRA " + rc.kra_invoice_no : ""), width / 2, y);
+  y += 16;
+  ctx.fillText(rc.issued_at, width / 2, y);
+  y += 14;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padding, y);
+  ctx.lineTo(width - padding, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  y += 20;
+  ctx.font = "13px monospace, sans-serif";
+  for (var i = 0; i < rc.lines.length; i++) {
+    var l = rc.lines[i];
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#12110F";
+    var lineDesc = (l.description + " x" + l.qty).slice(0, 26);
+    ctx.fillText(lineDesc, padding, y);
+    ctx.textAlign = "right";
+    var amt = "KES " + (l.line_total_cents / 100).toFixed(2);
+    ctx.fillText(amt, width - padding, y);
+    y += 22;
+  }
+  y += 6;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padding, y);
+  ctx.lineTo(width - padding, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  y += 22;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#59544D";
+  ctx.fillText("Subtotal", padding, y);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#12110F";
+  ctx.fillText("KES " + (rc.subtotal_cents / 100).toFixed(2), width - padding, y);
+  y += 20;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#59544D";
+  ctx.fillText("VAT", padding, y);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#12110F";
+  ctx.fillText("KES " + (rc.tax_cents / 100).toFixed(2), width - padding, y);
+  y += 24;
+  ctx.font = "bold 15px monospace, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#12110F";
+  ctx.fillText("TOTAL", padding, y);
+  ctx.textAlign = "right";
+  ctx.fillText("KES " + (rc.total_cents / 100).toFixed(2), width - padding, y);
+  y += 26;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padding, y);
+  ctx.lineTo(width - padding, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  y += 24;
+  ctx.font = "11px monospace, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#78726A";
+  ctx.fillText((rc.state || "").toUpperCase() + " · " + rc.receipt_code, width / 2, y);
+  y += 16;
+  ctx.fillText("Issued through CiftPay · Verifiable with KRA", width / 2, y);
+  canvas.toBlob(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "ciftpay-" + rc.receipt_code + ".png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+<\/script>`;
 }
 
 /** Receipt-shaped 404 document. */
