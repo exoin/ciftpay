@@ -56,7 +56,16 @@
     "verify": "Ingia",
     "changeNumber": "Tumia nambari nyingine",
     "wrongCode": "Nambari hiyo haikulingana. Angalia SMS ujaribu tena.",
-    "footer": "Kwa kuingia unakubali kwamba CiftPay haishiki pesa zako — inasoma tu uthibitisho wa M-Pesa na kuwasilisha invoice kwa KRA kwa niaba yako."
+    "footer": "Kwa kuingia unakubali kwamba CiftPay haishiki pesa zako — inasoma tu uthibitisho wa M-Pesa na kuwasilisha invoice kwa KRA kwa niaba yako.",
+    "signInTab": "Ingia",
+    "signUpTab": "Fungua akaunti",
+    "signInTitle": "Karibu tena",
+    "signInLead": "Weka nambari yako ya simu ili kuingia kwenye akaunti yako.",
+    "signUpTitle": "Anza kutumia CiftPay",
+    "signUpLead": "Sajili nambari yako ya simu. Tutakutumia msimbo wa tarakimu 6 ili kuthibitisha.",
+    "switchModeSignIn": "Je, tayari una akaunti? Ingia",
+    "switchModeSignUp": "Mgeni kwenye CiftPay? Fungua akaunti",
+    "verifySignUp": "Fungua akaunti"
   },
   "onboarding": {
     "title": "Sajili biashara yako",

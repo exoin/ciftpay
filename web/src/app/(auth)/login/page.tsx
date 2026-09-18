@@ -14,9 +14,7 @@ export default async function LoginPage() {
     <>
       <div className="font-display text-2xl font-semibold text-green">{t("app.name")}</div>
       <p className="mt-1 text-sm text-muted">{t("app.tagline")}</p>
-      <h1 className="mt-10">{t("login.title")}</h1>
-      <p className="mt-2 text-ink-2">{t("login.lead")}</p>
-      <div className="mt-6">
+      <div className="mt-8">
         <Suspense>
           <LoginForm />
         </Suspense>

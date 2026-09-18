@@ -56,7 +56,16 @@
     "verify": "Sign in",
     "changeNumber": "Use a different number",
     "wrongCode": "That code didn't match. Check the SMS and try again.",
-    "footer": "By signing in you accept that CiftPay never holds your money — it only reads M-Pesa confirmations and files invoices with KRA on your behalf."
+    "footer": "By signing in you accept that CiftPay never holds your money — it only reads M-Pesa confirmations and files invoices with KRA on your behalf.",
+    "signInTab": "Sign in",
+    "signUpTab": "Create account",
+    "signInTitle": "Welcome back",
+    "signInLead": "Enter your phone number to sign into your existing account.",
+    "signUpTitle": "Get started with CiftPay",
+    "signUpLead": "Register your Kenyan mobile number. We will send you a 6-digit code to verify.",
+    "switchModeSignIn": "Already have an account? Sign in",
+    "switchModeSignUp": "New to CiftPay? Create an account",
+    "verifySignUp": "Create account"
   },
   "onboarding": {
     "title": "Set up your business",
