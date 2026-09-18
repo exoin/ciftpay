@@ -216,19 +216,26 @@
     "empty": "Hakuna bidhaa bado. Ongeza unachouza ili invoice ziwe na msimbo sahihi wa KRA.",
     "add": "Ongeza bidhaa",
     "name": "Jina",
-    "code": "Msimbo wa bidhaa wa KRA",
-    "codeHint": "Tafuta kwa unachouza, k.m. 'mkate' au 'airtime'.",
+    "code": "Msimbo wa eTIMS",
+    "codeHint": "Tafuta au chagua msimbo rasmi wa bidhaa wa KRA eTIMS.",
     "taxCategory": "Aina ya kodi",
     "taxA": "A · Imesamehewa",
     "taxB": "B · VAT 16 %",
     "taxC": "C · Usafirishaji 0 %",
     "taxD": "D · Bila VAT",
     "taxE": "E · VAT 8 %",
-    "unit": "Kipimo",
+    "unit": "Kipimo (UoM)",
     "price": "Bei (KES)",
     "priceHint": "Pamoja na VAT. Acha wazi ili uandike wakati wa mauzo.",
     "saved": "Bidhaa imehifadhiwa.",
-    "inactive": "Haitumiki"
+    "inactive": "Haitumiki",
+    "categoryPreset": "Kundi la Jumla",
+    "categoryPresetHint": "Chagua kundi ili kujaza kiotomatiki msimbo wa eTIMS na viwango vya kodi.",
+    "categoryPresetCustom": "Chagua kundi...",
+    "vatRegisteredNotice": "VAT 16% inatozwa (Biashara imesajiliwa kwa VAT).",
+    "vatExemptNotice": "Bila VAT / Imesamehewa kodi.",
+    "isVatApplicable": "Inatozwa VAT 16%",
+    "isVatApplicableHint": "Weka alama ikiwa bidhaa hii inatozwa VAT ya 16%."
   },
   "settings": {
     "title": "Mipangilio",
@@ -324,7 +331,9 @@
     "cta": "Toa risiti zako za eTIMS — CiftPay",
     "notFound": "Hakuna risiti yenye msimbo huo.",
     "notFoundLead": "Angalia kiungo kwenye SMS yako. Misimbo ni herufi 6, kama 7KQ2M9.",
-    "poweredBy": "Imetolewa kupitia CiftPay"
+    "poweredBy": "Imetolewa kupitia CiftPay",
+    "saveImage": "Hifadhi picha ya risiti",
+    "print": "Chapisha / PDF"
   },
   "orgSwitcher": {
     "title": "Badilisha biashara",

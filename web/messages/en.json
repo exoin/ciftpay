@@ -216,19 +216,26 @@
     "empty": "No items yet. Add what you sell so invoices carry the right KRA code.",
     "add": "Add an item",
     "name": "Name",
-    "code": "KRA item code",
-    "codeHint": "Search by what you sell, e.g. 'bread' or 'airtime'.",
+    "code": "eTIMS Class Code",
+    "codeHint": "Search or pick standard KRA eTIMS classification code.",
     "taxCategory": "Tax category",
     "taxA": "A · Exempt",
     "taxB": "B · 16 % VAT",
     "taxC": "C · 0 % export",
     "taxD": "D · Non-VAT",
     "taxE": "E · 8 % VAT",
-    "unit": "Unit",
+    "unit": "Unit of Measure (UoM)",
     "price": "Price (KES)",
     "priceHint": "VAT-inclusive. Leave empty to type it at sale time.",
     "saved": "Item saved.",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "categoryPreset": "General Category",
+    "categoryPresetHint": "Select a common category to auto-populate eTIMS code and tax rates.",
+    "categoryPresetCustom": "Select a category preset...",
+    "vatRegisteredNotice": "16% VAT applies to this item (Organization is VAT registered).",
+    "vatExemptNotice": "Exempt / Non-VAT rate applies.",
+    "isVatApplicable": "Subject to 16% VAT",
+    "isVatApplicableHint": "Tick if 16% standard VAT applies to this item."
   },
   "settings": {
     "title": "Settings",
@@ -324,7 +331,9 @@
     "cta": "Issue your own eTIMS receipts — CiftPay",
     "notFound": "No receipt with that code.",
     "notFoundLead": "Check the link in your SMS. Codes are 6 characters, like 7KQ2M9.",
-    "poweredBy": "Issued through CiftPay"
+    "poweredBy": "Issued through CiftPay",
+    "saveImage": "Save receipt image",
+    "print": "Print / PDF"
   },
   "orgSwitcher": {
     "title": "Switch business",
