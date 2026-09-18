@@ -164,7 +164,18 @@
     "recent": "Malipo ya karibuni",
     "recordSale": "Andika mauzo",
     "emptyPayments": "Hakuna malipo ya M-Pesa leo bado. Yanayofuata yataonekana hapa yenyewe.",
-    "seeAll": "Malipo yote"
+    "seeAll": "Malipo yote",
+    "quickStartTitle": "Weka biashara yako tayari kwa eTIMS",
+    "quickStartLead": "Kamilisha hatua hizi 3 kuanza kutoa risiti za kielektroniki moja kwa moja kwa kila malipo.",
+    "step1Title": "Ongeza bidhaa kwenye orodha",
+    "step1Desc": "Weka unachouza pamoja na misimbo rasmi ya kodi ya KRA UNSPSC.",
+    "step1Action": "Dhibiti bidhaa",
+    "step2Title": "Unganisha Till au Paybill",
+    "step2Desc": "Unganisha nambari yako ya Lipa na M-Pesa ili malipo yaonekane moja kwa moja.",
+    "step2Action": "Ongeza nambari",
+    "step3Title": "Rekodi mauzo yako ya kwanza",
+    "step3Desc": "Jaribu kurekodi mauzo ya pesa taslimu uone risiti halisi ya KRA.",
+    "step3Action": "Rekodi mauzo"
   },
   "payments": {
     "title": "Malipo",

@@ -164,7 +164,18 @@
     "recent": "Latest payments",
     "recordSale": "Record a sale",
     "emptyPayments": "No M-Pesa payments yet today. The next one shows up here on its own.",
-    "seeAll": "All payments"
+    "seeAll": "All payments",
+    "quickStartTitle": "Get your shop ready for KRA eTIMS",
+    "quickStartLead": "Complete these 3 steps to start issuing electronic invoices automatically on every payment.",
+    "step1Title": "Add items to your catalog",
+    "step1Desc": "Pre-load what you sell with standard KRA UNSPSC tax codes.",
+    "step1Action": "Manage items",
+    "step2Title": "Connect Till or Paybill",
+    "step2Desc": "Link your Lipa na M-Pesa shortcode so payments show up live.",
+    "step2Action": "Add shortcode",
+    "step3Title": "Record your first sale",
+    "step3Desc": "Test a cash or walk-in sale to preview your verifiable receipt.",
+    "step3Action": "Record sale"
   },
   "payments": {
     "title": "Payments",
