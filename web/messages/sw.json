@@ -301,7 +301,9 @@
       "how3": "KRA ikikubali ombi, watakupa namba ya kifaa. Iweke hapa chini.",
       "portalLink": "Fungua tovuti ya walipa kodi ya eTIMS ya KRA",
       "connect": "Unganisha na KRA",
-      "reconfigure": "Badilisha kifaa"
+      "reconfigure": "Badilisha kifaa",
+      "connectingMsg": "Inawasiliana na seva ya KRA OSCU na kuthibitisha vitambulisho vya kifaa...",
+      "connectSuccess": "Kifaa kimesajiliwa na kuunganishwa na KRA eTIMS kikamilifu."
     }
   },
   "sale": {

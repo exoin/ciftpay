@@ -32,6 +32,7 @@ export function EtimsSection() {
   const [branchId, setBranchId] = useState("00");
   const [deviceSerial, setDeviceSerial] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ branchId?: string; deviceSerial?: string }>({});
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (isPending || !data) {
     return null;
@@ -47,7 +48,16 @@ export function EtimsSection() {
     if (!deviceSerial.trim()) errs.deviceSerial = t("deviceSerialInvalid");
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    configure.mutate({ kra_bhf_id: branchId || "00", kra_device_serial: deviceSerial.trim() }, { onSuccess: () => setEditing(false) });
+    setSuccessMsg(null);
+    configure.mutate(
+      { kra_bhf_id: branchId || "00", kra_device_serial: deviceSerial.trim() },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          setSuccessMsg(t("connectSuccess"));
+        },
+      }
+    );
   }
 
   return (
@@ -62,6 +72,12 @@ export function EtimsSection() {
         <p role="alert" className="text-xs text-red">
           {data.failed_reason}
         </p>
+      )}
+
+      {successMsg && (
+        <div role="status" className="rounded bg-green/10 p-2.5 text-xs font-medium text-green">
+          {successMsg}
+        </div>
       )}
 
       {!showForm ? (
@@ -113,6 +129,13 @@ export function EtimsSection() {
             value={deviceSerial}
             onChange={(e) => setDeviceSerial(e.target.value)}
           />
+
+          {configure.isPending && (
+            <div className="flex items-center gap-2 rounded bg-paper-2 p-3 text-xs text-ink-2">
+              <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-ochre border-t-transparent" />
+              <span>{t("connectingMsg")}</span>
+            </div>
+          )}
 
           {apiMessage && (
             <p role="alert" className="text-sm text-red">

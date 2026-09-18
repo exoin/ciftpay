@@ -301,7 +301,9 @@
       "how3": "Once KRA approves the request, they give you a device serial. Enter it below.",
       "portalLink": "Open the KRA eTIMS taxpayer portal",
       "connect": "Connect to KRA",
-      "reconfigure": "Change device"
+      "reconfigure": "Change device",
+      "connectingMsg": "Contacting KRA OSCU server and validating cryptographic device credentials...",
+      "connectSuccess": "Device registered and cryptographically paired with KRA eTIMS successfully."
     }
   },
   "sale": {
