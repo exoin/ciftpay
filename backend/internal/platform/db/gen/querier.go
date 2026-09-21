@@ -52,7 +52,9 @@ type Querier interface {
 	GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
 	GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error)
 	// Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
+	// Follows the superseded chain so the customer always sees the latest valid KRA invoice.
 	GetInvoiceByReceiptCode(ctx context.Context, receiptCode string) (GetInvoiceByReceiptCodeRow, error)
+	GetInvoiceByReceiptCodeExact(ctx context.Context, receiptCode string) (Invoice, error)
 	GetItem(ctx context.Context, id uuid.UUID) (Item, error)
 	GetOpenSaleByRef(ctx context.Context, arg GetOpenSaleByRefParams) (Sale, error)
 	GetOrg(ctx context.Context, id uuid.UUID) (Org, error)
@@ -114,6 +116,7 @@ type Querier interface {
 	// The merchant uploaded (or replaced) the signed letter. A rejected row goes
 	// back to the queue; a verified row is left alone by the handler.
 	SetShortcodeAuthorizationLetter(ctx context.Context, arg SetShortcodeAuthorizationLetterParams) (MpesaShortcode, error)
+	SupersedeInvoice(ctx context.Context, arg SupersedeInvoiceParams) error
 	TodayTotals(ctx context.Context, orgID uuid.UUID) (TodayTotalsRow, error)
 	UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, error)
 	UpdateOrgFiscalProfile(ctx context.Context, arg UpdateOrgFiscalProfileParams) error

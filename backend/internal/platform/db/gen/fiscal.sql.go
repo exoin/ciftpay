@@ -17,7 +17,7 @@ UPDATE invoices
 SET state = 'ACKED', kra_invoice_no = $2, kra_signature = $3, kra_qr_payload = $4,
     acked_at = $5, last_error = NULL, next_attempt_at = NULL
 WHERE id = $1
-RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at
+RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at
 `
 
 type AckInvoiceParams struct {
@@ -63,6 +63,8 @@ func (q *Queries) AckInvoice(ctx context.Context, arg AckInvoiceParams) (Invoice
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
 }
@@ -244,7 +246,7 @@ func (q *Queries) CreateFiscalSubmission(ctx context.Context, arg CreateFiscalSu
 const createInvoice = `-- name: CreateInvoice :one
 INSERT INTO invoices (org_id, sale_id, payment_id, kind, parent_invoice_id, state, buyer_pin_enc, buyer_pin_hash, buyer_name, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at
+RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at
 `
 
 type CreateInvoiceParams struct {
@@ -308,6 +310,8 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
 }
@@ -363,7 +367,7 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 }
 
 const getAckedInvoiceForSale = `-- name: GetAckedInvoiceForSale :one
-SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at FROM invoices WHERE sale_id = $1 AND kind = 'INVOICE' AND state = 'ACKED' ORDER BY created_at DESC LIMIT 1
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices WHERE sale_id = $1 AND kind = 'INVOICE' AND state = 'ACKED' ORDER BY created_at DESC LIMIT 1
 `
 
 func (q *Queries) GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error) {
@@ -395,12 +399,14 @@ func (q *Queries) GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) 
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
 }
 
 const getInvoice = `-- name: GetInvoice :one
-SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at FROM invoices WHERE id = $1
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices WHERE id = $1
 `
 
 func (q *Queries) GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error) {
@@ -432,16 +438,34 @@ func (q *Queries) GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error)
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
 }
 
 const getInvoiceByReceiptCode = `-- name: GetInvoiceByReceiptCode :one
-SELECT i.id, i.org_id, i.sale_id, i.payment_id, i.kind, i.parent_invoice_id, i.state, i.attempt, i.next_attempt_at, i.buyer_pin_enc, i.buyer_pin_hash, i.buyer_name, i.kra_invoice_no, i.kra_signature, i.kra_qr_payload, i.receipt_code, i.subtotal_cents, i.tax_cents, i.total_cents, i.issued_at, i.submitted_at, i.acked_at, i.last_error, i.created_at, i.updated_at, o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref
-FROM invoices i
-JOIN orgs o ON o.id = i.org_id
-JOIN sales s ON s.id = i.sale_id
-WHERE i.receipt_code = $1
+WITH RECURSIVE chain AS (
+  SELECT i.id, i.org_id, i.sale_id, i.payment_id, i.kind, i.parent_invoice_id, i.state, i.attempt, i.next_attempt_at, i.buyer_pin_enc, i.buyer_pin_hash, i.buyer_name, i.kra_invoice_no, i.kra_signature, i.kra_qr_payload, i.receipt_code, i.subtotal_cents, i.tax_cents, i.total_cents, i.issued_at, i.submitted_at, i.acked_at, i.last_error, i.created_at, i.updated_at, i.superseded_by_id, i.superseded_at, 1 AS depth
+  FROM invoices i
+  WHERE i.receipt_code = $1
+  UNION ALL
+  SELECT next_i.id, next_i.org_id, next_i.sale_id, next_i.payment_id, next_i.kind, next_i.parent_invoice_id, next_i.state, next_i.attempt, next_i.next_attempt_at, next_i.buyer_pin_enc, next_i.buyer_pin_hash, next_i.buyer_name, next_i.kra_invoice_no, next_i.kra_signature, next_i.kra_qr_payload, next_i.receipt_code, next_i.subtotal_cents, next_i.tax_cents, next_i.total_cents, next_i.issued_at, next_i.submitted_at, next_i.acked_at, next_i.last_error, next_i.created_at, next_i.updated_at, next_i.superseded_by_id, next_i.superseded_at, c.depth + 1
+  FROM invoices next_i
+  JOIN chain c ON next_i.id = c.superseded_by_id
+  WHERE c.superseded_by_id IS NOT NULL AND c.depth < 10
+)
+SELECT c.id, c.org_id, c.sale_id, c.payment_id, c.kind, c.parent_invoice_id, c.state, c.attempt,
+       c.next_attempt_at, c.buyer_pin_enc, c.buyer_pin_hash, c.buyer_name, c.kra_invoice_no,
+       c.kra_signature, c.kra_qr_payload, c.receipt_code, c.subtotal_cents, c.tax_cents,
+       c.total_cents, c.issued_at, c.submitted_at, c.acked_at, c.last_error, c.created_at,
+       c.updated_at, c.superseded_by_id, c.superseded_at,
+       o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref
+FROM chain c
+JOIN orgs o ON o.id = c.org_id
+JOIN sales s ON s.id = c.sale_id
+ORDER BY c.depth DESC
+LIMIT 1
 `
 
 type GetInvoiceByReceiptCodeRow struct {
@@ -470,12 +494,15 @@ type GetInvoiceByReceiptCodeRow struct {
 	LastError       *string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	SupersededByID  *uuid.UUID
+	SupersededAt    *time.Time
 	OrgName         string
 	OrgPinEnc       []byte
 	SaleRef         string
 }
 
 // Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
+// Follows the superseded chain so the customer always sees the latest valid KRA invoice.
 func (q *Queries) GetInvoiceByReceiptCode(ctx context.Context, receiptCode string) (GetInvoiceByReceiptCodeRow, error) {
 	row := q.db.QueryRow(ctx, getInvoiceByReceiptCode, receiptCode)
 	var i GetInvoiceByReceiptCodeRow
@@ -505,9 +532,50 @@ func (q *Queries) GetInvoiceByReceiptCode(ctx context.Context, receiptCode strin
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 		&i.OrgName,
 		&i.OrgPinEnc,
 		&i.SaleRef,
+	)
+	return i, err
+}
+
+const getInvoiceByReceiptCodeExact = `-- name: GetInvoiceByReceiptCodeExact :one
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices WHERE receipt_code = $1
+`
+
+func (q *Queries) GetInvoiceByReceiptCodeExact(ctx context.Context, receiptCode string) (Invoice, error) {
+	row := q.db.QueryRow(ctx, getInvoiceByReceiptCodeExact, receiptCode)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.SaleID,
+		&i.PaymentID,
+		&i.Kind,
+		&i.ParentInvoiceID,
+		&i.State,
+		&i.Attempt,
+		&i.NextAttemptAt,
+		&i.BuyerPinEnc,
+		&i.BuyerPinHash,
+		&i.BuyerName,
+		&i.KraInvoiceNo,
+		&i.KraSignature,
+		&i.KraQrPayload,
+		&i.ReceiptCode,
+		&i.SubtotalCents,
+		&i.TaxCents,
+		&i.TotalCents,
+		&i.IssuedAt,
+		&i.SubmittedAt,
+		&i.AckedAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
 }
@@ -615,7 +683,7 @@ func (q *Queries) ListFiscalSubmissions(ctx context.Context, invoiceID uuid.UUID
 }
 
 const listInvoices = `-- name: ListInvoices :many
-SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at FROM invoices
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices
 WHERE org_id = $1 AND ($4::text IS NULL OR state = $4)
 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
@@ -667,6 +735,8 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]I
 			&i.LastError,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SupersededByID,
+			&i.SupersededAt,
 		); err != nil {
 			return nil, err
 		}
@@ -787,7 +857,7 @@ const resetInvoiceForRetry = `-- name: ResetInvoiceForRetry :one
 UPDATE invoices
 SET state = 'QUEUED', attempt = 0, next_attempt_at = NULL, last_error = NULL
 WHERE id = $1 AND state IN ('NEEDS_REVIEW', 'FAILED_TERMINAL')
-RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at
+RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at
 `
 
 func (q *Queries) ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoice, error) {
@@ -819,6 +889,8 @@ func (q *Queries) ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoi
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
 }
@@ -831,7 +903,7 @@ SET state = $2,
     last_error = $5,
     submitted_at = CASE WHEN $2 = 'SUBMITTED' THEN now() ELSE submitted_at END
 WHERE id = $1
-RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at
+RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at
 `
 
 type SetInvoiceStateParams struct {
@@ -877,8 +949,26 @@ func (q *Queries) SetInvoiceState(ctx context.Context, arg SetInvoiceStateParams
 		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
 	)
 	return i, err
+}
+
+const supersedeInvoice = `-- name: SupersedeInvoice :exec
+UPDATE invoices
+SET superseded_by_id = $2, superseded_at = now()
+WHERE id = $1
+`
+
+type SupersedeInvoiceParams struct {
+	ID             uuid.UUID
+	SupersededByID *uuid.UUID
+}
+
+func (q *Queries) SupersedeInvoice(ctx context.Context, arg SupersedeInvoiceParams) error {
+	_, err := q.db.Exec(ctx, supersedeInvoice, arg.ID, arg.SupersededByID)
+	return err
 }
 
 const upsertSubscription = `-- name: UpsertSubscription :one

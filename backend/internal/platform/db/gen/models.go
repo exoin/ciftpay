@@ -83,6 +83,8 @@ type Invoice struct {
 	LastError       *string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	SupersededByID  *uuid.UUID
+	SupersededAt    *time.Time
 }
 
 type Item struct {
