@@ -30,7 +30,8 @@
   },
   "status": {
     "acked": "KRA imethibitisha",
-    "pending": "Inasubiri KRA",
+    "pending": "Inawasilisha KRA",
+    "syncing": "Inawasilisha KRA",
     "failed": "Imeshindwa",
     "needsReview": "Inahitaji kurekebishwa",
     "taxPending": "Imerekodiwa · unganisha KRA kuwasilisha",
@@ -214,7 +215,12 @@
     "submissions": "Majaribio",
     "attempt": "Jaribio {n}",
     "creditNote": "Credit note",
-    "cancels": "Inafuta {kraNo}"
+    "cancels": "Inafuta {kraNo}",
+    "addBuyerPin": "Weka PIN ya mnunuzi",
+    "amendPin": "Badilisha PIN ya mnunuzi",
+    "amendTitle": "Rekebisha Ankara (KRA Credit Note & Toleo Jipya)",
+    "amendLead": "Sheria za KRA zinahitaji Credit Note kufuta ankara hii na ankara mpya yenye PIN ya mnunuzi.",
+    "reissued": "Ankara imerekebishwa: Credit note na ankara mpya zimetolewa."
   },
   "attention": {
     "title": "Inahitaji kuangaliwa",
