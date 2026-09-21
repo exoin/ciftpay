@@ -125,6 +125,23 @@ export function receiptDocumentHtml(doc: ReceiptDocument): string {
     // Print button
     `<button type="button" class="doc-save" onclick="window.print()">${e(t("print"))}</button>` +
     `</div>` +
+    (!rc.buyer_pin_masked && rc.kind !== "CREDIT_NOTE" ? (
+      `<div class="doc-claim" style="margin: 1.5rem auto; max-width: 420px; width: 100%; text-align: left; background: #fff; padding: 1.25rem; border-radius: 4px; border: 1px solid rgba(18,17,15,0.12); box-shadow: 0 1px 3px rgba(0,0,0,0.04);">` +
+      `<h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.25rem; color: #12110F;">Claim input VAT</h3>` +
+      `<p style="font-size: 0.8rem; color: #59544D; margin-bottom: 0.85rem; line-height: 1.4;">Add your KRA PIN to this receipt to claim VAT or include this in your official tax returns.</p>` +
+      `<form method="POST" action="/r/${e(rc.receipt_code)}" style="display: flex; flex-direction: column; gap: 0.6rem;">` +
+      `<div>` +
+      `<label style="display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #59544D; margin-bottom: 0.25rem;">Your KRA PIN</label>` +
+      `<input type="text" name="buyer_pin" placeholder="A012345678X" required pattern="^[APap][0-9]{9}[A-Za-z]$" style="width: 100%; box-sizing: border-box; padding: 0.45rem 0.6rem; font-family: monospace; font-size: 0.95rem; text-transform: uppercase; border: 1px solid rgba(18,17,15,0.25); border-radius: 3px;" />` +
+      `</div>` +
+      `<div>` +
+      `<label style="display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #59544D; margin-bottom: 0.25rem;">Business / Buyer Name (optional)</label>` +
+      `<input type="text" name="buyer_name" placeholder="Acme Ltd" style="width: 100%; box-sizing: border-box; padding: 0.45rem 0.6rem; font-size: 0.9rem; border: 1px solid rgba(18,17,15,0.25); border-radius: 3px;" />` +
+      `</div>` +
+      `<button type="submit" class="doc-save" style="margin-top: 0.25rem; width: 100%; cursor: pointer; text-align: center; border: none;">Add PIN &amp; Update Receipt</button>` +
+      `</form>` +
+      `</div>`
+    ) : "") +
     `<footer class="doc-foot"><a href="https://ciftpay.co.ke/?utm_source=receipt&amp;utm_medium=footer&amp;utm_campaign=issue_yours">${e(t("cta"))}</a></footer>` +
     `</main>` +
     canvasScript(rc) +
