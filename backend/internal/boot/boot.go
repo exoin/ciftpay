@@ -75,7 +75,7 @@ func FiscalProvider(cfg config.Fiscal, kra config.KRA) (fiscal.Provider, error) 
 // OSCUConfig maps the environment onto the direct KRA client's settings.
 func OSCUConfig(kra config.KRA, f config.Fiscal) oscu.Config {
 	return oscu.Config{
-		BaseURL: kra.BaseURL, ConsumerKey: kra.ConsumerKey, ConsumerSecret: kra.ConsumerSecret,
+		BaseURL: kra.BaseURL, APIBaseURL: kra.APIBaseURL, ConsumerKey: kra.ConsumerKey, ConsumerSecret: kra.ConsumerSecret,
 		DeviceSerial: kra.DeviceSerial, DNSResolver: kra.DNSResolver, Timeout: time.Duration(f.TimeoutSeconds) * time.Second,
 	}
 }

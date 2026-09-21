@@ -281,3 +281,42 @@ func TestDNSResolverOverride(t *testing.T) {
 		t.Fatal("expected the bogus resolver to make the lookup fail")
 	}
 }
+
+func TestRegisterDevice_RejectsInvalidSerialFromKRA(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/token") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "live-tok", "expires_in": "3600"})
+			return
+		}
+		// KRA rejects unknown/mashed device serial
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"resultCd": "901",
+			"resultMsg": "It is not valid device",
+			"data": nil,
+		})
+	}))
+	defer srv.Close()
+
+	p, err := oscu.New(oscu.Config{BaseURL: srv.URL, ConsumerKey: "key", ConsumerSecret: "secret", Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = p.RegisterDevice(context.Background(), fiscal.OrgFiscalProfile{
+		OrgID: "org-1", Name: "Test Org", KRAPIN: "P051234567A", BranchID: "00", DeviceSerial: "asdf1234random_mash",
+	})
+	if err == nil {
+		t.Fatal("expected RegisterDevice to fail for invalid serial, got success")
+	}
+
+	var ve *fiscal.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T: %v", err, err)
+	}
+	if ve.Code != "oscu_rejected_901" {
+		t.Errorf("expected code oscu_rejected_901, got %s", ve.Code)
+	}
+	if ve.Message != "It is not valid device" {
+		t.Errorf("expected message %q, got %s", "It is not valid device", ve.Message)
+	}
+}

@@ -71,6 +71,7 @@ type KRA struct {
 	Env string `env:"KRA_OSCU_ENV" envDefault:"sandbox"`
 	// BaseURL is the API gateway origin (https://sbx.kra.go.ke in the sandbox).
 	BaseURL        string `env:"KRA_OSCU_BASE_URL" envDefault:"https://sbx.kra.go.ke"`
+	APIBaseURL     string `env:"KRA_OSCU_API_BASE_URL"`
 	ConsumerKey    string `env:"KRA_OSCU_CONSUMER_KEY"`
 	ConsumerSecret string `env:"KRA_OSCU_CONSUMER_SECRET"`
 	// DeviceSerial is the dvcSrlNo registered on the eTIMS portal for the

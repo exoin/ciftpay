@@ -37,7 +37,14 @@ services:
       DARAJA_SHORTCODE: ${DARAJA_SHORTCODE:-600000}
       DARAJA_WEBHOOK_TOKEN: ${DARAJA_WEBHOOK_TOKEN:-dev-webhook-token}
       UPLOAD_DIR: /var/lib/ciftpay/uploads
-      FISCAL_ADAPTER: ${FISCAL_ADAPTER:-mock}
+      FISCAL_ADAPTER: ${FISCAL_ADAPTER:-oscu}
+      KRA_OSCU_ENV: ${KRA_OSCU_ENV:-sandbox}
+      KRA_OSCU_BASE_URL: ${KRA_OSCU_BASE_URL:-https://sbx.kra.go.ke}
+      KRA_OSCU_API_BASE_URL: ${KRA_OSCU_API_BASE_URL:-https://etims-api-sbx.kra.go.ke}
+      KRA_OSCU_CONSUMER_KEY: ${KRA_OSCU_CONSUMER_KEY:-}
+      KRA_OSCU_CONSUMER_SECRET: ${KRA_OSCU_CONSUMER_SECRET:-}
+      KRA_OSCU_DEVICE_SERIAL: ${KRA_OSCU_DEVICE_SERIAL:-}
+      KRA_OSCU_DNS_RESOLVER: ${KRA_OSCU_DNS_RESOLVER:-8.8.8.8:53}
       AT_BASE_URL: http://sms-sink:8025
       AT_USERNAME: ${AT_USERNAME:-sandbox}
       AT_API_KEY: ${AT_API_KEY:-dev-at-key}
@@ -65,7 +72,14 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
       WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-http://localhost:8080}
       MASTER_KEY_B64: ${MASTER_KEY_B64:-ZGV2LW1hc3Rlci1rZXktMzItYnl0ZXMtZm9yLWRldiE=}
-      FISCAL_ADAPTER: ${FISCAL_ADAPTER:-mock}
+      FISCAL_ADAPTER: ${FISCAL_ADAPTER:-oscu}
+      KRA_OSCU_ENV: ${KRA_OSCU_ENV:-sandbox}
+      KRA_OSCU_BASE_URL: ${KRA_OSCU_BASE_URL:-https://sbx.kra.go.ke}
+      KRA_OSCU_API_BASE_URL: ${KRA_OSCU_API_BASE_URL:-https://etims-api-sbx.kra.go.ke}
+      KRA_OSCU_CONSUMER_KEY: ${KRA_OSCU_CONSUMER_KEY:-}
+      KRA_OSCU_CONSUMER_SECRET: ${KRA_OSCU_CONSUMER_SECRET:-}
+      KRA_OSCU_DEVICE_SERIAL: ${KRA_OSCU_DEVICE_SERIAL:-}
+      KRA_OSCU_DNS_RESOLVER: ${KRA_OSCU_DNS_RESOLVER:-8.8.8.8:53}
       MOCK_FAIL_MODE: ${MOCK_FAIL_MODE:-none}
       AT_BASE_URL: http://sms-sink:8025
       AT_USERNAME: ${AT_USERNAME:-sandbox}

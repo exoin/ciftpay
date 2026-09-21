@@ -107,7 +107,12 @@ func (s *Service) ConfigureEtims(ctx context.Context, orgID uuid.UUID, bhfID, de
 		BranchID: bhfID, DeviceSerial: deviceSerial,
 	})
 	if rErr != nil {
-		reason := truncateReason(rErr.Error())
+		reason := rErr.Error()
+		var ve *fiscal.ValidationError
+		if errors.As(rErr, &ve) && ve.Message != "" {
+			reason = ve.Message
+		}
+		reason = truncateReason(reason)
 		_ = s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
 			var err error
 			o, err = tx.SetEtimsFailed(ctx, gen.SetEtimsFailedParams{ID: orgID, EtimsFailedReason: &reason})

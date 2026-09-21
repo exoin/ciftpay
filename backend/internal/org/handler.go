@@ -242,8 +242,13 @@ func (h *Handler) configureEtims(w http.ResponseWriter, r *http.Request) {
 	case err != nil && fiscal.Classify(err) == fiscal.ClassRetryable:
 		httpx.Fail(w, http.StatusServiceUnavailable, "unavailable", "KRA could not be reached; try again shortly")
 	case err != nil:
+		msg := err.Error()
+		var ve *fiscal.ValidationError
+		if errors.As(err, &ve) && ve.Message != "" {
+			msg = ve.Message
+		}
 		httpx.JSON(w, http.StatusUnprocessableEntity, map[string]any{
-			"error": map[string]string{"code": "etims_rejected", "message": err.Error()},
+			"error": map[string]string{"code": "etims_rejected", "message": msg},
 			"data":  out,
 		})
 	default:

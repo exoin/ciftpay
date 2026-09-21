@@ -37,6 +37,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,10 @@ type Config struct {
 	// the sandbox. OAuth tokens are fetched from {BaseURL}/v1/token/generate;
 	// the eTIMS OSCU calls are namespaced under {BaseURL}/etims-api.
 	BaseURL string
+	// APIBaseURL is the direct eTIMS API origin (e.g. https://etims-api-sbx.kra.go.ke in sandbox).
+	// When empty, defaults to etims-api-sbx.kra.go.ke or etims-api.kra.go.ke when BaseURL matches
+	// the standard KRA gateway hostnames, or BaseURL otherwise.
+	APIBaseURL string
 	// ConsumerKey/ConsumerSecret are CiftPay's own OSCU developer credentials
 	// (global, from KRA_OSCU_CONSUMER_KEY/SECRET), used as HTTP Basic
 	// authentication on the token endpoint.
@@ -96,6 +101,24 @@ func NewClient(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg, http: &http.Client{Timeout: cfg.Timeout, Transport: buildTransport(cfg.DNSResolver)}}, nil
 }
 
+func (c *Client) apiBaseURL() string {
+	if c.cfg.APIBaseURL != "" {
+		return strings.TrimRight(c.cfg.APIBaseURL, "/")
+	}
+	base := strings.TrimRight(c.cfg.BaseURL, "/")
+	if base == "https://sbx.kra.go.ke" {
+		return "https://etims-api-sbx.kra.go.ke"
+	}
+	if base == "https://api.kra.go.ke" {
+		return "https://etims-api.kra.go.ke"
+	}
+	return base
+}
+
+func (p *Provider) apiBaseURL() string {
+	return p.c.apiBaseURL()
+}
+
 // buildTransport clones the default transport and, when resolver is set,
 // forces every DNS lookup this transport performs through that server
 // instead of the system resolver. Scoped to this one *http.Transport.
@@ -122,7 +145,7 @@ const tokenPath = "/v1/token/generate"
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
-	ExpiresIn   int64  `json:"expires_in"`
+	ExpiresIn   any    `json:"expires_in"`
 }
 
 // Token fetches (and caches until shortly before expiry) an OAuth
@@ -155,9 +178,20 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 	if err := json.Unmarshal(raw, &tr); err != nil || tr.AccessToken == "" {
 		return "", &fiscal.TransientError{Code: "oscu_bad_json", Message: "token response missing access_token"}
 	}
-	ttl := time.Duration(tr.ExpiresIn) * time.Second
-	if tr.ExpiresIn <= 0 {
-		ttl = 55 * time.Minute
+	ttl := 55 * time.Minute
+	switch v := tr.ExpiresIn.(type) {
+	case float64:
+		if v > 0 {
+			ttl = time.Duration(v) * time.Second
+		}
+	case string:
+		if sec, err := strconv.ParseInt(v, 10, 64); err == nil && sec > 0 {
+			ttl = time.Duration(sec) * time.Second
+		}
+	case json.Number:
+		if sec, err := v.Int64(); err == nil && sec > 0 {
+			ttl = time.Duration(sec) * time.Second
+		}
 	}
 	c.mu.Lock()
 	c.token, c.tokenExp = tr.AccessToken, time.Now().Add(ttl-30*time.Second)
@@ -230,7 +264,7 @@ func (c *Client) Initialize(ctx context.Context, pin, branch, serial string) (In
 	if err != nil {
 		return Info{}, nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.cfg.BaseURL, "/")+initPath, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.apiBaseURL()+initPath, bytes.NewReader(body))
 	if err != nil {
 		return Info{}, nil, err
 	}
@@ -522,7 +556,7 @@ func (p *Provider) submit(ctx context.Context, id string, prof deviceProfile, w 
 	if err != nil {
 		return fiscal.Ack{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.cfg.BaseURL, "/")+salesPath, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.apiBaseURL()+salesPath, bytes.NewReader(body))
 	if err != nil {
 		return fiscal.Ack{}, err
 	}
@@ -571,7 +605,7 @@ func (p *Provider) LookupItemCodes(ctx context.Context, q string) ([]fiscal.Item
 	if err != nil {
 		return nil, err
 	}
-	u := strings.TrimRight(p.cfg.BaseURL, "/") + itemCodePath
+	u := p.apiBaseURL() + itemCodePath
 	if q != "" {
 		u += "?cls=" + url.QueryEscape(q)
 	}
