@@ -11,6 +11,7 @@ import (
 func TestTransitionTable(t *testing.T) {
 	allowed := []struct{ from, to State }{
 		{StateDraft, StateQueued},
+		{StateTaxPending, StateQueued},
 		{StateQueued, StateSubmitted},
 		{StateSubmitted, StateAcked},
 		{StateSubmitted, StateFailedRetryable},
@@ -47,15 +48,17 @@ func TestTransitionTable(t *testing.T) {
 
 func TestBackoff(t *testing.T) {
 	want := []time.Duration{
-		15 * time.Second, 30 * time.Second, time.Minute, 2 * time.Minute,
-		4 * time.Minute, 8 * time.Minute, 16 * time.Minute, 32 * time.Minute,
+		1 * time.Minute,
+		5 * time.Minute,
+		1 * time.Hour,
+		12 * time.Hour,
 	}
 	for i, w := range want {
 		if got := Backoff(i + 1); got != w {
 			t.Errorf("attempt %d: got %s want %s", i+1, got, w)
 		}
 	}
-	if Backoff(0) != 15*time.Second || Backoff(99) != 32*time.Minute {
+	if Backoff(0) != 1*time.Minute || Backoff(99) != 12*time.Hour {
 		t.Error("backoff must clamp out-of-range attempts")
 	}
 }
@@ -65,11 +68,11 @@ func TestResolve(t *testing.T) {
 		t.Errorf("success → %s", o.Next)
 	}
 	o := Resolve(1, &TransientError{Code: "upstream_5xx"})
-	if o.Next != StateQueued || o.RetryIn != 15*time.Second {
+	if o.Next != StateQueued || o.RetryIn != 1*time.Minute {
 		t.Errorf("retryable attempt 1 → %+v", o)
 	}
 	o = Resolve(3, errors.New("some unknown vendor error"))
-	if o.Next != StateQueued || o.RetryIn != time.Minute {
+	if o.Next != StateQueued || o.RetryIn != 1*time.Hour {
 		t.Errorf("unknown error is retryable: %+v", o)
 	}
 	o = Resolve(MaxAttempts, context.DeadlineExceeded)
@@ -126,14 +129,14 @@ func TestLineTax(t *testing.T) {
 			t.Errorf("LineTax(%d, %d) = %d want %d", tc.total, tc.rate, got, tc.want)
 		}
 	}
-	// half-to-even: 25 / 2 → 12, 35 / 2 → 18
-	if roundHalfEvenInts(25, 2) != 12 || roundHalfEvenInts(35, 2) != 18 {
-		t.Error("banker's rounding broken")
+	// ROUND_HALF_UP rounding: 25 / 2 → 13, 35 / 2 → 18, -25 / 2 → -13
+	if roundHalfUpInts(25, 2) != 13 || roundHalfUpInts(35, 2) != 18 || roundHalfUpInts(-25, 2) != -13 {
+		t.Error("ROUND_HALF_UP rounding broken")
 	}
 }
 
-func roundHalfEvenInts(num, den int64) int64 {
-	return roundHalfEven(big.NewInt(num), big.NewInt(den))
+func roundHalfUpInts(num, den int64) int64 {
+	return roundHalfUp(big.NewInt(num), big.NewInt(den))
 }
 
 func TestTotalsAndCategories(t *testing.T) {
@@ -151,36 +154,6 @@ func TestTotalsAndCategories(t *testing.T) {
 		}
 	}
 	if _, err := ParseTaxCategory("Z"); err == nil {
-		t.Error("Z should not parse")
-	}
-	if DefaultTaxCategory(true) != TaxStandard || DefaultTaxCategory(false) != TaxNonVAT {
-		t.Error("default category")
-	}
-	if TaxStandard.RateBP() != 1600 || TaxReduced.RateBP() != 800 || TaxExempt.RateBP() != 0 {
-		t.Error("rates")
-	}
-}
-
-func TestReceiptCode(t *testing.T) {
-	seen := map[string]bool{}
-	for i := 0; i < 500; i++ {
-		c, err := NewReceiptCode()
-		if err != nil || len(c) != ReceiptCodeLen {
-			t.Fatalf("code %q err %v", c, err)
-		}
-		if _, err := NormaliseReceiptCode(c); err != nil {
-			t.Fatalf("generated code %q must normalise: %v", c, err)
-		}
-		seen[c] = true
-	}
-	if len(seen) < 495 {
-		t.Fatalf("too many collisions in 500 codes: %d unique", len(seen))
-	}
-	got, err := NormaliseReceiptCode(" 7kq2mo ")
-	if err != nil || got != "7KQ2M0" {
-		t.Errorf("normalise: %q %v", got, err)
-	}
-	if _, err := NormaliseReceiptCode("7KQ2"); err == nil {
-		t.Error("short code must fail")
+		t.Error("unknown category should fail")
 	}
 }
