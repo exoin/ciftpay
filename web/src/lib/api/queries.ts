@@ -133,6 +133,25 @@ export function useVatReport(period: string) {
   });
 }
 
+export function useReissueInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, buyer_pin, buyer_name }: { id: string; buyer_pin: string; buyer_name?: string }) =>
+      unwrap(
+        await api.POST("/invoices/{id}/reissue", {
+          params: { path: { id } },
+          body: { buyer_pin, buyer_name },
+        }),
+      ),
+    onSuccess: (inv) => {
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: qk.invoice(inv.id) });
+      void qc.invalidateQueries({ queryKey: qk.attention });
+      void qc.invalidateQueries({ queryKey: qk.today });
+    },
+  });
+}
+
 export function useRetryInvoice() {
   const qc = useQueryClient();
   return useMutation({
