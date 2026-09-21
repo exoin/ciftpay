@@ -112,7 +112,7 @@ func (s *Submitter) Submit(ctx context.Context, orgID, invoiceID uuid.UUID) (Res
 		}
 		ack, subErr = s.Provider.SubmitCreditNote(ctx, CreditNote{
 			ID: doc.ID, OrgID: doc.OrgID, OriginalKRANo: parentKRANo, OriginalInvoice: doc,
-			Reason: "Return / Amendment", Lines: doc.Lines, TotalCents: total, DeviceProfile: doc.DeviceProfile,
+			Reason: "Cancellation / Return", ReasonCode: "01", Lines: doc.Lines, TotalCents: total, DeviceProfile: doc.DeviceProfile,
 		})
 	} else {
 		ack, subErr = s.Provider.SubmitInvoice(ctx, doc)

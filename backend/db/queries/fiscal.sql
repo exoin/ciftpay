@@ -40,9 +40,46 @@ SET superseded_by_id = $2, superseded_at = now()
 WHERE id = $1;
 
 -- name: ListInvoices :many
+SELECT invoices.*
+FROM invoices
+WHERE invoices.org_id = $1
+  AND (sqlc.narg('state')::text IS NULL OR invoices.state = sqlc.narg('state'))
+  AND (sqlc.narg('kind')::text IS NULL OR invoices.kind = sqlc.narg('kind'))
+  AND (
+    sqlc.narg('query')::text IS NULL OR sqlc.narg('query') = '' OR (
+      invoices.receipt_code ILIKE '%' || sqlc.narg('query') || '%'
+      OR invoices.kra_invoice_no ILIKE '%' || sqlc.narg('query') || '%'
+      OR invoices.buyer_name ILIKE '%' || sqlc.narg('query') || '%'
+      OR (sqlc.narg('phone_hash')::bytea IS NOT NULL AND (
+        invoices.buyer_pin_hash = sqlc.narg('phone_hash')
+        OR EXISTS (
+          SELECT 1 FROM payments p WHERE p.id = invoices.payment_id AND p.msisdn_hash = sqlc.narg('phone_hash')
+        )
+      ))
+      OR EXISTS (
+        SELECT 1 FROM sale_items si
+        WHERE si.sale_id = invoices.sale_id
+          AND si.description ILIKE '%' || sqlc.narg('query') || '%'
+      )
+      OR EXISTS (
+        SELECT 1 FROM payments p
+        WHERE p.id = invoices.payment_id
+          AND (p.trans_id ILIKE '%' || sqlc.narg('query') || '%' OR p.payer_name ILIKE '%' || sqlc.narg('query') || '%')
+      )
+      OR EXISTS (
+        SELECT 1 FROM sales s
+        JOIN customers c ON s.customer_id = c.id
+        WHERE s.id = invoices.sale_id
+          AND c.name ILIKE '%' || sqlc.narg('query') || '%'
+      )
+    )
+  )
+ORDER BY invoices.created_at DESC LIMIT $2 OFFSET $3;
+
+-- name: FindCreditNoteForParent :one
 SELECT * FROM invoices
-WHERE org_id = $1 AND (sqlc.narg('state')::text IS NULL OR state = sqlc.narg('state'))
-ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+WHERE parent_invoice_id = $1 AND kind = 'CREDIT_NOTE'
+LIMIT 1;
 
 -- name: CountInvoicesByState :many
 SELECT state, count(*) AS n FROM invoices WHERE org_id = $1 GROUP BY state;
@@ -148,3 +185,13 @@ RETURNING id;
 
 -- name: CountTaxPendingInvoices :one
 SELECT count(*) FROM invoices WHERE org_id = $1 AND state = 'TAX_PENDING';
+
+-- name: GetInvoiceByPayment :one
+SELECT * FROM invoices
+WHERE payment_id = $1 AND kind = 'INVOICE'
+ORDER BY created_at DESC LIMIT 1;
+
+-- name: GetInvoiceBySale :one
+SELECT * FROM invoices
+WHERE sale_id = $1 AND kind = 'INVOICE'
+ORDER BY created_at DESC LIMIT 1;

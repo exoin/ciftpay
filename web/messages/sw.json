@@ -220,7 +220,16 @@
     "amendPin": "Badilisha PIN ya mnunuzi",
     "amendTitle": "Rekebisha Ankara (KRA Credit Note & Toleo Jipya)",
     "amendLead": "Sheria za KRA zinahitaji Credit Note kufuta ankara hii na ankara mpya yenye PIN ya mnunuzi.",
-    "reissued": "Ankara imerekebishwa: Credit note na ankara mpya zimetolewa."
+    "reissued": "Ankara imerekebishwa: Credit note na ankara mpya zimetolewa.",
+    "tabAll": "Hati Zote",
+    "tabInvoices": "Ankara za Mauzo",
+    "tabCreditNotes": "Credit Notes (Kurudisha)",
+    "searchPlaceholder": "Tafuta mteja, simu, nambari ya KRA, au bidhaa...",
+    "cancelSale": "Ghairi Mauzo / Toa Credit Note",
+    "cancelConfirmTitle": "Ghairi Mauzo na Utoe Credit Note?",
+    "cancelConfirmBody": "Hii itatoa Credit Note rasmi ya KRA kufuta muamala huu na kumtumia mteja ujumbe wa SMS kuhusu kurudishiwa pesa.",
+    "cancelReason": "Sababu ya kughairi / kurudisha",
+    "creditNoteCreated": "Credit note imetolewa na mteja ametumiwa ujumbe wa SMS."
   },
   "attention": {
     "title": "Inahitaji kuangaliwa",

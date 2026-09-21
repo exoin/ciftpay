@@ -36,6 +36,16 @@ var PINRe = regexp.MustCompile(`^[AP][0-9]{9}[A-Z]$`)
 // ErrInvalidPIN is returned when a buyer KRA PIN does not match the valid format.
 var ErrInvalidPIN = errors.New("ledger: invalid buyer KRA PIN")
 
+// ErrCreditNoteExists is returned when a credit note already exists for an invoice.
+var ErrCreditNoteExists = errors.New("ledger: credit note already exists for this invoice")
+
+func abs64(n int64) int64 {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 // Service applies matcher decisions to the database.
 type Service struct {
 	DB   *db.DB
@@ -621,4 +631,177 @@ func (s *Service) ClaimReceiptByCode(ctx context.Context, code, buyerPIN, buyerN
 		ActorType: "system",
 		ActorID:   &actor,
 	})
+}
+
+// CreateCreditNoteForInvoice creates a standalone Credit Note for an invoice (cancelling/refunding it),
+// supersedes the original invoice, marks any associated payment as reversed, and triggers an SMS notification.
+func (s *Service) CreateCreditNoteForInvoice(ctx context.Context, orgID, invoiceID uuid.UUID, reason string, actorType string, actorID *string) (gen.Invoice, error) {
+	var createdCN gen.Invoice
+	err := s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
+		orig, err := tx.GetInvoice(ctx, invoiceID)
+		if err != nil {
+			return err
+		}
+		if orig.Kind != "INVOICE" {
+			return fmt.Errorf("ledger: cannot create a credit note for a credit note")
+		}
+		if orig.SupersededByID != nil {
+			return fmt.Errorf("ledger: invoice is already superseded")
+		}
+
+		// Idempotency: check if a credit note already exists for this invoice
+		existingCN, err := tx.FindCreditNoteForParent(ctx, &orig.ID)
+		if err == nil {
+			return fmt.Errorf("%w: receipt %s", ErrCreditNoteExists, existingCN.ReceiptCode)
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+
+		org, err := tx.GetOrg(ctx, orgID)
+		if err != nil {
+			return err
+		}
+
+		now := s.Now()
+		isEtimsReady := org.EtimsStatus == "initialized"
+		cnState := fiscal.StateQueued
+		if !isEtimsReady {
+			cnState = fiscal.StateTaxPending
+		}
+
+		// Generate Credit Note
+		for attempt := 0; attempt < 5; attempt++ {
+			code, err := fiscal.NewReceiptCode()
+			if err != nil {
+				return err
+			}
+			cn, err := tx.CreateInvoice(ctx, gen.CreateInvoiceParams{
+				OrgID:           orgID,
+				SaleID:          orig.SaleID,
+				PaymentID:       orig.PaymentID,
+				Kind:            "CREDIT_NOTE",
+				ParentInvoiceID: &orig.ID,
+				State:           string(cnState),
+				BuyerPinEnc:     orig.BuyerPinEnc,
+				BuyerPinHash:    orig.BuyerPinHash,
+				BuyerName:       orig.BuyerName,
+				ReceiptCode:     code,
+				SubtotalCents:   -abs64(orig.SubtotalCents),
+				TaxCents:        -abs64(orig.TaxCents),
+				TotalCents:      -abs64(orig.TotalCents),
+				IssuedAt:        now,
+			})
+			if err == nil {
+				createdCN = cn
+				break
+			}
+			if !isUniqueViolation(err) || attempt == 4 {
+				return err
+			}
+		}
+
+		// Supersede the original invoice
+		if err := tx.SupersedeInvoice(ctx, gen.SupersedeInvoiceParams{
+			ID:             orig.ID,
+			SupersededByID: &createdCN.ID,
+		}); err != nil {
+			return err
+		}
+
+		// If payment is attached, mark it reversed
+		if orig.PaymentID != nil {
+			_ = tx.MarkPaymentReversed(ctx, *orig.PaymentID)
+		}
+
+		if actorType == "" {
+			actorType = "user"
+		}
+		if reason == "" {
+			reason = "Merchant Cancellation / Return"
+		}
+
+		if err := tx.AppendAudit(ctx, gen.AppendAuditParams{
+			OrgID:     orgID,
+			ActorType: actorType,
+			ActorID:   actorID,
+			Action:    "invoice.credit_noted",
+			Entity:    "invoice",
+			EntityID:  createdCN.ID.String(),
+			After:     []byte(fmt.Sprintf(`{"reason":%q,"parent_invoice_id":%q}`, reason, orig.ID.String())),
+		}); err != nil {
+			return err
+		}
+
+		// Enqueue KRA submission
+		if cnState == fiscal.StateQueued {
+			if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: createdCN.ID}, nil); err != nil {
+				return err
+			}
+		}
+
+		// Enqueue customer SMS notification
+		if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SendReceiptArgs{
+			OrgID:     orgID,
+			InvoiceID: createdCN.ID,
+			Template:  notify.TemplateCreditNote,
+		}, nil); err != nil {
+			s.Log.Warn("could not enqueue credit_note SMS", "invoice", createdCN.ID, "err", err)
+		}
+
+		return nil
+	})
+
+	return createdCN, err
+}
+
+// IngestReversal handles an automated M-Pesa reversal notification.
+// It locates the original payment and its invoice, triggers Credit Note generation + customer SMS notification.
+func (s *Service) IngestReversal(ctx context.Context, origTransID, reason string) error {
+	var payment gen.Payment
+	err := s.DB.WithIngest(ctx, func(ctx context.Context, tx db.Tx) error {
+		p, err := tx.GetPaymentByTransID(ctx, origTransID)
+		if err != nil {
+			return err
+		}
+		payment = p
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("ledger: reversal payment not found (%s): %w", origTransID, err)
+	}
+
+	// Locate the invoice associated with this payment or sale
+	var inv gen.Invoice
+	found := false
+	err = s.DB.WithOrg(ctx, payment.OrgID, func(ctx context.Context, tx db.Tx) error {
+		i, err := tx.GetInvoiceByPayment(ctx, &payment.ID)
+		if err == nil {
+			inv = i
+			found = true
+			return nil
+		}
+		if payment.SaleID != nil {
+			i, err := tx.GetInvoiceBySale(ctx, *payment.SaleID)
+		if err == nil {
+				inv = i
+				found = true
+				return nil
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("ledger: no invoice found for reversed payment %s", origTransID)
+	}
+
+	actorID := "mpesa:reversal:" + origTransID
+	_, err = s.CreateCreditNoteForInvoice(ctx, payment.OrgID, inv.ID, reason, "system", &actorID)
+	if errors.Is(err, ErrCreditNoteExists) {
+		// Already processed, idempotent success
+		return nil
+	}
+	return err
 }

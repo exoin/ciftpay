@@ -220,7 +220,16 @@
     "amendPin": "Amend buyer PIN",
     "amendTitle": "Amend Invoice (KRA Credit Note & Re-issue)",
     "amendLead": "KRA rules require issuing a Credit Note to offset this invoice and a new invoice with the buyer PIN.",
-    "reissued": "Invoice amended: Credit note and new invoice generated."
+    "reissued": "Invoice amended: Credit note and new invoice generated.",
+    "tabAll": "All Documents",
+    "tabInvoices": "Sales Invoices",
+    "tabCreditNotes": "Credit Notes",
+    "searchPlaceholder": "Search by customer, phone, KRA receipt no, or item...",
+    "cancelSale": "Cancel Sale / Issue Credit Note",
+    "cancelConfirmTitle": "Cancel Sale & Issue Credit Note?",
+    "cancelConfirmBody": "This will issue an official KRA Credit Note cancelling this transaction and send an SMS refund notification to the customer.",
+    "cancelReason": "Reason for cancellation / refund",
+    "creditNoteCreated": "Credit note issued and customer notified via SMS."
   },
   "attention": {
     "title": "Needs attention",

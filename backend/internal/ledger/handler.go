@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -77,6 +78,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/invoices/{id}/retry", h.retryInvoice)
 	r.Post("/invoices/{id}/reissue", h.reissueInvoice)
 	r.Post("/invoices/{id}/resend", h.resendInvoice)
+	r.Post("/invoices/{id}/credit-note", h.createCreditNote)
 
 	r.Get("/attention", h.attention)
 }
@@ -842,9 +844,30 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) listInvoices(w http.ResponseWriter, r *http.Request) {
 	orgID, _ := org(r)
 	limit, offset := page(r)
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	kind := optString(r.URL.Query().Get("kind"))
+	state := optString(r.URL.Query().Get("state"))
+
+	var queryParam *string
+	var phoneHash []byte
+	if q != "" {
+		queryParam = &q
+		if norm, err := crypto.NormaliseMSISDN(q); err == nil && norm != "" {
+			phoneHash = h.Keys.Hash(norm)
+		}
+	}
+
 	out := []InvoiceView{}
 	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
-		rows, err := tx.ListInvoices(ctx, gen.ListInvoicesParams{OrgID: orgID, Limit: limit, Offset: offset, State: optString(r.URL.Query().Get("state"))})
+		rows, err := tx.ListInvoices(ctx, gen.ListInvoicesParams{
+			OrgID:     orgID,
+			Limit:     limit,
+			Offset:    offset,
+			State:     state,
+			Kind:      kind,
+			Query:     queryParam,
+			PhoneHash: phoneHash,
+		})
 		for _, i := range rows {
 			out = append(out, toInvoice(h.Keys, h.PublicBaseURL, i))
 		}
@@ -1068,4 +1091,32 @@ func (h *Handler) attention(w http.ResponseWriter, r *http.Request) {
 	}
 	out.ActionableCount = len(out.FailedInvoices) + len(out.UnmatchedPayments) + len(out.UnverifiedShortcodes)
 	httpx.JSON(w, http.StatusOK, out)
+}
+
+type createCreditNoteReq struct {
+	Reason string `json:"reason"`
+}
+
+func (h *Handler) createCreditNote(w http.ResponseWriter, r *http.Request) {
+	orgID, uID := org(r)
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+
+	var req createCreditNoteReq
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	actorID := uID.String()
+	cn, err := h.S.CreateCreditNoteForInvoice(r.Context(), orgID, id, req.Reason, "user", &actorID)
+	if err != nil {
+		if errors.Is(err, ErrCreditNoteExists) {
+			httpx.Fail(w, http.StatusConflict, "credit_note_exists", err.Error())
+			return
+		}
+		fail(w, err, "Could not create credit note")
+		return
+	}
+
+	httpx.JSON(w, http.StatusCreated, toInvoice(h.Keys, h.PublicBaseURL, cn))
 }

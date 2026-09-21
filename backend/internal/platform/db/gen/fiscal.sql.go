@@ -366,6 +366,47 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 	return i, err
 }
 
+const findCreditNoteForParent = `-- name: FindCreditNoteForParent :one
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices
+WHERE parent_invoice_id = $1 AND kind = 'CREDIT_NOTE'
+LIMIT 1
+`
+
+func (q *Queries) FindCreditNoteForParent(ctx context.Context, parentInvoiceID *uuid.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, findCreditNoteForParent, parentInvoiceID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.SaleID,
+		&i.PaymentID,
+		&i.Kind,
+		&i.ParentInvoiceID,
+		&i.State,
+		&i.Attempt,
+		&i.NextAttemptAt,
+		&i.BuyerPinEnc,
+		&i.BuyerPinHash,
+		&i.BuyerName,
+		&i.KraInvoiceNo,
+		&i.KraSignature,
+		&i.KraQrPayload,
+		&i.ReceiptCode,
+		&i.SubtotalCents,
+		&i.TaxCents,
+		&i.TotalCents,
+		&i.IssuedAt,
+		&i.SubmittedAt,
+		&i.AckedAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
+	)
+	return i, err
+}
+
 const getAckedInvoiceForSale = `-- name: GetAckedInvoiceForSale :one
 SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices WHERE sale_id = $1 AND kind = 'INVOICE' AND state = 'ACKED' ORDER BY created_at DESC LIMIT 1
 `
@@ -411,6 +452,47 @@ SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt,
 
 func (q *Queries) GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error) {
 	row := q.db.QueryRow(ctx, getInvoice, id)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.SaleID,
+		&i.PaymentID,
+		&i.Kind,
+		&i.ParentInvoiceID,
+		&i.State,
+		&i.Attempt,
+		&i.NextAttemptAt,
+		&i.BuyerPinEnc,
+		&i.BuyerPinHash,
+		&i.BuyerName,
+		&i.KraInvoiceNo,
+		&i.KraSignature,
+		&i.KraQrPayload,
+		&i.ReceiptCode,
+		&i.SubtotalCents,
+		&i.TaxCents,
+		&i.TotalCents,
+		&i.IssuedAt,
+		&i.SubmittedAt,
+		&i.AckedAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
+	)
+	return i, err
+}
+
+const getInvoiceByPayment = `-- name: GetInvoiceByPayment :one
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices
+WHERE payment_id = $1 AND kind = 'INVOICE'
+ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) GetInvoiceByPayment(ctx context.Context, paymentID *uuid.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, getInvoiceByPayment, paymentID)
 	var i Invoice
 	err := row.Scan(
 		&i.ID,
@@ -580,6 +662,47 @@ func (q *Queries) GetInvoiceByReceiptCodeExact(ctx context.Context, receiptCode 
 	return i, err
 }
 
+const getInvoiceBySale = `-- name: GetInvoiceBySale :one
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices
+WHERE sale_id = $1 AND kind = 'INVOICE'
+ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) GetInvoiceBySale(ctx context.Context, saleID uuid.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, getInvoiceBySale, saleID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.SaleID,
+		&i.PaymentID,
+		&i.Kind,
+		&i.ParentInvoiceID,
+		&i.State,
+		&i.Attempt,
+		&i.NextAttemptAt,
+		&i.BuyerPinEnc,
+		&i.BuyerPinHash,
+		&i.BuyerName,
+		&i.KraInvoiceNo,
+		&i.KraSignature,
+		&i.KraQrPayload,
+		&i.ReceiptCode,
+		&i.SubtotalCents,
+		&i.TaxCents,
+		&i.TotalCents,
+		&i.IssuedAt,
+		&i.SubmittedAt,
+		&i.AckedAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SupersededByID,
+		&i.SupersededAt,
+	)
+	return i, err
+}
+
 const getSubscription = `-- name: GetSubscription :one
 SELECT s.id, s.org_id, s.plan_code, s.status, s.period_start, s.period_end, s.grace_until, s.created_at, s.updated_at, p.name AS plan_name, p.invoice_cap, p.overage_cents, p.features
 FROM subscriptions s JOIN plans p ON p.code = s.plan_code
@@ -683,16 +806,51 @@ func (q *Queries) ListFiscalSubmissions(ctx context.Context, invoiceID uuid.UUID
 }
 
 const listInvoices = `-- name: ListInvoices :many
-SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices
-WHERE org_id = $1 AND ($4::text IS NULL OR state = $4)
-ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT invoices.id, invoices.org_id, invoices.sale_id, invoices.payment_id, invoices.kind, invoices.parent_invoice_id, invoices.state, invoices.attempt, invoices.next_attempt_at, invoices.buyer_pin_enc, invoices.buyer_pin_hash, invoices.buyer_name, invoices.kra_invoice_no, invoices.kra_signature, invoices.kra_qr_payload, invoices.receipt_code, invoices.subtotal_cents, invoices.tax_cents, invoices.total_cents, invoices.issued_at, invoices.submitted_at, invoices.acked_at, invoices.last_error, invoices.created_at, invoices.updated_at, invoices.superseded_by_id, invoices.superseded_at
+FROM invoices
+WHERE invoices.org_id = $1
+  AND ($4::text IS NULL OR invoices.state = $4)
+  AND ($5::text IS NULL OR invoices.kind = $5)
+  AND (
+    $6::text IS NULL OR $6 = '' OR (
+      invoices.receipt_code ILIKE '%' || $6 || '%'
+      OR invoices.kra_invoice_no ILIKE '%' || $6 || '%'
+      OR invoices.buyer_name ILIKE '%' || $6 || '%'
+      OR ($7::bytea IS NOT NULL AND (
+        invoices.buyer_pin_hash = $7
+        OR EXISTS (
+          SELECT 1 FROM payments p WHERE p.id = invoices.payment_id AND p.msisdn_hash = $7
+        )
+      ))
+      OR EXISTS (
+        SELECT 1 FROM sale_items si
+        WHERE si.sale_id = invoices.sale_id
+          AND si.description ILIKE '%' || $6 || '%'
+      )
+      OR EXISTS (
+        SELECT 1 FROM payments p
+        WHERE p.id = invoices.payment_id
+          AND (p.trans_id ILIKE '%' || $6 || '%' OR p.payer_name ILIKE '%' || $6 || '%')
+      )
+      OR EXISTS (
+        SELECT 1 FROM sales s
+        JOIN customers c ON s.customer_id = c.id
+        WHERE s.id = invoices.sale_id
+          AND c.name ILIKE '%' || $6 || '%'
+      )
+    )
+  )
+ORDER BY invoices.created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListInvoicesParams struct {
-	OrgID  uuid.UUID
-	Limit  int32
-	Offset int32
-	State  *string
+	OrgID     uuid.UUID
+	Limit     int32
+	Offset    int32
+	State     *string
+	Kind      *string
+	Query     *string
+	PhoneHash []byte
 }
 
 func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error) {
@@ -701,6 +859,9 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]I
 		arg.Limit,
 		arg.Offset,
 		arg.State,
+		arg.Kind,
+		arg.Query,
+		arg.PhoneHash,
 	)
 	if err != nil {
 		return nil, err

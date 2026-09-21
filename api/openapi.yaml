@@ -545,6 +545,16 @@ paths:
           in: query
           schema:
             $ref: "#/components/schemas/InvoiceState"
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [INVOICE, CREDIT_NOTE]
+        - name: q
+          in: query
+          description: Universal search query
+          schema:
+            type: string
         - $ref: "#/components/parameters/From"
         - $ref: "#/components/parameters/To"
         - $ref: "#/components/parameters/Cursor"
@@ -665,6 +675,37 @@ paths:
           description: Queued
         default:
           $ref: "#/components/responses/Error"
+
+  /invoices/{id}/credit-note:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [invoices]
+      operationId: createCreditNote
+      summary: 1-Click generate Credit Note and cancel the sale
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Credit Note Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "409":
+          description: A credit note already exists for this invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          $ref: "#/components/responses/Error" 
 
   /attention:
     get:
@@ -954,6 +995,19 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/DarajaStkCallback"
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DarajaResult"
+
+  /webhooks/daraja/reversal:
+    post:
+      tags: [webhooks]
+      operationId: darajaReversal
+      summary: Safaricom M-Pesa automated reversal callback
       responses:
         "200":
           description: Accepted
@@ -1561,6 +1615,8 @@ components:
           type: string
           format: uri
         kra_invoice_no:
+          type: [string, "null"]
+        buyer_name:
           type: [string, "null"]
         buyer_pin_masked:
           type: [string, "null"]

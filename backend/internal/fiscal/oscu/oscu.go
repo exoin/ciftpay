@@ -431,13 +431,15 @@ type wireLine struct {
 }
 
 type wireSale struct {
-	TIN        string     `json:"tin"`
-	BhfID      string     `json:"bhfId"`
-	InvcNo     string     `json:"invcNo"` // idempotency key on our side (see Provider.acks)
-	OrgInvcNo  string     `json:"orgInvcNo,omitempty"`
-	CustTin    string     `json:"custTin,omitempty"`
-	RcptTyCd   string     `json:"rcptTyCd"` // "S" sale, "R" credit note/refund
-	PmtTyCd    string     `json:"pmtTyCd"`  // "04" mobile money
+	TIN         string     `json:"tin"`
+	BhfID       string     `json:"bhfId"`
+	InvcNo      string     `json:"invcNo"` // idempotency key on our side (see Provider.acks)
+	OrgInvcNo   string     `json:"orgInvcNo,omitempty"`
+	CustTin     string     `json:"custTin,omitempty"`
+	CustNm      string     `json:"custNm,omitempty"`
+	RcptTyCd    string     `json:"rcptTyCd"` // "S" sale, "R" credit note/refund
+	RfdRsnCd    string     `json:"rfdRsnCd,omitempty"` // KRA refund reason code e.g. "01" (Cancellation)
+	PmtTyCd     string     `json:"pmtTyCd"`  // "04" mobile money
 	SalesDt    string     `json:"salesDt"`
 	TotItemCnt int        `json:"totItemCnt"`
 	TotTaxblAmt int64     `json:"totTaxblAmt"`
@@ -482,12 +484,17 @@ func (p *Provider) SubmitCreditNote(ctx context.Context, cn fiscal.CreditNote) (
 		return fiscal.Ack{}, &fiscal.ConfigError{Code: "device_not_registered", Message: "this org has no cmcKey yet; configure eTIMS (RegisterDevice) first"}
 	}
 	subtotal, tax, total := fiscal.Totals(cn.Lines)
+	rfdRsn := cn.ReasonCode
+	if rfdRsn == "" {
+		rfdRsn = "01"
+	}
 	w := wireSale{
 		TIN: cn.OriginalInvoice.SellerPIN, BhfID: coalesce(prof.BranchID, cn.OriginalInvoice.BranchID, "00"),
-		CustTin: cn.OriginalInvoice.BuyerPIN, OrgInvcNo: cn.OriginalKRANo, RcptTyCd: "R", PmtTyCd: "04",
+		CustTin: cn.OriginalInvoice.BuyerPIN, CustNm: cn.OriginalInvoice.BuyerName,
+		OrgInvcNo: cn.OriginalKRANo, RcptTyCd: "R", RfdRsnCd: rfdRsn, PmtTyCd: "04",
 		SalesDt: time.Now().UTC().Format("20060102"), TotItemCnt: len(cn.Lines),
 		TotTaxblAmt: -abs64(subtotal), TotTaxAmt: -abs64(tax), TotAmt: -abs64(total),
-		ItemList: toWireLines(cn.Lines),
+		ItemList: toWireCreditLines(cn.Lines),
 	}
 	if w.TotAmt >= 0 {
 		return fiscal.Ack{}, &fiscal.ValidationError{Code: "credit_note_not_negative", Field: "total_cents", Message: "credit note total must be negative"}
@@ -604,6 +611,21 @@ func (p *Provider) LookupItemCodes(ctx context.Context, q string) ([]fiscal.Item
 		out = append(out, fiscal.ItemCode{Code: c.ItemClsCd, Description: c.ItemClsNm, TaxCategory: cat})
 	}
 	return out, nil
+}
+
+func toWireCreditLines(lines []fiscal.Line) []wireLine {
+	out := make([]wireLine, 0, len(lines))
+	for i, l := range lines {
+		subtotal := abs64(l.LineTotalCents - l.LineTaxCents)
+		tax := abs64(l.LineTaxCents)
+		tot := abs64(l.LineTotalCents)
+		out = append(out, wireLine{
+			ItemSeq: i + 1, ItemCd: l.ItemCode, ItemNm: l.Description, Qty: l.Qty, Prc: l.UnitPriceCents,
+			SplyAmt: -subtotal, TaxTyCd: string(l.TaxCategory),
+			TaxblAmt: -subtotal, TaxAmt: -tax, TotAmt: -tot,
+		})
+	}
+	return out
 }
 
 func toWireLines(lines []fiscal.Line) []wireLine {

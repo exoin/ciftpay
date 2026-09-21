@@ -11,7 +11,8 @@ export const qk = {
   today: ["reports", "today"] as const,
   vat: (period: string) => ["reports", "vat", period] as const,
   payments: (status?: string) => ["payments", status ?? "all"] as const,
-  invoices: (state?: string) => ["invoices", state ?? "all"] as const,
+  invoices: (params?: { state?: string; kind?: string; q?: string }) =>
+    ["invoices", params?.state ?? "all", params?.kind ?? "all", params?.q ?? ""] as const,
   invoice: (id: string) => ["invoices", "detail", id] as const,
   items: ["items"] as const,
   shortcodes: ["shortcodes"] as const,
@@ -65,10 +66,30 @@ export function usePayments(status?: Schemas["PaymentStatus"]) {
   });
 }
 
-export function useInvoices(state?: Schemas["InvoiceState"]) {
+export type InvoiceFilterParams = {
+  state?: Schemas["InvoiceState"];
+  kind?: "INVOICE" | "CREDIT_NOTE";
+  q?: string;
+};
+
+export function useInvoices(filters?: InvoiceFilterParams | Schemas["InvoiceState"]) {
+  const params: InvoiceFilterParams =
+    typeof filters === "string" ? { state: filters } : filters ?? {};
+
   return useQuery({
-    queryKey: qk.invoices(state),
-    queryFn: async () => unwrap(await api.GET("/invoices", { params: { query: state ? { state } : {} } })),
+    queryKey: qk.invoices(params),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/invoices", {
+          params: {
+            query: {
+              ...(params.state ? { state: params.state } : {}),
+              ...(params.kind ? { kind: params.kind } : {}),
+              ...(params.q ? { q: params.q } : {}),
+            },
+          },
+        })
+      ),
   });
 }
 
@@ -166,6 +187,25 @@ export function useRetryInvoice() {
 export function useResendReceipt() {
   return useMutation({
     mutationFn: async (id: string) => unwrap(await api.POST("/invoices/{id}/resend", { params: { path: { id } } })),
+  });
+}
+
+export function useCreateCreditNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) =>
+      unwrap(
+        await api.POST("/invoices/{id}/credit-note", {
+          params: { path: { id } },
+          body: { reason },
+        }),
+      ),
+    onSuccess: (inv) => {
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: qk.invoice(inv.id) });
+      void qc.invalidateQueries({ queryKey: qk.attention });
+      void qc.invalidateQueries({ queryKey: qk.today });
+    },
   });
 }
 

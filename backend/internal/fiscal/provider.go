@@ -90,6 +90,7 @@ type CreditNote struct {
 	OriginalKRANo   string
 	OriginalInvoice Invoice
 	Reason          string
+	ReasonCode      string // KRA refund reason code, e.g. "01" (Cancellation / Incorrect Details)
 	Lines           []Line
 	TotalCents      int64
 	// DeviceProfile: see Invoice.DeviceProfile.

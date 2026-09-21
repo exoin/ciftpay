@@ -21,6 +21,7 @@ import (
 type Ingester interface {
 	IngestC2B(ctx context.Context, in ledger.C2BInput) (ledger.C2BResult, error)
 	IngestSTK(ctx context.Context, in ledger.STKInput) error
+	IngestReversal(ctx context.Context, origTransID, reason string) error
 }
 
 // Webhooks serves the Daraja callback URLs.
@@ -41,6 +42,8 @@ func (h *Webhooks) Mount(r chi.Router) {
 		r.Post("/daraja/c2b/validation/{token}", h.validation)
 		r.Post("/daraja/c2b/confirmation/{token}", h.confirmation)
 		r.Post("/daraja/stk/{token}", h.stk)
+		r.Post("/daraja/reversal/{token}", h.reversal)
+		r.Post("/daraja/reversal", h.reversal)
 	})
 }
 
@@ -142,4 +145,86 @@ func ToC2BInput(p C2BPayload, raw json.RawMessage) ledger.C2BInput {
 
 func decodeBody(r *http.Request, v any) error {
 	return json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(v)
+}
+
+// ReversalPayload unmarshals both standard and flat Safaricom reversal callback structures.
+type ReversalPayload struct {
+	OriginalTransactionID string `json:"OriginalTransactionID"`
+	TransID               string `json:"TransID"`
+	TransactionID         string `json:"TransactionID"`
+	Reason                string `json:"Reason"`
+	Result                *struct {
+		ResultCode    int    `json:"ResultCode"`
+		ResultDesc    string `json:"ResultDesc"`
+		TransactionID string `json:"TransactionID"`
+		ReferenceData *struct {
+			ReferenceItem json.RawMessage `json:"ReferenceItem"`
+		} `json:"ReferenceData"`
+	} `json:"Result"`
+}
+
+func (p *ReversalPayload) ExtractOriginalTransID() string {
+	if p.OriginalTransactionID != "" {
+		return p.OriginalTransactionID
+	}
+	if p.TransID != "" {
+		return p.TransID
+	}
+	if p.Result != nil && p.Result.ReferenceData != nil && len(p.Result.ReferenceData.ReferenceItem) > 0 {
+		var single struct {
+			Key   string `json:"Key"`
+			Value string `json:"Value"`
+		}
+		if err := json.Unmarshal(p.Result.ReferenceData.ReferenceItem, &single); err == nil && single.Value != "" {
+			return single.Value
+		}
+		var list []struct {
+			Key   string `json:"Key"`
+			Value string `json:"Value"`
+		}
+		if err := json.Unmarshal(p.Result.ReferenceData.ReferenceItem, &list); err == nil {
+			for _, item := range list {
+				if item.Key == "OriginalTransactionID" || item.Key == "TransID" {
+					return item.Value
+				}
+			}
+		}
+	}
+	if p.TransactionID != "" {
+		return p.TransactionID
+	}
+	if p.Result != nil && p.Result.TransactionID != "" {
+		return p.Result.TransactionID
+	}
+	return ""
+}
+
+func (h *Webhooks) reversal(w http.ResponseWriter, r *http.Request) {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		httpx.JSON(w, http.StatusBadRequest, DarajaAck{ResultCode: 1, ResultDesc: "unreadable body"})
+		return
+	}
+	var p ReversalPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		httpx.JSON(w, http.StatusBadRequest, DarajaAck{ResultCode: 1, ResultDesc: "invalid JSON"})
+		return
+	}
+	origID := p.ExtractOriginalTransID()
+	if origID == "" {
+		h.Log.Warn("daraja reversal missing original transaction id", "raw", string(raw))
+		httpx.JSON(w, http.StatusBadRequest, DarajaAck{ResultCode: 1, ResultDesc: "missing original transaction id"})
+		return
+	}
+	reason := p.Reason
+	if reason == "" && p.Result != nil {
+		reason = p.Result.ResultDesc
+	}
+	if reason == "" {
+		reason = "M-Pesa Automated Reversal"
+	}
+	if err := h.Ingest.IngestReversal(r.Context(), origID, reason); err != nil {
+		h.Log.Error("daraja reversal ingest failed", "orig_trans_id", origID, "err", err)
+	}
+	httpx.JSON(w, http.StatusOK, Accepted)
 }

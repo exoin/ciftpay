@@ -10,7 +10,13 @@ import { useToast } from "@/components/ui/Toast";
 import { ReceiptCard } from "@/components/receipt/ReceiptCard";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useInvoice, useReissueInvoice, useResendReceipt, useRetryInvoice } from "@/lib/api/queries";
+import {
+  useCreateCreditNote,
+  useInvoice,
+  useReissueInvoice,
+  useResendReceipt,
+  useRetryInvoice,
+} from "@/lib/api/queries";
 import { ApiRequestError } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { invoiceChip, receiptState } from "@/lib/status";
@@ -26,10 +32,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const retry = useRetryInvoice();
   const resend = useResendReceipt();
   const reissue = useReissueInvoice();
+  const createCreditNote = useCreateCreditNote();
   const router = useRouter();
+
   const [showAmend, setShowAmend] = useState(false);
   const [amendPin, setAmendPin] = useState("");
   const [amendName, setAmendName] = useState("");
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   // Print-reveal only when the invoice flips to ACKED while on screen.
   const prev = useRef<string | undefined>(undefined);
@@ -61,6 +72,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       toast.push(e instanceof ApiRequestError ? tc("errorGeneric", { message: e.message }) : tc("noConnection"), "error");
     }
   }
+
   async function onResend() {
     try {
       await resend.mutateAsync(inv!.id);
@@ -87,6 +99,26 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function onConfirmCreditNote(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const cn = await createCreditNote.mutateAsync({
+        id: inv!.id,
+        reason: cancelReason.trim() || undefined,
+      });
+      toast.push(t("creditNoteCreated"));
+      setShowCancelModal(false);
+      router.push(`/invoices/${cn.id}`);
+    } catch (err) {
+      toast.push(
+        err instanceof ApiRequestError ? tc("errorGeneric", { message: err.message }) : tc("noConnection"),
+        "error",
+      );
+    }
+  }
+
+  const canCancel = inv.kind === "INVOICE" && !inv.superseded_by_id;
+
   return (
     <>
       <TopBar title={t("detailTitle")} action={<StatusChip tone={chip.tone}>{ts(chip.key)}</StatusChip>} />
@@ -97,6 +129,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               {inv.last_error}
             </p>
           )}
+
           {inv.superseded_by_id && (
             <div className="rounded-r2 border border-ochre/40 bg-warn-bg px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -114,6 +147,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </Link>
             </div>
           )}
+
           <div className="flex flex-wrap gap-2">
             {inv.state === "NEEDS_REVIEW" && (
               <Button onClick={onRetry} loading={retry.isPending}>
@@ -126,17 +160,71 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </Button>
             )}
             {inv.receipt_url && (
-              <a href={inv.receipt_url} target="_blank" rel="noreferrer" className="inline-flex min-h-[var(--touch)] items-center px-2 text-sm underline">
+              <a
+                href={inv.receipt_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-[var(--touch)] items-center px-2 text-sm underline"
+              >
                 {t("openPublic")}
               </a>
             )}
-            {inv.kind === "INVOICE" && !inv.superseded_by_id && (
-              <Button variant="secondary" onClick={() => setShowAmend(!showAmend)}>
-                {inv.buyer_pin_masked ? t("amendPin") : t("addBuyerPin")}
-              </Button>
+            {canCancel && (
+              <>
+                <Button variant="secondary" onClick={() => setShowAmend(!showAmend)}>
+                  {inv.buyer_pin_masked ? t("amendPin") : t("addBuyerPin")}
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => setShowCancelModal(true)}
+                  loading={createCreditNote.isPending}
+                >
+                  {t("cancelSale")}
+                </Button>
+              </>
             )}
           </div>
 
+          {/* Modal / Panel for Generating Credit Note */}
+          {showCancelModal && (
+            <div className="rounded-r2 border border-red/30 bg-bad-bg/20 p-4 space-y-3">
+              <div>
+                <h3 className="font-semibold text-sm text-red-800 dark:text-red-300">
+                  {t("cancelConfirmTitle")}
+                </h3>
+                <p className="text-xs text-muted mt-1">{t("cancelConfirmBody")}</p>
+              </div>
+              <form onSubmit={onConfirmCreditNote} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-muted mb-1">
+                    {t("cancelReason")}
+                  </label>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Customer cancellation / Return of goods"
+                    className="w-full rounded-r1 border border-border px-3 py-1.5 text-sm bg-paper"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" variant="danger" loading={createCreditNote.isPending}>
+                    Confirm Cancellation & Issue Credit Note
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setShowCancelModal(false)}
+                    disabled={createCreditNote.isPending}
+                  >
+                    Back
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Panel for Amending Buyer PIN */}
           {showAmend && (
             <div className="rounded-r2 border border-border bg-paper-2 p-4 space-y-3">
               <div>
@@ -157,7 +245,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-muted mb-1">Buyer Name (optional)</label>
+                  <label className="block text-xs font-semibold uppercase text-muted mb-1">
+                    Buyer Name (optional)
+                  </label>
                   <input
                     type="text"
                     value={amendName}
@@ -167,8 +257,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" loading={reissue.isPending}>Submit Amendment</Button>
-                  <Button type="button" variant="secondary" onClick={() => setShowAmend(false)}>Cancel</Button>
+                  <Button type="submit" loading={reissue.isPending}>
+                    Submit Amendment
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setShowAmend(false)}>
+                    Cancel
+                  </Button>
                 </div>
               </form>
             </div>
@@ -194,34 +288,37 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        <ReceiptCard
-          state={state}
-          kind={inv.kind}
-          sellerName={inv.seller.name}
-          sellerPin={inv.seller.kra_pin}
-          kraInvoiceNo={inv.kra_invoice_no}
-          receiptCode={inv.receipt_code}
-          issuedAt={inv.acked_at ?? inv.created_at}
-          buyerPinMasked={inv.buyer_pin_masked}
-          lines={inv.lines}
-          subtotalCents={inv.total_cents - inv.tax_cents}
-          taxCents={inv.tax_cents}
-          totalCents={inv.total_cents}
-          reveal={reveal}
-          labels={{
-            taxInvoice: tr("taxInvoice"),
-            creditNote: tr("creditNote"),
-            pin: tr("pin"),
-            invoiceNo: tr("invoiceNo"),
-            date: tr("date"),
-            buyerPin: tr("buyerPin"),
-            subtotal: tr("subtotal"),
-            vat: tr("vat"),
-            total: tr("total"),
-            stamp: stampLabel,
-            poweredBy: tr("poweredBy"),
-          }}
-        />
+        <div>
+          <ReceiptCard
+            state={state}
+            kind={inv.kind}
+            sellerName={inv.seller.name}
+            sellerPin={inv.seller.kra_pin}
+            kraInvoiceNo={inv.kra_invoice_no}
+            receiptCode={inv.receipt_code}
+            issuedAt={inv.acked_at ?? inv.created_at}
+            buyerPinMasked={inv.buyer_pin_masked}
+            lines={inv.lines}
+            subtotalCents={inv.total_cents - inv.tax_cents}
+            taxCents={inv.tax_cents}
+            totalCents={inv.total_cents}
+            reveal={reveal}
+            labels={{
+              taxInvoice: tr("taxInvoice"),
+              creditNote: tr("creditNote"),
+              pin: tr("pin"),
+              invoiceNo: tr("invoiceNo"),
+              date: tr("date"),
+              buyerPin: tr("buyerPin"),
+              cancels: tr("cancels", { kraNo: "" }).trim(),
+              subtotal: tr("subtotal"),
+              vat: tr("vat"),
+              total: tr("total"),
+              stamp: stampLabel,
+              poweredBy: tr("poweredBy"),
+            }}
+          />
+        </div>
       </div>
     </>
   );

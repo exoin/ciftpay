@@ -43,6 +43,7 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateShortcode(ctx context.Context, arg CreateShortcodeParams) (MpesaShortcode, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	FindCreditNoteForParent(ctx context.Context, parentInvoiceID *uuid.UUID) (Invoice, error)
 	FindCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error)
 	FindCustomerByMSISDNHash(ctx context.Context, arg FindCustomerByMSISDNHashParams) (Customer, error)
 	// Rule 2 of the matcher: same payer, same amount, created within the window.
@@ -51,10 +52,12 @@ type Querier interface {
 	FindShortcodesByNumber(ctx context.Context, shortcode string) ([]MpesaShortcode, error)
 	GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
 	GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error)
+	GetInvoiceByPayment(ctx context.Context, paymentID *uuid.UUID) (Invoice, error)
 	// Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
 	// Follows the superseded chain so the customer always sees the latest valid KRA invoice.
 	GetInvoiceByReceiptCode(ctx context.Context, receiptCode string) (GetInvoiceByReceiptCodeRow, error)
 	GetInvoiceByReceiptCodeExact(ctx context.Context, receiptCode string) (Invoice, error)
+	GetInvoiceBySale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
 	GetItem(ctx context.Context, id uuid.UUID) (Item, error)
 	GetOpenSaleByRef(ctx context.Context, arg GetOpenSaleByRefParams) (Sale, error)
 	GetOrg(ctx context.Context, id uuid.UUID) (Org, error)

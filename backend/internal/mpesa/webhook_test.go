@@ -51,6 +51,12 @@ func (f *fakeIngester) IngestSTK(_ context.Context, in ledger.STKInput) error {
 	return f.err
 }
 
+func (f *fakeIngester) IngestReversal(_ context.Context, origTransID, reason string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.err
+}
+
 func newServer(t *testing.T, ing Ingester) *httptest.Server {
 	t.Helper()
 	r := chi.NewRouter()
@@ -178,5 +184,22 @@ func TestValidation_AlwaysAccepts(t *testing.T) {
 	status, ack := post(t, srv.URL+"/webhooks/daraja/c2b/validation/t0k3n", fixture(t, "c2b_confirmation.json"))
 	if status != http.StatusOK || ack.ResultCode != 0 {
 		t.Fatalf("validation must never bounce a payment: status=%d ack=%+v", status, ack)
+	}
+}
+
+func TestReversalCallback(t *testing.T) {
+	ing := &fakeIngester{}
+	srv := newServer(t, ing)
+
+	body := []byte(`{"Result":{"ResultCode":0,"ResultDesc":"Reversal processed","ReferenceData":{"ReferenceItem":{"Key":"OriginalTransactionID","Value":"SLJ7X2K91Q"}}}}`)
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/webhooks/daraja/reversal/t0k3n", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("got status %d, want 200", res.StatusCode)
 	}
 }

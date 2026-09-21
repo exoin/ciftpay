@@ -66,16 +66,27 @@ const stampTone: Record<ReceiptState, "ok" | "pending" | "failed"> = { verified:
  */
 export function ReceiptCard(p: ReceiptCardProps) {
   const isCN = p.kind === "CREDIT_NOTE";
+  const totalCents = isCN ? -Math.abs(p.totalCents) : p.totalCents;
+  const subtotalCents = isCN ? -Math.abs(p.subtotalCents) : p.subtotalCents;
+  const taxCents = isCN ? -Math.abs(p.taxCents) : p.taxCents;
+
   return (
-    <article className={cn("rc perforated-both", p.reveal && "print-reveal", p.className)} aria-label={`${isCN ? p.labels.creditNote : p.labels.taxInvoice} ${p.receiptCode}`}>
+    <article className={cn("rc perforated-both", isCN && "rc--credit-note border-red-300", p.reveal && "print-reveal", p.className)} aria-label={`${isCN ? p.labels.creditNote : p.labels.taxInvoice} ${p.receiptCode}`}>
       <div className="rc-inner">
+        {isCN && (
+          <div className="mb-3 rounded border border-red-300 bg-red-50 p-2 text-center text-xs font-bold uppercase tracking-wider text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+            Credit Note &middot; Official KRA Cancellation
+          </div>
+        )}
         <header className="rc-header">
           <div className="rc-head">
             <div className="rc-seller">{p.sellerName}</div>
             <div>
               {p.labels.pin} {p.sellerPin}
             </div>
-            <div className="rc-kind">{isCN ? p.labels.creditNote : p.labels.taxInvoice}</div>
+            <div className={cn("rc-kind", isCN && "font-bold text-red-700 dark:text-red-400")}>
+              {isCN ? "CREDIT NOTE (REFUND)" : p.labels.taxInvoice}
+            </div>
           </div>
           <div className="rc-stamp">
             <Stamp tone={stampTone[p.state]}>{p.labels.stamp}</Stamp>
@@ -113,15 +124,20 @@ export function ReceiptCard(p: ReceiptCardProps) {
         <hr className="rc-rule" />
 
         <div className="rc-totals">
-          <Leader label={p.labels.subtotal} amount={<Money cents={p.subtotalCents} bare size="sm" />} />
+          <Leader label={p.labels.subtotal} amount={<Money cents={subtotalCents} bare size="sm" />} />
           {p.vatByCategory && p.vatByCategory.length > 0 ? (
             p.vatByCategory.map((v) => (
-              <Leader key={v.category} label={`${p.labels.vat} ${v.category}`} amount={<Money cents={v.tax_cents} bare size="sm" />} />
+              <Leader key={v.category} label={`${p.labels.vat} ${v.category}`} amount={<Money cents={isCN ? -Math.abs(v.tax_cents) : v.tax_cents} bare size="sm" />} />
             ))
           ) : (
-            <Leader label={p.labels.vat} amount={<Money cents={p.taxCents} bare size="sm" />} />
+            <Leader label={p.labels.vat} amount={<Money cents={taxCents} bare size="sm" />} />
           )}
-          <Leader strong className="rc-total" label={p.labels.total} amount={<Money cents={p.totalCents} size="xl" />} />
+          <Leader
+            strong
+            className={cn("rc-total", isCN && "text-red-700 dark:text-red-400")}
+            label={isCN ? "TOTAL CANCELLED" : p.labels.total}
+            amount={<Money cents={totalCents} size="xl" />}
+          />
         </div>
 
         <footer className="rc-foot">

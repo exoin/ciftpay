@@ -58,6 +58,10 @@ export function receiptCardHtml({ rc, qrSvg, t, locale }: Omit<ReceiptDocument, 
   const stamp = rc.state === "verified" ? t("verified") : rc.state === "cancelled" ? t("cancelled") : t("pending");
   const intl = locale === "sw" ? "sw-KE" : "en-KE";
 
+  const totalCents = isCN ? -Math.abs(rc.total_cents) : rc.total_cents;
+  const subtotalCents = isCN ? -Math.abs(rc.subtotal_cents) : rc.subtotal_cents;
+  const taxCents = isCN ? -Math.abs(rc.tax_cents) : rc.tax_cents;
+
   const meta = [
     metaRow(t("invoiceNo"), rc.kra_invoice_no ?? "—"),
     metaRow(t("date"), formatDateTime(rc.issued_at, intl)),
@@ -67,26 +71,35 @@ export function receiptCardHtml({ rc, qrSvg, t, locale }: Omit<ReceiptDocument, 
 
   const lines = rc.lines
     .map((l) => {
+      const lineTotal = isCN ? -Math.abs(l.line_total_cents) : l.line_total_cents;
       const label = `<span>${e(l.description)}<span class="rc-qty"> ×${formatQty(l.qty)} <span class="rc-cat">[${e(l.tax_category)}]</span></span></span>`;
-      return `<li>${leaderHtml(label, moneyHtml(l.line_total_cents, { bare: true, size: "sm" }))}</li>`;
+      return `<li>${leaderHtml(label, moneyHtml(lineTotal, { bare: true, size: "sm" }))}</li>`;
     })
     .join("");
 
   const vat =
     rc.vat_by_category && rc.vat_by_category.length > 0
-      ? rc.vat_by_category.map((v) => leaderHtml(e(t("vatCategory", { category: v.category })), moneyHtml(v.tax_cents, { bare: true, size: "sm" }))).join("")
-      : leaderHtml(e(t("vat")), moneyHtml(rc.tax_cents, { bare: true, size: "sm" }));
+      ? rc.vat_by_category.map((v) => {
+          const catTax = isCN ? -Math.abs(v.tax_cents) : v.tax_cents;
+          return leaderHtml(e(t("vatCategory", { category: v.category })), moneyHtml(catTax, { bare: true, size: "sm" }));
+        }).join("")
+      : leaderHtml(e(t("vat")), moneyHtml(taxCents, { bare: true, size: "sm" }));
+
+  const cnBanner = isCN
+    ? `<div style="background:#FEE2E2;border:1px solid #F87171;color:#991B1B;padding:6px 10px;border-radius:4px;font-weight:700;font-size:11px;letter-spacing:0.05em;text-align:center;margin-bottom:12px;text-transform:uppercase;">CREDIT NOTE &middot; OFFICIAL KRA CANCELLATION</div>`
+    : "";
 
   return (
-    `<article class="rc perforated-both" aria-label="${e(`${kind} ${rc.receipt_code}`)}"><div class="rc-inner">` +
-    `<header class="rc-header"><div class="rc-head"><div class="rc-seller">${e(rc.seller.name)}</div><div>${e(t("pin"))} ${e(rc.seller.kra_pin)}</div><div class="rc-kind">${e(kind)}</div></div>` +
+    `<article class="rc${isCN ? " rc--credit-note" : ""} perforated-both" aria-label="${e(`${kind} ${rc.receipt_code}`)}"><div class="rc-inner">` +
+    cnBanner +
+    `<header class="rc-header"><div class="rc-head"><div class="rc-seller">${e(rc.seller.name)}</div><div>${e(t("pin"))} ${e(rc.seller.kra_pin)}</div><div class="rc-kind" style="${isCN ? "color:#991B1B;font-weight:700;" : ""}">${isCN ? "CREDIT NOTE (REFUND)" : e(kind)}</div></div>` +
     `<div class="rc-stamp"><span class="stamp stamp--${STAMP_TONE[rc.state]}" role="status">${e(stamp)}</span></div></header>` +
     `<dl class="rc-meta">${meta}</dl>` +
     `<hr class="rc-rule">` +
     `<ul class="rc-lines">${lines}</ul>` +
     `<hr class="rc-rule">` +
-    `<div class="rc-totals">${leaderHtml(e(t("subtotal")), moneyHtml(rc.subtotal_cents, { bare: true, size: "sm" }))}${vat}` +
-    leaderHtml(e(t("total")), moneyHtml(rc.total_cents, { size: "xl" }), { strong: true, className: "rc-total" }) +
+    `<div class="rc-totals">${leaderHtml(e(t("subtotal")), moneyHtml(subtotalCents, { bare: true, size: "sm" }))}${vat}` +
+    leaderHtml(isCN ? "TOTAL CANCELLED / REFUNDED" : e(t("total")), moneyHtml(totalCents, { size: "xl" }), { strong: true, className: `rc-total${isCN ? " rc-total--credit-note" : ""}` }) +
     `</div>` +
     `<footer class="rc-foot"><div class="rc-qr" aria-hidden="true">${qrSvg ?? ""}</div>` +
     `<div class="rc-code"><div>${e(rc.receipt_code)}</div><div>${e(t("poweredBy"))}</div></div></footer>` +
