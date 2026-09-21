@@ -51,3 +51,37 @@ export async function GET(_req: Request, { params }: Ctx): Promise<Response> {
     },
   });
 }
+
+export async function POST(req: Request, { params }: Ctx): Promise<Response> {
+  const { code } = await params;
+  let buyerPin = "";
+  let buyerName = "";
+  const contentType = req.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const body = await req.json();
+    buyerPin = body.buyer_pin || "";
+    buyerName = body.buyer_name || "";
+  } else {
+    const formData = await req.formData();
+    buyerPin = String(formData.get("buyer_pin") || "");
+    buyerName = String(formData.get("buyer_name") || "");
+  }
+
+  buyerPin = buyerPin.trim().toUpperCase();
+  buyerName = buyerName.trim();
+
+  if (!buyerPin) {
+    return Response.redirect(new URL(`/r/${code}?error=missing_pin`, req.url), 303);
+  }
+
+  const { data, response } = await serverApi().POST("/r/{code}/claim", {
+    params: { path: { code: code.toUpperCase() } },
+    body: { buyer_pin: buyerPin, buyer_name: buyerName || undefined },
+  });
+
+  if (!response.ok || !data) {
+    return Response.redirect(new URL(`/r/${code}?error=invalid_pin`, req.url), 303);
+  }
+
+  return Response.redirect(new URL(`/r/${code}?claimed=1`, req.url), 303);
+}
