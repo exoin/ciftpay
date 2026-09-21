@@ -16,7 +16,7 @@ func TestFormatKES(t *testing.T) {
 
 func TestRender_AllTemplatesBothLocalesFitOneSegment(t *testing.T) {
 	v := Vars{Merchant: "Mama Njeri Wholesalers", AmountKES: "2,400", KRAInvoice: "KRACU0100000123", ReceiptURL: "https://ciftpay.co.ke/r/ABCD-EFGH", Code: "123456"}
-	for _, tpl := range []string{TemplateReceiptPending, TemplateReceiptAcked, TemplateCreditNote, TemplateOTP} {
+	for _, tpl := range []string{TemplateReceiptPending, TemplateReceiptAcked, TemplateReceiptUpdated, TemplateCreditNote, TemplateOTP} {
 		for _, loc := range []string{LocaleEN, LocaleSW, "fr"} {
 			body, err := Render(tpl, loc, v)
 			if err != nil {
