@@ -72,21 +72,26 @@ func Transition(from, to State) (State, error) {
 }
 
 // MaxAttempts is the number of submission attempts before NEEDS_REVIEW.
-const MaxAttempts = 8
+const MaxAttempts = 6
 
-// BaseBackoff is the delay after the first failed attempt.
-const BaseBackoff = 15 * time.Second
+// Outage backoff schedule: 1m, 5m, 1h, 12h.
+var backoffSchedule = []time.Duration{
+	1 * time.Minute,
+	5 * time.Minute,
+	1 * time.Hour,
+	12 * time.Hour,
+}
 
 // Backoff returns the delay before attempt n+1 after attempt n (1-based)
-// failed: 15s, 30s, 1m, 2m, 4m, 8m, 16m, 32m.
+// failed: 1m, 5m, 1h, 12h.
 func Backoff(attempt int) time.Duration {
 	if attempt < 1 {
-		attempt = 1
+		return backoffSchedule[0]
 	}
-	if attempt > MaxAttempts {
-		attempt = MaxAttempts
+	if attempt > len(backoffSchedule) {
+		return backoffSchedule[len(backoffSchedule)-1]
 	}
-	return BaseBackoff << (attempt - 1)
+	return backoffSchedule[attempt-1]
 }
 
 // Outcome describes what the worker should do after a submission attempt.
