@@ -10,6 +10,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"regexp"
+	"strings"
+	"github.com/exoin/ciftpay/internal/notify"
 
 	"github.com/exoin/ciftpay/internal/fiscal"
 	"github.com/exoin/ciftpay/internal/platform/crypto"
@@ -26,6 +29,12 @@ var ErrDuplicate = errors.New("ledger: duplicate transaction")
 // a verified shortcode (ADR-0008): pending or rejected rows do not count, so
 // money never lands in a ledger Safaricom has not confirmed.
 var ErrUnknownShortcode = errors.New("ledger: no verified shortcode")
+
+// PINRe validates Kenyan KRA PIN format (A or P, 9 digits, and a checksum letter).
+var PINRe = regexp.MustCompile(`^[AP][0-9]{9}[A-Z]$`)
+
+// ErrInvalidPIN is returned when a buyer KRA PIN does not match the valid format.
+var ErrInvalidPIN = errors.New("ledger: invalid buyer KRA PIN")
 
 // Service applies matcher decisions to the database.
 type Service struct {
@@ -403,4 +412,208 @@ func (s *Service) applyReversal(ctx context.Context, tx db.Tx, sc gen.ResolveSho
 func isUniqueViolation(err error) bool {
 	var pgErr interface{ SQLState() string }
 	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
+}
+
+
+// ReissueInput contains details for re-issuing an invoice with updated buyer info.
+type ReissueInput struct {
+	BuyerPIN  string
+	BuyerName string
+	ActorType string // "user" or "buyer"
+	ActorID   *string
+}
+
+// ReissueInvoice implements the KRA Credit Note & Re-issue architecture (Part 2):
+// 1. If the original invoice was ACKED by KRA, generate a Return Credit Note (rcptTyCd = "R"),
+//    referencing the parent invoice sequence, consuming a fresh invcNo and enqueuing to KRA.
+// 2. Immediately generate a new Sales Invoice (rcptTyCd = "S") with the updated buyer PIN/name,
+//    consuming another fresh invcNo and enqueuing to KRA.
+// 3. Mark the original invoice (and Credit Note) as superseded_by_id = newInvoice.ID so
+//    public /r/{code} lookups always resolve to the latest valid KRA invoice.
+// 4. Enqueue real-time Africa's Talking SMS notification to the customer.
+func (s *Service) ReissueInvoice(ctx context.Context, orgID, invoiceID uuid.UUID, in ReissueInput) (gen.Invoice, error) {
+	pin := strings.ToUpper(strings.TrimSpace(in.BuyerPIN))
+	if pin != "" && !PINRe.MatchString(pin) {
+		return gen.Invoice{}, ErrInvalidPIN
+	}
+
+	var newInv gen.Invoice
+	err := s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
+		orig, err := tx.GetInvoice(ctx, invoiceID)
+		if err != nil {
+			return err
+		}
+		if orig.Kind != "INVOICE" {
+			return fmt.Errorf("ledger: cannot reissue a credit note")
+		}
+		if orig.SupersededByID != nil {
+			return fmt.Errorf("ledger: invoice already superseded")
+		}
+
+		org, err := tx.GetOrg(ctx, orgID)
+		if err != nil {
+			return err
+		}
+
+		var encPIN, hashPIN []byte
+		if pin != "" {
+			enc, err := s.Keys.EncryptString(pin)
+			if err != nil {
+				return err
+			}
+			encPIN = enc
+			hashPIN = s.Keys.Hash(pin)
+		}
+
+		buyerName := in.BuyerName
+		if buyerName == "" {
+			buyerName = orig.BuyerName
+		}
+
+		now := s.Now()
+		isEtimsReady := org.EtimsStatus == "initialized"
+		isAcked := orig.State == string(fiscal.StateAcked)
+
+		var cn *gen.Invoice
+		if isAcked {
+			// Step 1: Generate Return Credit Note (rcptTyCd = "R")
+			cnState := fiscal.StateQueued
+			if !isEtimsReady {
+				cnState = fiscal.StateTaxPending
+			}
+			for attempt := 0; attempt < 5; attempt++ {
+				code, err := fiscal.NewReceiptCode()
+				if err != nil {
+					return err
+				}
+				createdCN, err := tx.CreateInvoice(ctx, gen.CreateInvoiceParams{
+					OrgID: orgID, SaleID: orig.SaleID, PaymentID: orig.PaymentID, Kind: "CREDIT_NOTE",
+					ParentInvoiceID: &orig.ID, State: string(cnState),
+					BuyerPinEnc: orig.BuyerPinEnc, BuyerPinHash: orig.BuyerPinHash, BuyerName: orig.BuyerName,
+					ReceiptCode: code, SubtotalCents: -orig.SubtotalCents, TaxCents: -orig.TaxCents,
+					TotalCents: -orig.TotalCents, IssuedAt: now,
+				})
+				if err == nil {
+					cn = &createdCN
+					break
+				}
+				if !isUniqueViolation(err) || attempt == 4 {
+					return err
+				}
+			}
+			if cnState == fiscal.StateQueued {
+				if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: cn.ID}, nil); err != nil {
+					return err
+				}
+			}
+		}
+
+		// Step 2: Generate fresh Re-issued Sales Invoice (rcptTyCd = "S")
+		invState := fiscal.StateQueued
+		if !isEtimsReady {
+			invState = fiscal.StateTaxPending
+		}
+		var parentID *uuid.UUID
+		if cn != nil {
+			parentID = &cn.ID
+		} else {
+			parentID = &orig.ID
+		}
+
+		for attempt := 0; attempt < 5; attempt++ {
+			code, err := fiscal.NewReceiptCode()
+			if err != nil {
+				return err
+			}
+			createdInv, err := tx.CreateInvoice(ctx, gen.CreateInvoiceParams{
+				OrgID: orgID, SaleID: orig.SaleID, PaymentID: orig.PaymentID, Kind: "INVOICE",
+				ParentInvoiceID: parentID, State: string(invState),
+				BuyerPinEnc: encPIN, BuyerPinHash: hashPIN, BuyerName: buyerName,
+				ReceiptCode: code, SubtotalCents: orig.SubtotalCents, TaxCents: orig.TaxCents,
+				TotalCents: orig.TotalCents, IssuedAt: now,
+			})
+			if err == nil {
+				newInv = createdInv
+				break
+			}
+			if !isUniqueViolation(err) || attempt == 4 {
+				return err
+			}
+		}
+
+		// Step 3: Link superseded state
+		if err := tx.SupersedeInvoice(ctx, gen.SupersedeInvoiceParams{
+			ID: orig.ID, SupersededByID: &newInv.ID,
+		}); err != nil {
+			return err
+		}
+		if cn != nil {
+			if err := tx.SupersedeInvoice(ctx, gen.SupersedeInvoiceParams{
+				ID: cn.ID, SupersededByID: &newInv.ID,
+			}); err != nil {
+				return err
+			}
+		}
+
+		// Update Customer if linked to sale
+		sale, err := tx.GetSale(ctx, orig.SaleID)
+		if err == nil && sale.CustomerID != nil && len(encPIN) > 0 {
+			_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET kra_pin_enc = $1, kra_pin_hash = $2 WHERE id = $3 AND kra_pin_hash IS NULL`, encPIN, hashPIN, *sale.CustomerID)
+		}
+
+		// Enqueue submission job for new invoice
+		if invState == fiscal.StateQueued {
+			if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: newInv.ID}, nil); err != nil {
+				return err
+			}
+		}
+
+		// Step 4: Enqueue real-time customer SMS notification
+		// (Requirement 4: "Your CiftPay receipt from {Merchant} has been updated with your KRA PIN. View here: {link}")
+		if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SendReceiptArgs{
+			OrgID: orgID, InvoiceID: newInv.ID, Template: notify.TemplateReceiptUpdated,
+		}, nil); err != nil {
+			s.Log.Warn("could not enqueue receipt_updated SMS", "invoice", newInv.ID, "err", err)
+		}
+
+		actorType := in.ActorType
+		if actorType == "" {
+			actorType = "system"
+		}
+		return tx.AppendAudit(ctx, gen.AppendAuditParams{
+			OrgID: orgID, ActorType: actorType, ActorID: in.ActorID, Action: "invoice.reissued",
+			Entity: "invoice", EntityID: newInv.ID.String(),
+		})
+	})
+
+	return newInv, err
+}
+
+func (s *Service) ClaimReceiptByCode(ctx context.Context, code, buyerPIN, buyerName string) (gen.Invoice, error) {
+	code, err := fiscal.NormaliseReceiptCode(code)
+	if err != nil {
+		return gen.Invoice{}, fiscal.ErrInvalidReceiptCode
+	}
+	pin := strings.ToUpper(strings.TrimSpace(buyerPIN))
+	if !PINRe.MatchString(pin) {
+		return gen.Invoice{}, ErrInvalidPIN
+	}
+
+	var row gen.GetInvoiceByReceiptCodeRow
+	err = s.DB.WithReceipt(ctx, code, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		row, err = tx.GetInvoiceByReceiptCode(ctx, code)
+		return err
+	})
+	if err != nil {
+		return gen.Invoice{}, err
+	}
+
+	actor := "buyer:" + code
+	return s.ReissueInvoice(ctx, row.OrgID, row.ID, ReissueInput{
+		BuyerPIN:  pin,
+		BuyerName: buyerName,
+		ActorType: "system",
+		ActorID:   &actor,
+	})
 }
