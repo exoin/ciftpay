@@ -100,10 +100,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           {inv.superseded_by_id && (
             <div className="rounded-r2 border border-ochre/40 bg-warn-bg px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-ink">Invoice Amended:</span>
-                <span className="text-ink-2">This invoice was superseded by a newer version.</span>
+                <span className="font-semibold text-ink">
+                  {inv.kind === "CREDIT_NOTE" ? "Offsetting Credit Note:" : "Superseded Invoice:"}
+                </span>
+                <span className="text-ink-2">
+                  {inv.kind === "CREDIT_NOTE"
+                    ? "This credit note reversed the transaction. It is closed and cannot be amended."
+                    : "This invoice was replaced by an amended version and cannot be amended again."}
+                </span>
               </div>
-              <Link href={`/invoices/${inv.superseded_by_id}`} className="font-medium underline text-ink">
+              <Link href={`/invoices/${inv.superseded_by_id}`} className="font-semibold underline text-ink">
                 View Active Invoice &rarr;
               </Link>
             </div>
@@ -124,7 +130,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 {t("openPublic")}
               </a>
             )}
-            {inv.kind === "INVOICE" && (
+            {inv.kind === "INVOICE" && !inv.superseded_by_id && (
               <Button variant="secondary" onClick={() => setShowAmend(!showAmend)}>
                 {inv.buyer_pin_masked ? t("amendPin") : t("addBuyerPin")}
               </Button>
