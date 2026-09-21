@@ -53,30 +53,28 @@ func DefaultTaxCategory(vatRegistered bool) TaxCategory {
 }
 
 // LineTax extracts the VAT contained in a VAT-inclusive line total:
-// tax = total × rate / (10000 + rate), rounded half to even.
+// tax = total × rate / (10000 + rate), rounded half up (ROUND_HALF_UP).
 // Prices in Kenya are quoted VAT-inclusive (docs/data-model.md §5).
+// Rounding with ROUND_HALF_UP guarantees taxblAmt + taxAmt == totAmt per line
+// with zero cent drift against KRA's validation rules.
 func LineTax(lineTotalCents int64, rateBP int64) int64 {
 	if rateBP == 0 || lineTotalCents == 0 {
 		return 0
 	}
 	num := new(big.Int).Mul(big.NewInt(lineTotalCents), big.NewInt(rateBP))
 	den := big.NewInt(10000 + rateBP)
-	return roundHalfEven(num, den)
+	return roundHalfUp(num, den)
 }
 
-// roundHalfEven divides num by den with banker's rounding.
-func roundHalfEven(num, den *big.Int) int64 {
+// roundHalfUp divides num by den with ROUND_HALF_UP rounding (ties round away from zero).
+func roundHalfUp(num, den *big.Int) int64 {
 	q, r := new(big.Int).QuoRem(num, den, new(big.Int))
 	twice := new(big.Int).Mul(new(big.Int).Abs(r), big.NewInt(2))
-	cmp := twice.Cmp(den)
 	sign := int64(1)
 	if num.Sign() < 0 {
 		sign = -1
 	}
-	switch {
-	case cmp > 0:
-		q.Add(q, big.NewInt(sign))
-	case cmp == 0 && q.Bit(0) == 1:
+	if twice.Cmp(new(big.Int).Abs(den)) >= 0 {
 		q.Add(q, big.NewInt(sign))
 	}
 	return q.Int64()
