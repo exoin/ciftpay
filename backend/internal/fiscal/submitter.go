@@ -106,9 +106,13 @@ func (s *Submitter) Submit(ctx context.Context, orgID, invoiceID uuid.UUID) (Res
 	var subErr error
 	reqJSON, _ := json.Marshal(doc)
 	if kind == "CREDIT_NOTE" {
+		total := doc.TotalCents
+		if total > 0 {
+			total = -total
+		}
 		ack, subErr = s.Provider.SubmitCreditNote(ctx, CreditNote{
 			ID: doc.ID, OrgID: doc.OrgID, OriginalKRANo: parentKRANo, OriginalInvoice: doc,
-			Reason: "M-Pesa reversal", Lines: doc.Lines, TotalCents: doc.TotalCents, DeviceProfile: doc.DeviceProfile,
+			Reason: "Return / Amendment", Lines: doc.Lines, TotalCents: total, DeviceProfile: doc.DeviceProfile,
 		})
 	} else {
 		ack, subErr = s.Provider.SubmitInvoice(ctx, doc)
