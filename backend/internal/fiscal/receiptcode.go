@@ -2,9 +2,13 @@ package fiscal
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrInvalidReceiptCode is returned when a receipt code is malformed or invalid.
+var ErrInvalidReceiptCode = errors.New("fiscal: invalid receipt code")
 
 // crockford is Douglas Crockford's base32 alphabet: no I, L, O, U so codes
 // survive being read out over the phone or typed from a thermal receipt.
@@ -34,11 +38,11 @@ func NormaliseReceiptCode(s string) (string, error) {
 	r := strings.NewReplacer("I", "1", "L", "1", "O", "0", "U", "V", "-", "", " ", "")
 	s = r.Replace(s)
 	if len(s) != ReceiptCodeLen {
-		return "", fmt.Errorf("fiscal: receipt code must be %d characters", ReceiptCodeLen)
+		return "", fmt.Errorf("%w: must be %d characters", ErrInvalidReceiptCode, ReceiptCodeLen)
 	}
 	for _, c := range s {
 		if !strings.ContainsRune(crockford, c) {
-			return "", fmt.Errorf("fiscal: receipt code has invalid character %q", c)
+			return "", fmt.Errorf("%w: invalid character %q", ErrInvalidReceiptCode, c)
 		}
 	}
 	return s, nil
