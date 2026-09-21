@@ -581,6 +581,35 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /invoices/{id}/reissue:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [invoices]
+      operationId: reissueInvoice
+      summary: Amend an invoice with buyer PIN/name via Credit Note & Re-issue flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [buyer_pin]
+              properties:
+                buyer_pin:
+                  $ref: "#/components/schemas/KraPin"
+                buyer_name:
+                  type: string
+      responses:
+        "200":
+          description: Reissued invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        default:
+          $ref: "#/components/responses/Error"
+
   /invoices/{id}/retry:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -704,6 +733,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/PublicReceipt"
         "404":
+          $ref: "#/components/responses/Error"
+
+  /r/{code}/claim:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^[0-9A-HJKMNP-TV-Z]{6,8}$"
+    post:
+      tags: [public]
+      operationId: claimPublicReceipt
+      security: []
+      summary: Add buyer KRA PIN to an anonymous receipt (retroactive claim)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [buyer_pin]
+              properties:
+                buyer_pin:
+                  $ref: "#/components/schemas/KraPin"
+                buyer_name:
+                  type: string
+      responses:
+        "200":
+          description: Updated receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicReceipt"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
           $ref: "#/components/responses/Error"
 
   /admin/shortcodes:
