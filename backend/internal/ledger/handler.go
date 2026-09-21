@@ -73,6 +73,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/invoices", h.listInvoices)
 	r.Get("/invoices/{id}", h.getInvoice)
 	r.Post("/invoices/{id}/retry", h.retryInvoice)
+	r.Post("/invoices/{id}/reissue", h.reissueInvoice)
 
 	r.Get("/attention", h.attention)
 }
@@ -914,6 +915,43 @@ func (h *Handler) retryInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusAccepted, toInvoice(h.Keys, h.PublicBaseURL, inv))
 }
+
+func (h *Handler) reissueInvoice(w http.ResponseWriter, r *http.Request) {
+	orgID, userID := org(r)
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		BuyerPIN  string `json:"buyer_pin"`
+		BuyerName string `json:"buyer_name"`
+	}
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must match {buyer_pin, buyer_name?}")
+		return
+	}
+	if in.BuyerPIN == "" {
+		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin is required")
+		return
+	}
+	actor := userID.String()
+	newInv, err := h.S.ReissueInvoice(r.Context(), orgID, id, ReissueInput{
+		BuyerPIN:  in.BuyerPIN,
+		BuyerName: in.BuyerName,
+		ActorType: "user",
+		ActorID:   &actor,
+	})
+	switch {
+	case errors.Is(err, ErrInvalidPIN):
+		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin must be a valid KRA PIN (A or P, 9 digits and a letter)")
+	case err != nil:
+		h.S.Log.Error("manual invoice reissue failed", "invoice", id, "err", err)
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not amend and reissue the invoice")
+	default:
+		httpx.JSON(w, http.StatusOK, toInvoice(h.Keys, h.PublicBaseURL, newInv))
+	}
+}
+
 
 // ---------------------------------------------------------- attention
 
