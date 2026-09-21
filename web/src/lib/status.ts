@@ -2,7 +2,7 @@ import type { ChipTone } from "@/components/ui/StatusChip";
 import type { Schemas } from "@/lib/api/client";
 
 /** Maps API enums to chip tones and message keys under `status.*`. */
-export function invoiceChip(state: Schemas["InvoiceState"]): { tone: ChipTone; key: "acked" | "pending" | "failed" | "needsReview" | "taxPending" } {
+export function invoiceChip(state: Schemas["InvoiceState"]): { tone: ChipTone; key: "acked" | "pending" | "failed" | "needsReview" | "taxPending" | "syncing" } {
   switch (state) {
     case "ACKED":
       return { tone: "acked", key: "acked" };
@@ -10,12 +10,15 @@ export function invoiceChip(state: Schemas["InvoiceState"]): { tone: ChipTone; k
       return { tone: "failed", key: "needsReview" };
     case "FAILED_TERMINAL":
       return { tone: "failed", key: "failed" };
+    case "FAILED_RETRYABLE":
+    case "SUBMITTED":
+      return { tone: "pending", key: "syncing" };
     // Recorded, but withheld from KRA until the org configures eTIMS
     // (ADR-0009) — distinct from an ordinary in-flight submission.
     case "TAX_PENDING":
       return { tone: "neutral", key: "taxPending" };
     default:
-      return { tone: "pending", key: "pending" };
+      return { tone: "pending", key: "syncing" };
   }
 }
 
