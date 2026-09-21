@@ -126,7 +126,7 @@ func run() error {
 	adminH := &admin.Handler{S: admin.New(d.DB), Shortcodes: &admin.Shortcodes{
 		DB: d.DB, Keys: d.Keys, Files: files, Daraja: daraja, WebhookBaseURL: cfg.WebhookBaseURL, Log: log,
 	}}
-	receiptH := &publicapi.Handler{S: publicapi.New(d.DB, d.Keys), Log: log}
+	receiptH := &publicapi.Handler{S: publicapi.New(d.DB, d.Keys, ledgerSvc), Log: log}
 	webhooks := &mpesa.Webhooks{Token: cfg.Daraja.WebhookToken, Ingest: ledgerSvc, Log: log}
 	if !cfg.IsLocal() {
 		webhooks.IPAllowlist = cfg.Daraja.IPAllowlist
