@@ -11,6 +11,7 @@ import (
 const (
 	TemplateReceiptPending = "receipt_pending"
 	TemplateReceiptAcked   = "receipt_acked"
+	TemplateReceiptUpdated = "receipt_updated"
 	TemplateCreditNote     = "credit_note"
 	TemplateOTP            = "otp"
 )
@@ -49,6 +50,11 @@ func Render(template, locale string, v Vars) (string, error) {
 			return fmt.Sprintf("Risiti ya KRA %s kutoka %s, KES %s. Thibitisha na uhifadhi: %s", v.KRAInvoice, v.Merchant, v.AmountKES, v.ReceiptURL), nil
 		}
 		return fmt.Sprintf("KRA receipt %s from %s, KES %s. Verify and save: %s", v.KRAInvoice, v.Merchant, v.AmountKES, v.ReceiptURL), nil
+	case TemplateReceiptUpdated:
+		if locale == LocaleSW {
+			return fmt.Sprintf("Risiti yako ya CiftPay kutoka %s imesasishwa na KRA PIN yako. Tazama hapa: %s", v.Merchant, v.ReceiptURL), nil
+		}
+		return fmt.Sprintf("Your CiftPay receipt from %s has been updated with your KRA PIN. View here: %s", v.Merchant, v.ReceiptURL), nil
 	case TemplateCreditNote:
 		if locale == LocaleSW {
 			return fmt.Sprintf("Malipo yako ya KES %s kwa %s yamerudishwa. Credit note ya KRA %s: %s", v.AmountKES, v.Merchant, v.KRAInvoice, v.ReceiptURL), nil
