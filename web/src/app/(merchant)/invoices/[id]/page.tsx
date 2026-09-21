@@ -8,7 +8,8 @@ import { LoadingRows } from "@/components/ui/LoadingRows";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { useToast } from "@/components/ui/Toast";
 import { ReceiptCard } from "@/components/receipt/ReceiptCard";
-import { useInvoice, useResendReceipt, useRetryInvoice } from "@/lib/api/queries";
+import { useRouter } from "next/navigation";
+import { useInvoice, useReissueInvoice, useResendReceipt, useRetryInvoice } from "@/lib/api/queries";
 import { ApiRequestError } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { invoiceChip, receiptState } from "@/lib/status";
@@ -23,6 +24,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const { data: inv, isPending } = useInvoice(id);
   const retry = useRetryInvoice();
   const resend = useResendReceipt();
+  const reissue = useReissueInvoice();
+  const router = useRouter();
+  const [showAmend, setShowAmend] = useState(false);
+  const [amendPin, setAmendPin] = useState("");
+  const [amendName, setAmendName] = useState("");
 
   // Print-reveal only when the invoice flips to ACKED while on screen.
   const prev = useRef<string | undefined>(undefined);
@@ -63,6 +69,23 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function onAmend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!amendPin.trim()) return;
+    try {
+      const updated = await reissue.mutateAsync({
+        id: inv!.id,
+        buyer_pin: amendPin.trim().toUpperCase(),
+        buyer_name: amendName.trim() || undefined,
+      });
+      toast.push(t("reissued"));
+      setShowAmend(false);
+      router.push(`/invoices/${updated.id}`);
+    } catch (err) {
+      toast.push(err instanceof ApiRequestError ? tc("errorGeneric", { message: err.message }) : tc("noConnection"), "error");
+    }
+  }
+
   return (
     <>
       <TopBar title={t("detailTitle")} action={<StatusChip tone={chip.tone}>{ts(chip.key)}</StatusChip>} />
@@ -89,7 +112,49 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 {t("openPublic")}
               </a>
             )}
+            {inv.kind === "INVOICE" && (
+              <Button variant="secondary" onClick={() => setShowAmend(!showAmend)}>
+                {inv.buyer_pin_masked ? t("amendPin") : t("addBuyerPin")}
+              </Button>
+            )}
           </div>
+
+          {showAmend && (
+            <div className="rounded-r2 border border-border bg-paper-2 p-4 space-y-3">
+              <div>
+                <h3 className="font-medium text-sm text-ink">{t("amendTitle")}</h3>
+                <p className="text-xs text-muted">{t("amendLead")}</p>
+              </div>
+              <form onSubmit={onAmend} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-muted mb-1">Buyer KRA PIN</label>
+                  <input
+                    type="text"
+                    value={amendPin}
+                    onChange={(e) => setAmendPin(e.target.value.toUpperCase())}
+                    placeholder="A012345678X"
+                    required
+                    pattern="^[APap][0-9]{9}[A-Za-z]$"
+                    className="w-full rounded-r1 border border-border px-3 py-1.5 font-mono text-sm uppercase bg-paper"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-muted mb-1">Buyer Name (optional)</label>
+                  <input
+                    type="text"
+                    value={amendName}
+                    onChange={(e) => setAmendName(e.target.value)}
+                    placeholder="Acme Ltd"
+                    className="w-full rounded-r1 border border-border px-3 py-1.5 text-sm bg-paper"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" loading={reissue.isPending}>Submit Amendment</Button>
+                  <Button type="button" variant="secondary" onClick={() => setShowAmend(false)}>Cancel</Button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {inv.submissions && inv.submissions.length > 0 && (
             <section>
