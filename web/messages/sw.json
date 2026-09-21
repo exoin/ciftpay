@@ -328,7 +328,12 @@
     "total": "Jumla",
     "submit": "Wasilisha kwa KRA",
     "queued": "Invoice imepangwa. KRA hujibu kwa kawaida ndani ya dakika moja.",
-    "offlineQueued": "Imehifadhiwa. Tutawasilisha kwa KRA mara tu utakaporudi mtandaoni."
+    "offlineQueued": "Imehifadhiwa. Tutawasilisha kwa KRA mara tu utakaporudi mtandaoni.",
+    "buyerPhone": "Nambari ya simu ya mteja (si lazima)",
+    "buyerPhoneHint": "Tutamtumia mteja kiungo cha risiti ya KRA kwa SMS moja kwa moja kwa nambari hii.",
+    "buyerName": "Jina la mteja (si lazima)",
+    "customerSection": "Mteja na Uwasilishaji wa Risiti kwa SMS",
+    "invalidPhone": "Tafadhali weka nambari sahihi ya simu ya Kenya (mfano 0712 345 678)"
   },
   "accountant": {
     "title": "Wateja",

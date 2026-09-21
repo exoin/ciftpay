@@ -11,6 +11,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { useCreateSale, useItems } from "@/lib/api/queries";
 import { ApiRequestError } from "@/lib/api/client";
+import { normaliseMsisdn } from "@/lib/format";
 
 type LineDraft = { item_id: string; qty: string; unit_price: string };
 
@@ -24,7 +25,10 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
   const { data: items } = useItems();
   const create = useCreateSale();
   const [lines, setLines] = useState<LineDraft[]>([{ item_id: "", qty: "1", unit_price: "" }]);
+  const [buyerPhone, setBuyerPhone] = useState("");
+  const [buyerName, setBuyerName] = useState("");
   const [buyerPin, setBuyerPin] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const totalCents = useMemo(() => {
     return lines.reduce((sum, l) => {
@@ -45,7 +49,23 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
     }) &&
     !create.isPending;
 
+  function handleClose() {
+    setPhoneError(null);
+    onClose();
+  }
+
   async function submit() {
+    const trimmedPhone = buyerPhone.trim();
+    let normPhone: string | undefined = undefined;
+    if (trimmedPhone) {
+      const n = normaliseMsisdn(trimmedPhone);
+      if (!n) {
+        setPhoneError(t("invalidPhone"));
+        return;
+      }
+      normPhone = n;
+    }
+
     try {
       await create.mutateAsync({
         kind: "cash",
@@ -59,12 +79,17 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             unit_price_cents: priceCents,
           };
         }),
+        ...(normPhone ? { buyer_msisdn: normPhone } : {}),
+        ...(buyerName.trim() ? { buyer_name: buyerName.trim() } : {}),
         ...(buyerPin.trim() ? { buyer_pin: buyerPin.trim().toUpperCase() } : {}),
         client_ref: crypto.randomUUID(),
       });
       toast.push(t("queued"));
       setLines([{ item_id: "", qty: "1", unit_price: "" }]);
+      setBuyerPhone("");
+      setBuyerName("");
       setBuyerPin("");
+      setPhoneError(null);
       onClose();
     } catch (e) {
       toast.push(e instanceof ApiRequestError ? tc("errorGeneric", { message: e.message }) : tc("noConnection"), "error");
@@ -90,7 +115,7 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
   return (
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={t("title")}
       closeLabel={tc("close")}
       footer={
@@ -153,7 +178,44 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
         <Button variant="secondary" size="sm" onClick={() => setLines((cur) => [...cur, { item_id: "", qty: "1", unit_price: "" }])}>
           {t("addLine")}
         </Button>
-        <Field label={tp("buyerPin")} hint={tp("buyerPinHint")} mono placeholder="A123456789B" value={buyerPin} onChange={(e) => setBuyerPin(e.target.value)} />
+
+        <div className="pt-2 border-t border-hairline space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+            {t("customerSection")}
+          </div>
+
+          <Field
+            label={t("buyerPhone")}
+            hint={t("buyerPhoneHint")}
+            error={phoneError ?? undefined}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="0712 345 678"
+            mono
+            value={buyerPhone}
+            onChange={(e) => {
+              setBuyerPhone(e.target.value);
+              if (phoneError) setPhoneError(null);
+            }}
+          />
+
+          <Field
+            label={t("buyerName")}
+            placeholder="Jane Doe"
+            value={buyerName}
+            onChange={(e) => setBuyerName(e.target.value)}
+          />
+
+          <Field
+            label={tp("buyerPin")}
+            hint={tp("buyerPinHint")}
+            mono
+            placeholder="A123456789B"
+            value={buyerPin}
+            onChange={(e) => setBuyerPin(e.target.value)}
+          />
+        </div>
       </div>
     </Sheet>
   );

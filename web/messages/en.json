@@ -328,7 +328,12 @@
     "total": "Total",
     "submit": "File with KRA",
     "queued": "Invoice queued. KRA usually answers within a minute.",
-    "offlineQueued": "Saved. We'll file it with KRA as soon as you're back online."
+    "offlineQueued": "Saved. We'll file it with KRA as soon as you're back online.",
+    "buyerPhone": "Customer phone number (optional)",
+    "buyerPhoneHint": "We will text the KRA receipt link directly to this phone number.",
+    "buyerName": "Customer name (optional)",
+    "customerSection": "Customer & Receipt SMS Delivery",
+    "invalidPhone": "Please enter a valid Kenyan phone number (e.g. 0712 345 678)"
   },
   "accountant": {
     "title": "Clients",

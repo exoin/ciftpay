@@ -700,10 +700,10 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 				if err == nil {
 					found = true
 					if name != "" {
-						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND name = ''`, name, cid)
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND (name = '' OR name IS NULL)`, name, cid)
 					}
 					if len(encMSISDN) > 0 {
-						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET msisdn_enc = $1, msisdn_hash = $2 WHERE id = $3 AND msisdn_hash IS NULL`, encMSISDN, hashMSISDN, cid)
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET msisdn_enc = $1, msisdn_hash = $2 WHERE id = $3`, encMSISDN, hashMSISDN, cid)
 					}
 				}
 			}
@@ -712,10 +712,10 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 				if err == nil {
 					found = true
 					if name != "" {
-						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND name = ''`, name, cid)
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND (name = '' OR name IS NULL)`, name, cid)
 					}
 					if len(encPIN) > 0 {
-						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET kra_pin_enc = $1, kra_pin_hash = $2 WHERE id = $3 AND kra_pin_hash IS NULL`, encPIN, hashPIN, cid)
+						_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET kra_pin_enc = $1, kra_pin_hash = $2 WHERE id = $3`, encPIN, hashPIN, cid)
 					}
 				}
 			}

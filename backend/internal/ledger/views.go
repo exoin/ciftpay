@@ -112,6 +112,7 @@ type InvoiceView struct {
 	ReceiptCode       string     `json:"receipt_code"`
 	ReceiptURL        string     `json:"receipt_url"`
 	KRAInvoiceNo      *string    `json:"kra_invoice_no"`
+	BuyerName         *string    `json:"buyer_name,omitempty"`
 	BuyerPinMasked    string     `json:"buyer_pin_masked,omitempty"`
 	BuyerMsisdnMasked string     `json:"buyer_msisdn_masked,omitempty"`
 	TotalCents        int64      `json:"total_cents"`
@@ -211,6 +212,9 @@ func toInvoice(k *crypto.Keyring, publicBase string, inv gen.Invoice) InvoiceVie
 		State: inv.State, Attempt: inv.Attempt, ReceiptCode: inv.ReceiptCode, ReceiptURL: publicBase + "/r/" + inv.ReceiptCode,
 		KRAInvoiceNo: inv.KraInvoiceNo, TotalCents: inv.TotalCents, TaxCents: inv.TaxCents, LastError: inv.LastError,
 		CreatedAt: inv.CreatedAt, SubmittedAt: inv.SubmittedAt, AckedAt: inv.AckedAt}
+	if inv.BuyerName != "" {
+		v.BuyerName = &inv.BuyerName
+	}
 	if len(inv.BuyerPinEnc) > 0 {
 		if p, err := k.DecryptString(inv.BuyerPinEnc); err == nil {
 			v.BuyerPinMasked = plog.MaskPIN(p)
