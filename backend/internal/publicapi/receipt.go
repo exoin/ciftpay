@@ -1,6 +1,6 @@
 // Package publicapi serves the unauthenticated receipt verification endpoint
-// GET /r/{code}. It reads under db.WithReceipt, whose RLS policy exposes
-// exactly one invoice and its lines.
+// GET /r/{code} and POST /r/{code}/claim. It reads under db.WithReceipt,
+// whose RLS policy exposes exactly one invoice and its lines (or its superseded successors).
 package publicapi
 
 import (
@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/ledger"
 	"github.com/exoin/ciftpay/internal/platform/crypto"
 	"github.com/exoin/ciftpay/internal/platform/db"
 	"github.com/exoin/ciftpay/internal/platform/db/gen"
@@ -23,6 +24,11 @@ import (
 
 // ErrNotFound is returned for unknown or malformed codes.
 var ErrNotFound = errors.New("publicapi: receipt not found")
+
+// Claimer allows claiming anonymous receipts with a buyer KRA PIN.
+type Claimer interface {
+	ClaimReceiptByCode(ctx context.Context, code, buyerPIN, buyerName string) (gen.Invoice, error)
+}
 
 // Seller is the merchant block on a receipt.
 type Seller struct {
@@ -68,12 +74,15 @@ type Receipt struct {
 
 // Service loads receipts.
 type Service struct {
-	DB   *db.DB
-	Keys *crypto.Keyring
+	DB      *db.DB
+	Keys    *crypto.Keyring
+	Claimer Claimer
 }
 
 // New builds a Service.
-func New(d *db.DB, k *crypto.Keyring) *Service { return &Service{DB: d, Keys: k} }
+func New(d *db.DB, k *crypto.Keyring, c Claimer) *Service {
+	return &Service{DB: d, Keys: k, Claimer: c}
+}
 
 // Lookup returns the receipt for a public code.
 func (s *Service) Lookup(ctx context.Context, rawCode string) (Receipt, error) {
@@ -98,6 +107,21 @@ func (s *Service) Lookup(ctx context.Context, rawCode string) (Receipt, error) {
 		return nil
 	})
 	return out, err
+}
+
+// Claim adds a buyer KRA PIN to an anonymous receipt, triggering Credit Note & Re-issue.
+func (s *Service) Claim(ctx context.Context, rawCode, buyerPIN, buyerName string) (Receipt, error) {
+	if s.Claimer == nil {
+		return Receipt{}, errors.New("publicapi: claiming not configured")
+	}
+	code, err := fiscal.NormaliseReceiptCode(rawCode)
+	if err != nil {
+		return Receipt{}, ErrNotFound
+	}
+	if _, err := s.Claimer.ClaimReceiptByCode(ctx, code, buyerPIN, buyerName); err != nil {
+		return Receipt{}, err
+	}
+	return s.Lookup(ctx, code)
 }
 
 func (s *Service) build(row gen.GetInvoiceByReceiptCodeRow, items []gen.SaleItem) Receipt {
@@ -143,16 +167,18 @@ func (s *Service) build(row gen.GetInvoiceByReceiptCodeRow, items []gen.SaleItem
 	return r
 }
 
-// Handler serves GET /r/{code}.
+// Handler serves GET /r/{code} and POST /r/{code}/claim.
 type Handler struct {
 	S   *Service
 	Log *slog.Logger
 }
 
-// Mount registers the route with a per-IP rate limit (codes are guessable).
+// Mount registers the routes with a per-IP rate limit (codes are guessable).
 func (h *Handler) Mount(r chi.Router) {
 	r.With(httpx.RateLimit(120, time.Minute, func(r *http.Request) string { return "receipt:" + httpx.ClientIP(r) })).
 		Get("/r/{code}", h.get)
+	r.With(httpx.RateLimit(20, time.Hour, func(r *http.Request) string { return "receipt_claim:" + httpx.ClientIP(r) })).
+		Post("/r/{code}/claim", h.claim)
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -165,6 +191,36 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not load the receipt")
 	default:
 		w.Header().Set("Cache-Control", "public, max-age=60")
+		httpx.JSON(w, http.StatusOK, rc)
+	}
+}
+
+type ClaimRequest struct {
+	BuyerPIN  string `json:"buyer_pin"`
+	BuyerName string `json:"buyer_name"`
+}
+
+func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+	var in ClaimRequest
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must match {buyer_pin, buyer_name?}")
+		return
+	}
+	if in.BuyerPIN == "" {
+		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin is required")
+		return
+	}
+	rc, err := h.S.Claim(r.Context(), code, in.BuyerPIN, in.BuyerName)
+	switch {
+	case errors.Is(err, ErrNotFound), errors.Is(err, fiscal.ErrInvalidReceiptCode):
+		httpx.Fail(w, http.StatusNotFound, "not_found", "No receipt with that code")
+	case errors.Is(err, ledger.ErrInvalidPIN):
+		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin must be a valid KRA PIN (A or P, 9 digits and a letter)")
+	case err != nil:
+		h.Log.Error("receipt claim failed", "code", code, "err", err)
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not claim receipt with your PIN")
+	default:
 		httpx.JSON(w, http.StatusOK, rc)
 	}
 }
