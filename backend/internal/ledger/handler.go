@@ -19,6 +19,8 @@ import (
 	"github.com/exoin/ciftpay/internal/platform/crypto"
 	"github.com/exoin/ciftpay/internal/platform/db"
 	"github.com/exoin/ciftpay/internal/platform/db/gen"
+	"github.com/exoin/ciftpay/internal/notify"
+	"github.com/exoin/ciftpay/internal/platform/jobs"
 	"github.com/exoin/ciftpay/internal/platform/httpx"
 	"github.com/exoin/ciftpay/internal/platform/storage"
 )
@@ -74,6 +76,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/invoices/{id}", h.getInvoice)
 	r.Post("/invoices/{id}/retry", h.retryInvoice)
 	r.Post("/invoices/{id}/reissue", h.reissueInvoice)
+	r.Post("/invoices/{id}/resend", h.resendInvoice)
 
 	r.Get("/attention", h.attention)
 }
@@ -946,10 +949,65 @@ func (h *Handler) reissueInvoice(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin must be a valid KRA PIN (A or P, 9 digits and a letter)")
 	case err != nil:
 		h.S.Log.Error("manual invoice reissue failed", "invoice", id, "err", err)
-		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not amend and reissue the invoice")
+		httpx.Fail(w, http.StatusBadRequest, "invalid_operation", err.Error())
 	default:
 		httpx.JSON(w, http.StatusOK, toInvoice(h.Keys, h.PublicBaseURL, newInv))
 	}
+}
+
+func (h *Handler) resendInvoice(w http.ResponseWriter, r *http.Request) {
+	orgID, _ := org(r)
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Msisdn *string `json:"msisdn"`
+	}
+	_ = httpx.Decode(r, &in)
+
+	var targetID uuid.UUID
+	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
+		inv, err := tx.GetInvoice(ctx, id)
+		if err != nil {
+			return err
+		}
+		// Follow superseded chain to active invoice
+		for inv.SupersededByID != nil {
+			next, err := tx.GetInvoice(ctx, *inv.SupersededByID)
+			if err != nil {
+				break
+			}
+			inv = next
+		}
+		targetID = inv.ID
+
+		if in.Msisdn != nil && *in.Msisdn != "" {
+			norm, err := crypto.NormaliseMSISDN(*in.Msisdn)
+			if err == nil && norm != "" {
+				enc, _ := h.S.Keys.EncryptString(norm)
+				hash := h.S.Keys.Hash(norm)
+				if inv.PaymentID != nil {
+					_, _ = tx.Tx.Exec(ctx, `UPDATE payments SET msisdn_enc = $1, msisdn_hash = $2 WHERE id = $3`, enc, hash, *inv.PaymentID)
+				}
+			}
+		}
+
+		// Clear prior delivery guard for receipt_acked so resend actually delivers
+		_, _ = tx.Tx.Exec(ctx, `DELETE FROM notifications WHERE org_id = $1 AND invoice_id = $2 AND template = $3`, orgID, targetID, notify.TemplateReceiptAcked)
+
+		return h.S.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SendReceiptArgs{
+			OrgID:     orgID,
+			InvoiceID: targetID,
+			Template:  notify.TemplateReceiptAcked,
+		}, nil)
+	})
+	if err != nil {
+		h.S.Log.Error("resend receipt failed", "invoice", id, "err", err)
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not resend receipt")
+		return
+	}
+	httpx.JSON(w, http.StatusAccepted, map[string]string{"status": "queued"})
 }
 
 

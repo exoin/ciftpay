@@ -1541,6 +1541,9 @@ components:
         parent_invoice_id:
           type: [string, "null"]
           format: uuid
+        superseded_by_id:
+          type: [string, "null"]
+          format: uuid
         sale_id:
           type: string
           format: uuid

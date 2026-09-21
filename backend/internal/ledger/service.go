@@ -443,11 +443,16 @@ func (s *Service) ReissueInvoice(ctx context.Context, orgID, invoiceID uuid.UUID
 		if err != nil {
 			return err
 		}
+		// If the invoice was already superseded, resolve down to the active invoice in the chain.
+		for orig.SupersededByID != nil {
+			next, err := tx.GetInvoice(ctx, *orig.SupersededByID)
+			if err != nil {
+				break
+			}
+			orig = next
+		}
 		if orig.Kind != "INVOICE" {
 			return fmt.Errorf("ledger: cannot reissue a credit note")
-		}
-		if orig.SupersededByID != nil {
-			return fmt.Errorf("ledger: invoice already superseded")
 		}
 
 		org, err := tx.GetOrg(ctx, orgID)

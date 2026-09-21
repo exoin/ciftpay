@@ -9,6 +9,7 @@ import { StatusChip } from "@/components/ui/StatusChip";
 import { useToast } from "@/components/ui/Toast";
 import { ReceiptCard } from "@/components/receipt/ReceiptCard";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useInvoice, useReissueInvoice, useResendReceipt, useRetryInvoice } from "@/lib/api/queries";
 import { ApiRequestError } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
@@ -95,6 +96,17 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <p role="alert" className="rounded-r2 border border-red bg-bad-bg px-3 py-2 text-sm text-ink">
               {inv.last_error}
             </p>
+          )}
+          {inv.superseded_by_id && (
+            <div className="rounded-r2 border border-ochre/40 bg-warn-bg px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-ink">Invoice Amended:</span>
+                <span className="text-ink-2">This invoice was superseded by a newer version.</span>
+              </div>
+              <Link href={`/invoices/${inv.superseded_by_id}`} className="font-medium underline text-ink">
+                View Active Invoice &rarr;
+              </Link>
+            </div>
           )}
           <div className="flex flex-wrap gap-2">
             {inv.state === "NEEDS_REVIEW" && (

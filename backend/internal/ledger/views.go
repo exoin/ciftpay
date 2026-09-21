@@ -104,6 +104,7 @@ type InvoiceView struct {
 	ID                uuid.UUID  `json:"id"`
 	Kind              string     `json:"kind"`
 	ParentInvoiceID   *uuid.UUID `json:"parent_invoice_id"`
+	SupersededByID    *uuid.UUID `json:"superseded_by_id,omitempty"`
 	SaleID            uuid.UUID  `json:"sale_id"`
 	PaymentID         *uuid.UUID `json:"payment_id"`
 	State             string     `json:"state"`
@@ -206,7 +207,7 @@ func toSale(s gen.Sale, lines []gen.SaleItem) SaleView {
 }
 
 func toInvoice(k *crypto.Keyring, publicBase string, inv gen.Invoice) InvoiceView {
-	v := InvoiceView{ID: inv.ID, Kind: inv.Kind, ParentInvoiceID: inv.ParentInvoiceID, SaleID: inv.SaleID, PaymentID: inv.PaymentID,
+	v := InvoiceView{ID: inv.ID, Kind: inv.Kind, ParentInvoiceID: inv.ParentInvoiceID, SupersededByID: inv.SupersededByID, SaleID: inv.SaleID, PaymentID: inv.PaymentID,
 		State: inv.State, Attempt: inv.Attempt, ReceiptCode: inv.ReceiptCode, ReceiptURL: publicBase + "/r/" + inv.ReceiptCode,
 		KRAInvoiceNo: inv.KraInvoiceNo, TotalCents: inv.TotalCents, TaxCents: inv.TaxCents, LastError: inv.LastError,
 		CreatedAt: inv.CreatedAt, SubmittedAt: inv.SubmittedAt, AckedAt: inv.AckedAt}
