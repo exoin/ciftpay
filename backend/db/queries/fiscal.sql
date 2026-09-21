@@ -6,13 +6,38 @@ RETURNING *;
 -- name: GetInvoice :one
 SELECT * FROM invoices WHERE id = $1;
 
+-- name: GetInvoiceByReceiptCodeExact :one
+SELECT * FROM invoices WHERE receipt_code = $1;
+
 -- name: GetInvoiceByReceiptCode :one
 -- Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
-SELECT i.*, o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref
-FROM invoices i
-JOIN orgs o ON o.id = i.org_id
-JOIN sales s ON s.id = i.sale_id
-WHERE i.receipt_code = $1;
+-- Follows the superseded chain so the customer always sees the latest valid KRA invoice.
+WITH RECURSIVE chain AS (
+  SELECT i.*, 1 AS depth
+  FROM invoices i
+  WHERE i.receipt_code = $1
+  UNION ALL
+  SELECT next_i.*, c.depth + 1
+  FROM invoices next_i
+  JOIN chain c ON next_i.id = c.superseded_by_id
+  WHERE c.superseded_by_id IS NOT NULL AND c.depth < 10
+)
+SELECT c.id, c.org_id, c.sale_id, c.payment_id, c.kind, c.parent_invoice_id, c.state, c.attempt,
+       c.next_attempt_at, c.buyer_pin_enc, c.buyer_pin_hash, c.buyer_name, c.kra_invoice_no,
+       c.kra_signature, c.kra_qr_payload, c.receipt_code, c.subtotal_cents, c.tax_cents,
+       c.total_cents, c.issued_at, c.submitted_at, c.acked_at, c.last_error, c.created_at,
+       c.updated_at, c.superseded_by_id, c.superseded_at,
+       o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref
+FROM chain c
+JOIN orgs o ON o.id = c.org_id
+JOIN sales s ON s.id = c.sale_id
+ORDER BY c.depth DESC
+LIMIT 1;
+
+-- name: SupersedeInvoice :exec
+UPDATE invoices
+SET superseded_by_id = $2, superseded_at = now()
+WHERE id = $1;
 
 -- name: ListInvoices :many
 SELECT * FROM invoices
