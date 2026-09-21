@@ -30,7 +30,8 @@
   },
   "status": {
     "acked": "KRA verified",
-    "pending": "Pending KRA",
+    "pending": "Syncing to KRA",
+    "syncing": "Syncing to KRA",
     "failed": "Failed",
     "needsReview": "Needs a fix",
     "taxPending": "Recorded · connect KRA to file",
@@ -214,7 +215,12 @@
     "submissions": "Attempts",
     "attempt": "Attempt {n}",
     "creditNote": "Credit note",
-    "cancels": "Cancels {kraNo}"
+    "cancels": "Cancels {kraNo}",
+    "addBuyerPin": "Add buyer KRA PIN",
+    "amendPin": "Amend buyer PIN",
+    "amendTitle": "Amend Invoice (KRA Credit Note & Re-issue)",
+    "amendLead": "KRA rules require issuing a Credit Note to offset this invoice and a new invoice with the buyer PIN.",
+    "reissued": "Invoice amended: Credit note and new invoice generated."
   },
   "attention": {
     "title": "Needs attention",
