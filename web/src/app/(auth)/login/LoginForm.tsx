@@ -132,8 +132,15 @@ export function LoginForm() {
       className="space-y-4"
       onSubmit={codeForm.handleSubmit(async ({ code }) => {
         const s = await verify.mutateAsync({ msisdn, code });
-        // A brand-new user has no business yet: onboarding comes before anything else.
-        router.replace(hasNoOrg(s) ? "/onboarding" : next);
+        // If user is solely an accountant or their primary membership is accountant,
+        // take them directly to the Organizations portal (/clients).
+        if (hasNoOrg(s)) {
+          router.replace("/onboarding");
+        } else if (s.orgs?.some(m => m.role === "accountant") && !s.orgs.some(m => m.role === "owner" || m.role === "admin")) {
+          router.replace("/clients");
+        } else {
+          router.replace(next);
+        }
       })}
     >
       <div>

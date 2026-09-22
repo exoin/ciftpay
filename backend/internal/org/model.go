@@ -103,3 +103,32 @@ func toOrg(o gen.Org, pin, adapter string) Org {
 }
 
 func validLocale(l string) bool { return l == "" || l == "en" || l == "sw" }
+
+// Invite is the API view of an org_invites row.
+type Invite struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	Role      string    `json:"role"`
+	Phone     string    `json:"phone,omitempty"`
+	Email     string    `json:"email,omitempty"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// InviteInput is the body of POST /org/invites.
+type InviteInput struct {
+	Phone string `json:"phone"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
+// Member is the API view of a member in an organisation.
+type Member struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	Role        string    `json:"role"`
+	Name        string    `json:"name"`
+	PhoneMasked string    `json:"phone_masked"`
+	IsDefault   bool      `json:"is_default"`
+	CreatedAt   time.Time `json:"created_at"`
+}

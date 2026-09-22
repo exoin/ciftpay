@@ -57,31 +57,40 @@ type Handler struct {
 // Mount registers the routes.
 func (h *Handler) Mount(r chi.Router) {
 	r.Get("/shortcodes", h.listShortcodes)
-	r.Post("/shortcodes", h.createShortcode)
 	r.Get("/shortcodes/{id}", h.getShortcode)
-	r.Patch("/shortcodes/{id}", h.updateShortcode)
-	r.Post("/shortcodes/{id}/authorization", h.submitAuthorization)
-
 	r.Get("/payments", h.listPayments)
 	r.Get("/payments/{id}", h.getPayment)
-	r.Post("/payments/{id}/convert", h.convertPayment)
-
 	r.Get("/items", h.listItems)
-	r.Post("/items", h.createItem)
-	r.Patch("/items/{id}", h.updateItem)
-
 	r.Get("/sales", h.listSales)
-	r.Post("/sales", h.createSale)
 	r.Get("/sales/{id}", h.getSale)
-
 	r.Get("/invoices", h.listInvoices)
 	r.Get("/invoices/{id}", h.getInvoice)
-	r.Post("/invoices/{id}/retry", h.retryInvoice)
-	r.Post("/invoices/{id}/reissue", h.reissueInvoice)
-	r.Post("/invoices/{id}/resend", h.resendInvoice)
-	r.Post("/invoices/{id}/credit-note", h.createCreditNote)
-
 	r.Get("/attention", h.attention)
+
+	// Mutating actions: accountants have read-only access
+	r.Group(func(mr chi.Router) {
+		mr.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				p, ok := httpx.PrincipalFrom(r.Context())
+				if ok && p.Role == "accountant" {
+					httpx.Fail(w, http.StatusForbidden, "forbidden", "Accountants have read-only access")
+					return
+				}
+				next.ServeHTTP(w, r)
+			})
+		})
+		mr.Post("/shortcodes", h.createShortcode)
+		mr.Patch("/shortcodes/{id}", h.updateShortcode)
+		mr.Post("/shortcodes/{id}/authorization", h.submitAuthorization)
+		mr.Post("/payments/{id}/convert", h.convertPayment)
+		mr.Post("/items", h.createItem)
+		mr.Patch("/items/{id}", h.updateItem)
+		mr.Post("/sales", h.createSale)
+		mr.Post("/invoices/{id}/retry", h.retryInvoice)
+		mr.Post("/invoices/{id}/reissue", h.reissueInvoice)
+		mr.Post("/invoices/{id}/resend", h.resendInvoice)
+		mr.Post("/invoices/{id}/credit-note", h.createCreditNote)
+	})
 }
 
 // ------------------------------------------------------------ helpers

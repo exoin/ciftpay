@@ -168,6 +168,19 @@ type Org struct {
 	EtimsInitializedAt *time.Time
 }
 
+type OrgInvite struct {
+	ID        uuid.UUID
+	OrgID     uuid.UUID
+	InvitedBy uuid.UUID
+	Role      string
+	Phone     *string
+	PhoneHash []byte
+	Email     *string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type OtpCode struct {
 	ID         uuid.UUID
 	MsisdnHash []byte

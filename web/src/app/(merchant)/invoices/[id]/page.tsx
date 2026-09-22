@@ -20,6 +20,7 @@ import {
 import { ApiRequestError } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { invoiceChip, receiptState } from "@/lib/status";
+import { useActiveMembership } from "@/lib/auth";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -34,6 +35,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const reissue = useReissueInvoice();
   const createCreditNote = useCreateCreditNote();
   const router = useRouter();
+  const membership = useActiveMembership();
+  const isAccountant = membership?.role === "accountant";
 
   const [showAmend, setShowAmend] = useState(false);
   const [amendPin, setAmendPin] = useState("");
@@ -117,7 +120,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const canCancel = inv.kind === "INVOICE" && !inv.superseded_by_id;
+  const canCancel = !isAccountant && inv.kind === "INVOICE" && !inv.superseded_by_id;
 
   return (
     <>

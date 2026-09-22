@@ -40,6 +40,11 @@ func (h *Handler) MountPrivate(r chi.Router) {
 	r.With(RequireOrg).Get("/orgs/current", h.currentOrg)
 	r.With(RequireOrg).Get("/org/etims", h.getEtims)
 	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Post("/org/etims", h.configureEtims)
+	r.With(RequireOrg).Get("/org/members", h.listMembers)
+	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Post("/org/invites", h.createInvite)
+	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Get("/org/invites", h.listInvites)
+	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Delete("/org/invites/{id}", h.revokeInvite)
+	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Delete("/org/members/{userId}", h.removeMember)
 }
 
 // Authenticate resolves the session cookie into an httpx.Principal on the
@@ -257,4 +262,75 @@ func (h *Handler) configureEtims(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.JSON(w, http.StatusOK, out)
 	}
+}
+
+func (h *Handler) listMembers(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	members, err := h.S.ListMembers(r.Context(), p.OrgID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not load organisation members")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"data": members})
+}
+
+func (h *Handler) createInvite(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	var in InviteInput
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Invalid invite body")
+		return
+	}
+	inv, err := h.S.InviteMember(r.Context(), p.OrgID, p.UserID, in)
+	if err != nil {
+		if errors.Is(err, ErrBadMSISDN) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Invalid Kenyan phone number")
+			return
+		}
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusCreated, inv)
+}
+
+func (h *Handler) listInvites(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	invites, err := h.S.ListInvites(r.Context(), p.OrgID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not load invites")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"data": invites})
+}
+
+func (h *Handler) revokeInvite(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "Invalid invite id")
+		return
+	}
+	if err := h.S.RevokeInvite(r.Context(), p.OrgID, id); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not revoke invite")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	targetUserID, err := uuid.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "Invalid user id")
+		return
+	}
+	if targetUserID == p.UserID {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "You cannot remove yourself from the business")
+		return
+	}
+	if err := h.S.RemoveMember(r.Context(), p.OrgID, targetUserID); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not remove member")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

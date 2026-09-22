@@ -122,7 +122,7 @@ func run() error {
 		S: ledgerSvc, Keys: d.Keys, STK: stkAdapter{daraja}, Retrier: submitter, Files: files,
 		PublicBaseURL: cfg.PublicBaseURL,
 	}
-	reportsH := &reports.Handler{S: reports.New(d.DB)}
+	reportsH := &reports.Handler{S: reports.New(d.DB, d.Keys)}
 	adminH := &admin.Handler{S: admin.New(d.DB), Shortcodes: &admin.Shortcodes{
 		DB: d.DB, Keys: d.Keys, Files: files, Daraja: daraja, WebhookBaseURL: cfg.WebhookBaseURL, Log: log,
 	}}

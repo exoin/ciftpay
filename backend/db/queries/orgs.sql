@@ -89,3 +89,30 @@ UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1;
 
 -- name: ConsumeOTP :exec
 UPDATE otp_codes SET consumed_at = now() WHERE id = $1;
+
+-- name: CreateInvite :one
+INSERT INTO org_invites (org_id, invited_by, role, phone, phone_hash, email, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING *;
+
+-- name: ListInvitesForOrg :many
+SELECT * FROM org_invites
+WHERE org_id = $1 AND status = 'pending'
+ORDER BY created_at DESC;
+
+-- name: RevokeInvite :exec
+UPDATE org_invites
+SET status = 'revoked', updated_at = now()
+WHERE id = $1 AND org_id = $2;
+
+-- name: ListMembersForOrg :many
+SELECT m.id, m.org_id, m.user_id, m.role, m.is_default, m.created_at,
+       u.name AS user_name, u.msisdn_enc, u.msisdn_hash
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.org_id = $1
+ORDER BY m.created_at ASC;
+
+-- name: DeleteMembership :exec
+DELETE FROM memberships
+WHERE org_id = $1 AND user_id = $2;

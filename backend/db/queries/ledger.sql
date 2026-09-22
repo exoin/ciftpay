@@ -104,3 +104,10 @@ SELECT status, count(*) AS n FROM payments WHERE org_id = $1 GROUP BY status;
 
 -- name: FindCustomerByID :one
 SELECT * FROM customers WHERE id = $1;
+
+-- name: AnalyticsPayments :many
+SELECT id, amount_cents, paid_at, status
+FROM payments
+WHERE org_id = $1
+  AND status <> 'reversed'
+  AND paid_at >= $2 AND paid_at < $3;

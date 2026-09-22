@@ -12,6 +12,52 @@ import (
 	"github.com/google/uuid"
 )
 
+const analyticsPayments = `-- name: AnalyticsPayments :many
+SELECT id, amount_cents, paid_at, status
+FROM payments
+WHERE org_id = $1
+  AND status <> 'reversed'
+  AND paid_at >= $2 AND paid_at < $3
+`
+
+type AnalyticsPaymentsParams struct {
+	OrgID    uuid.UUID
+	PaidAt   time.Time
+	PaidAt_2 time.Time
+}
+
+type AnalyticsPaymentsRow struct {
+	ID          uuid.UUID
+	AmountCents int64
+	PaidAt      time.Time
+	Status      string
+}
+
+func (q *Queries) AnalyticsPayments(ctx context.Context, arg AnalyticsPaymentsParams) ([]AnalyticsPaymentsRow, error) {
+	rows, err := q.db.Query(ctx, analyticsPayments, arg.OrgID, arg.PaidAt, arg.PaidAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnalyticsPaymentsRow{}
+	for rows.Next() {
+		var i AnalyticsPaymentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AmountCents,
+			&i.PaidAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const attachPaymentToSale = `-- name: AttachPaymentToSale :exec
 UPDATE payments SET sale_id = $2, status = $3, match_rule = $4 WHERE id = $1
 `

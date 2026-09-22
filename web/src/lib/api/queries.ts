@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, postForm, rawGet, rawPost, unwrap, type Schemas } from "./client";
+import { api, apiBaseUrl, getActiveOrgId, postForm, rawGet, rawPost, unwrap, type Schemas } from "./client";
 
 /** Query keys, one namespace per resource so invalidation stays coarse and safe. */
 export const qk = {
@@ -294,6 +294,93 @@ export function useSubmitShortcodeAuthorization() {
       void qc.invalidateQueries({ queryKey: qk.shortcodes });
       void qc.invalidateQueries({ queryKey: qk.shortcode(id) });
       void qc.invalidateQueries({ queryKey: qk.attention });
+    },
+  });
+}
+
+export function useAnalyticsSummary(period: "today" | "month" = "today") {
+  return useQuery({
+    queryKey: ["analytics", "summary", period] as const,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/analytics/summary", {
+          params: { query: { period } },
+        }),
+      ),
+    refetchInterval: 30_000,
+  });
+}
+
+export async function downloadItaxReport(month: string): Promise<void> {
+  const base = apiBaseUrl();
+  const url = `${base}/reports/itax/export?month=${encodeURIComponent(month)}`;
+  const headers: HeadersInit = {};
+  const orgId = getActiveOrgId();
+  if (orgId) headers["X-Org-Id"] = orgId;
+
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to download report: ${res.statusText}`);
+  }
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = `ciftpay-itax-${month}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(downloadUrl);
+  a.remove();
+}
+
+export function useOrgMembers() {
+  return useQuery({
+    queryKey: ["org", "members"] as const,
+    queryFn: async () => unwrap(await api.GET("/org/members")),
+  });
+}
+
+export function useOrgInvites() {
+  return useQuery({
+    queryKey: ["org", "invites"] as const,
+    queryFn: async () => unwrap(await api.GET("/org/invites")),
+  });
+}
+
+export function useCreateInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Schemas["OrgInviteInput"]) =>
+      unwrap(await api.POST("/org/invites", { body })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["org", "invites"] });
+      void qc.invalidateQueries({ queryKey: ["org", "members"] });
+    },
+  });
+}
+
+export function useRevokeInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.DELETE("/org/invites/{id}", { params: { path: { id } } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["org", "invites"] });
+    },
+  });
+}
+
+export function useRemoveMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) =>
+      unwrap(await api.DELETE("/org/members/{userId}", { params: { path: { userId } } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["org", "members"] });
     },
   });
 }

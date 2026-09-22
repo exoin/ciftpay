@@ -42,6 +42,48 @@ func (q *Queries) CountRecentOTPs(ctx context.Context, msisdnHash []byte) (int64
 	return count, err
 }
 
+const createInvite = `-- name: CreateInvite :one
+INSERT INTO org_invites (org_id, invited_by, role, phone, phone_hash, email, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, org_id, invited_by, role, phone, phone_hash, email, status, created_at, updated_at
+`
+
+type CreateInviteParams struct {
+	OrgID     uuid.UUID
+	InvitedBy uuid.UUID
+	Role      string
+	Phone     *string
+	PhoneHash []byte
+	Email     *string
+	Status    string
+}
+
+func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (OrgInvite, error) {
+	row := q.db.QueryRow(ctx, createInvite,
+		arg.OrgID,
+		arg.InvitedBy,
+		arg.Role,
+		arg.Phone,
+		arg.PhoneHash,
+		arg.Email,
+		arg.Status,
+	)
+	var i OrgInvite
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.InvitedBy,
+		&i.Role,
+		&i.Phone,
+		&i.PhoneHash,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createMembership = `-- name: CreateMembership :one
 INSERT INTO memberships (org_id, user_id, role, is_default)
 VALUES ($1, $2, $3, $4)
@@ -221,6 +263,21 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteMembership = `-- name: DeleteMembership :exec
+DELETE FROM memberships
+WHERE org_id = $1 AND user_id = $2
+`
+
+type DeleteMembershipParams struct {
+	OrgID  uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteMembership(ctx context.Context, arg DeleteMembershipParams) error {
+	_, err := q.db.Exec(ctx, deleteMembership, arg.OrgID, arg.UserID)
+	return err
+}
+
 const getOrg = `-- name: GetOrg :one
 SELECT id, name, kra_pin_enc, kra_pin_hash, kra_pin_verified_at, vat_registered, fiscal_profile, locale, status, created_at, updated_at, etims_status, kra_bhf_id, kra_device_serial, kra_cmc_key_enc, etims_failed_reason, etims_initialized_at FROM orgs WHERE id = $1
 `
@@ -379,6 +436,94 @@ func (q *Queries) LatestOTP(ctx context.Context, msisdnHash []byte) (OtpCode, er
 	return i, err
 }
 
+const listInvitesForOrg = `-- name: ListInvitesForOrg :many
+SELECT id, org_id, invited_by, role, phone, phone_hash, email, status, created_at, updated_at FROM org_invites
+WHERE org_id = $1 AND status = 'pending'
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListInvitesForOrg(ctx context.Context, orgID uuid.UUID) ([]OrgInvite, error) {
+	rows, err := q.db.Query(ctx, listInvitesForOrg, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrgInvite{}
+	for rows.Next() {
+		var i OrgInvite
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.InvitedBy,
+			&i.Role,
+			&i.Phone,
+			&i.PhoneHash,
+			&i.Email,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembersForOrg = `-- name: ListMembersForOrg :many
+SELECT m.id, m.org_id, m.user_id, m.role, m.is_default, m.created_at,
+       u.name AS user_name, u.msisdn_enc, u.msisdn_hash
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.org_id = $1
+ORDER BY m.created_at ASC
+`
+
+type ListMembersForOrgRow struct {
+	ID         uuid.UUID
+	OrgID      uuid.UUID
+	UserID     uuid.UUID
+	Role       string
+	IsDefault  bool
+	CreatedAt  time.Time
+	UserName   string
+	MsisdnEnc  []byte
+	MsisdnHash []byte
+}
+
+func (q *Queries) ListMembersForOrg(ctx context.Context, orgID uuid.UUID) ([]ListMembersForOrgRow, error) {
+	rows, err := q.db.Query(ctx, listMembersForOrg, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMembersForOrgRow{}
+	for rows.Next() {
+		var i ListMembersForOrgRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.UserID,
+			&i.Role,
+			&i.IsDefault,
+			&i.CreatedAt,
+			&i.UserName,
+			&i.MsisdnEnc,
+			&i.MsisdnHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMembershipsForUser = `-- name: ListMembershipsForUser :many
 SELECT m.id, m.org_id, m.user_id, m.role, m.is_default, m.created_at, o.name AS org_name
 FROM memberships m JOIN orgs o ON o.id = m.org_id
@@ -464,6 +609,22 @@ func (q *Queries) ListOrgs(ctx context.Context, limit int32) ([]Org, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const revokeInvite = `-- name: RevokeInvite :exec
+UPDATE org_invites
+SET status = 'revoked', updated_at = now()
+WHERE id = $1 AND org_id = $2
+`
+
+type RevokeInviteParams struct {
+	ID    uuid.UUID
+	OrgID uuid.UUID
+}
+
+func (q *Queries) RevokeInvite(ctx context.Context, arg RevokeInviteParams) error {
+	_, err := q.db.Exec(ctx, revokeInvite, arg.ID, arg.OrgID)
+	return err
 }
 
 const revokeSession = `-- name: RevokeSession :exec

@@ -99,6 +99,38 @@ func (q *Queries) ActivateTaxPendingInvoices(ctx context.Context, orgID uuid.UUI
 	return items, nil
 }
 
+const analyticsVATLiability = `-- name: AnalyticsVATLiability :one
+SELECT
+  COALESCE(sum(CASE WHEN kind = 'INVOICE' THEN tax_cents ELSE -tax_cents END), 0)::bigint AS vat_liability_cents,
+  count(*) FILTER (WHERE kind = 'INVOICE') AS invoices_count,
+  count(*) FILTER (WHERE kind = 'CREDIT_NOTE') AS credit_notes_count
+FROM invoices
+WHERE org_id = $1
+  AND state IN ('ACKED', 'SUBMITTED', 'QUEUED')
+  AND superseded_by_id IS NULL
+  AND COALESCE(acked_at, created_at) >= $2
+  AND COALESCE(acked_at, created_at) < $3
+`
+
+type AnalyticsVATLiabilityParams struct {
+	OrgID     uuid.UUID
+	AckedAt   *time.Time
+	AckedAt_2 *time.Time
+}
+
+type AnalyticsVATLiabilityRow struct {
+	VatLiabilityCents int64
+	InvoicesCount     int64
+	CreditNotesCount  int64
+}
+
+func (q *Queries) AnalyticsVATLiability(ctx context.Context, arg AnalyticsVATLiabilityParams) (AnalyticsVATLiabilityRow, error) {
+	row := q.db.QueryRow(ctx, analyticsVATLiability, arg.OrgID, arg.AckedAt, arg.AckedAt_2)
+	var i AnalyticsVATLiabilityRow
+	err := row.Scan(&i.VatLiabilityCents, &i.InvoicesCount, &i.CreditNotesCount)
+	return i, err
+}
+
 const appendAudit = `-- name: AppendAudit :exec
 INSERT INTO audit_log (org_id, actor_type, actor_id, action, entity, entity_id, before, after)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -898,6 +930,88 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]I
 			&i.UpdatedAt,
 			&i.SupersededByID,
 			&i.SupersededAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItaxReportRows = `-- name: ListItaxReportRows :many
+SELECT
+  i.id AS invoice_id,
+  i.kind,
+  COALESCE(i.kra_invoice_no, i.receipt_code) AS invoice_no,
+  COALESCE(i.acked_at, i.created_at) AS transaction_date,
+  i.buyer_pin_enc,
+  i.buyer_name,
+  si.description,
+  si.etims_class_code,
+  si.tax_category,
+  si.tax_rate_bp,
+  si.line_total_cents,
+  si.line_tax_cents,
+  (si.line_total_cents - si.line_tax_cents)::bigint AS taxable_cents
+FROM invoices i
+JOIN sales s ON s.id = i.sale_id
+JOIN sale_items si ON si.sale_id = s.id
+WHERE i.org_id = $1
+  AND i.state IN ('ACKED', 'SUBMITTED')
+  AND i.superseded_by_id IS NULL
+  AND COALESCE(i.acked_at, i.created_at) >= $2
+  AND COALESCE(i.acked_at, i.created_at) < $3
+ORDER BY COALESCE(i.acked_at, i.created_at) ASC, i.id, si.position
+`
+
+type ListItaxReportRowsParams struct {
+	OrgID     uuid.UUID
+	AckedAt   *time.Time
+	AckedAt_2 *time.Time
+}
+
+type ListItaxReportRowsRow struct {
+	InvoiceID       uuid.UUID
+	Kind            string
+	InvoiceNo       string
+	TransactionDate time.Time
+	BuyerPinEnc     []byte
+	BuyerName       string
+	Description     string
+	EtimsClassCode  string
+	TaxCategory     string
+	TaxRateBp       int32
+	LineTotalCents  int64
+	LineTaxCents    int64
+	TaxableCents    int64
+}
+
+func (q *Queries) ListItaxReportRows(ctx context.Context, arg ListItaxReportRowsParams) ([]ListItaxReportRowsRow, error) {
+	rows, err := q.db.Query(ctx, listItaxReportRows, arg.OrgID, arg.AckedAt, arg.AckedAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListItaxReportRowsRow{}
+	for rows.Next() {
+		var i ListItaxReportRowsRow
+		if err := rows.Scan(
+			&i.InvoiceID,
+			&i.Kind,
+			&i.InvoiceNo,
+			&i.TransactionDate,
+			&i.BuyerPinEnc,
+			&i.BuyerName,
+			&i.Description,
+			&i.EtimsClassCode,
+			&i.TaxCategory,
+			&i.TaxRateBp,
+			&i.LineTotalCents,
+			&i.LineTaxCents,
+			&i.TaxableCents,
 		); err != nil {
 			return nil, err
 		}

@@ -17,6 +17,8 @@ type Querier interface {
 	// for submission in one batch. Returns the ids so the caller can enqueue one
 	// SubmitInvoice job per invoice in the same transaction.
 	ActivateTaxPendingInvoices(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error)
+	AnalyticsPayments(ctx context.Context, arg AnalyticsPaymentsParams) ([]AnalyticsPaymentsRow, error)
+	AnalyticsVATLiability(ctx context.Context, arg AnalyticsVATLiabilityParams) (AnalyticsVATLiabilityRow, error)
 	AppendAudit(ctx context.Context, arg AppendAuditParams) error
 	AttachPaymentToSale(ctx context.Context, arg AttachPaymentToSaleParams) error
 	BumpOTPAttempts(ctx context.Context, id uuid.UUID) error
@@ -30,6 +32,7 @@ type Querier interface {
 	// arbiter, this is only the friendly pre-check behind shortcode_claimed.
 	CountVerifiedShortcodeElsewhere(ctx context.Context, arg CountVerifiedShortcodeElsewhereParams) (int64, error)
 	CreateFiscalSubmission(ctx context.Context, arg CreateFiscalSubmissionParams) (FiscalSubmission, error)
+	CreateInvite(ctx context.Context, arg CreateInviteParams) (OrgInvite, error)
 	CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error)
 	CreateItem(ctx context.Context, arg CreateItemParams) (Item, error)
 	CreateMembership(ctx context.Context, arg CreateMembershipParams) (Membership, error)
@@ -43,6 +46,7 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateShortcode(ctx context.Context, arg CreateShortcodeParams) (MpesaShortcode, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteMembership(ctx context.Context, arg DeleteMembershipParams) error
 	FindCreditNoteForParent(ctx context.Context, parentInvoiceID *uuid.UUID) (Invoice, error)
 	FindCustomerByID(ctx context.Context, id uuid.UUID) (Customer, error)
 	FindCustomerByMSISDNHash(ctx context.Context, arg FindCustomerByMSISDNHashParams) (Customer, error)
@@ -78,8 +82,11 @@ type Querier interface {
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (uuid.UUID, error)
 	LatestOTP(ctx context.Context, msisdnHash []byte) (OtpCode, error)
 	ListFiscalSubmissions(ctx context.Context, invoiceID uuid.UUID) ([]FiscalSubmission, error)
+	ListInvitesForOrg(ctx context.Context, orgID uuid.UUID) ([]OrgInvite, error)
 	ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error)
+	ListItaxReportRows(ctx context.Context, arg ListItaxReportRowsParams) ([]ListItaxReportRowsRow, error)
 	ListItems(ctx context.Context, orgID uuid.UUID) ([]Item, error)
+	ListMembersForOrg(ctx context.Context, orgID uuid.UUID) ([]ListMembersForOrgRow, error)
 	ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsForUserRow, error)
 	ListNotificationsForInvoice(ctx context.Context, invoiceID *uuid.UUID) ([]Notification, error)
 	ListOrgs(ctx context.Context, limit int32) ([]Org, error)
@@ -106,6 +113,7 @@ type Querier interface {
 	// operator marked verified resolves, so money never reaches a ledger Safaricom
 	// has not confirmed. The partial unique index guarantees at most one row.
 	ResolveShortcode(ctx context.Context, shortcode string) (ResolveShortcodeRow, error)
+	RevokeInvite(ctx context.Context, arg RevokeInviteParams) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
 	// The merchant's direct-OSCU device initialisation succeeded (ADR-0009):
 	// persist what RegisterDevice returned and flip the progressive-onboarding

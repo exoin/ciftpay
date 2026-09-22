@@ -392,3 +392,176 @@ func truncate(s string, n int) string {
 	}
 	return s[:n]
 }
+
+// InviteMember invites an accountant or team member by phone or email.
+func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, in InviteInput) (Invite, error) {
+	role := in.Role
+	if role == "" {
+		role = RoleAccountant
+	}
+	if role != RoleAccountant && role != RoleStaff && role != RoleAdmin {
+		return Invite{}, errors.New("org: invalid role")
+	}
+	if in.Phone == "" && in.Email == "" {
+		return Invite{}, errors.New("org: phone or email required")
+	}
+
+	var out Invite
+	var phoneNorm string
+	var phoneHash []byte
+	var phoneEnc []byte
+
+	if in.Phone != "" {
+		p, err := crypto.NormaliseMSISDN(in.Phone)
+		if err != nil {
+			return Invite{}, ErrBadMSISDN
+		}
+		phoneNorm = p
+		phoneHash = s.Keys.Hash(phoneNorm)
+		enc, err := s.Keys.EncryptString(phoneNorm)
+		if err != nil {
+			return Invite{}, err
+		}
+		phoneEnc = enc
+	}
+
+	var emailPtr *string
+	if in.Email != "" {
+		emailPtr = &in.Email
+	}
+
+	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+		var phonePtr *string
+		status := "pending"
+
+		if phoneNorm != "" {
+			phonePtr = &phoneNorm
+			status = "accepted"
+
+			u, err := tx.GetUserByMSISDNHash(ctx, phoneHash)
+			if err != nil {
+				u, err = tx.CreateUser(ctx, gen.CreateUserParams{
+					MsisdnEnc:  phoneEnc,
+					MsisdnHash: phoneHash,
+					Name:       "",
+					Locale:     "en",
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			if _, err := tx.CreateMembership(ctx, gen.CreateMembershipParams{
+				OrgID:     orgID,
+				UserID:    u.ID,
+				Role:      role,
+				IsDefault: false,
+			}); err != nil {
+				return err
+			}
+		}
+
+		inv, err := tx.CreateInvite(ctx, gen.CreateInviteParams{
+			OrgID:     orgID,
+			InvitedBy: inviterID,
+			Role:      role,
+			Phone:     phonePtr,
+			PhoneHash: phoneHash,
+			Email:     emailPtr,
+			Status:    status,
+		})
+		if err != nil {
+			return err
+		}
+
+		out = Invite{
+			ID:        inv.ID,
+			OrgID:     inv.OrgID,
+			Role:      inv.Role,
+			Status:    inv.Status,
+			CreatedAt: inv.CreatedAt,
+		}
+		if inv.Phone != nil {
+			out.Phone = *inv.Phone
+		}
+		if inv.Email != nil {
+			out.Email = *inv.Email
+		}
+		return nil
+	})
+
+	return out, err
+}
+
+// ListInvites returns pending invites for an organisation.
+func (s *Service) ListInvites(ctx context.Context, orgID uuid.UUID) ([]Invite, error) {
+	out := []Invite{}
+	err := s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
+		rows, err := tx.ListInvitesForOrg(ctx, orgID)
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			inv := Invite{
+				ID:        r.ID,
+				OrgID:     r.OrgID,
+				Role:      r.Role,
+				Status:    r.Status,
+				CreatedAt: r.CreatedAt,
+			}
+			if r.Phone != nil {
+				inv.Phone = *r.Phone
+			}
+			if r.Email != nil {
+				inv.Email = *r.Email
+			}
+			out = append(out, inv)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// RevokeInvite cancels a pending invite.
+func (s *Service) RevokeInvite(ctx context.Context, orgID, inviteID uuid.UUID) error {
+	return s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
+		return tx.RevokeInvite(ctx, gen.RevokeInviteParams{ID: inviteID, OrgID: orgID})
+	})
+}
+
+// ListMembers returns all members of an organisation with masked contact info.
+func (s *Service) ListMembers(ctx context.Context, orgID uuid.UUID) ([]Member, error) {
+	out := []Member{}
+	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+		rows, err := tx.ListMembersForOrg(ctx, orgID)
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			phoneMasked := ""
+			if len(r.MsisdnEnc) > 0 {
+				if clear, err := s.Keys.DecryptString(r.MsisdnEnc); err == nil {
+					phoneMasked = plog.MaskMSISDN(clear)
+				}
+			}
+			out = append(out, Member{
+				ID:          r.ID,
+				UserID:      r.UserID,
+				Role:        r.Role,
+				Name:        r.UserName,
+				PhoneMasked: phoneMasked,
+				IsDefault:   r.IsDefault,
+				CreatedAt:   r.CreatedAt,
+			})
+		}
+		return nil
+	})
+	return out, err
+}
+
+// RemoveMember deletes a user membership in an organisation.
+func (s *Service) RemoveMember(ctx context.Context, orgID, targetUserID uuid.UUID) error {
+	return s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+		return tx.DeleteMembership(ctx, gen.DeleteMembershipParams{OrgID: orgID, UserID: targetUserID})
+	})
+}

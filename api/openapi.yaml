@@ -200,6 +200,109 @@ paths:
               schema:
                 $ref: "#/components/schemas/Org"
 
+  /org/members:
+    get:
+      tags: [org]
+      operationId: listOrgMembers
+      summary: List members in the active organization
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrgMember"
+
+  /org/members/{userId}:
+    delete:
+      tags: [org]
+      operationId: removeOrgMember
+      summary: Remove a member from the organization
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
+  /org/invites:
+    get:
+      tags: [org]
+      operationId: listOrgInvites
+      summary: List pending invites for the organization
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrgInvite"
+    post:
+      tags: [org]
+      operationId: createOrgInvite
+      summary: Invite an accountant or team member via phone or email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgInviteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgInvite"
+
+  /org/invites/{id}:
+    delete:
+      tags: [org]
+      operationId: revokeOrgInvite
+      summary: Revoke a pending invite
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
   /shortcodes:
     get:
       tags: [shortcodes]
@@ -723,6 +826,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Attention"
+
+  /analytics/summary:
+    get:
+      tags: [reports]
+      operationId: getAnalyticsSummary
+      summary: Real-time aggregated analytics metrics
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [today, month]
+            default: today
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+
+  /reports/itax/export:
+    get:
+      tags: [reports]
+      operationId: exportItaxReport
+      summary: Stream CSV formatted for KRA iTax VAT returns
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+      responses:
+        "200":
+          description: OK (CSV download)
+          content:
+            text/csv:
+              schema:
+                type: string
 
   /reports/today:
     get:
@@ -1910,3 +2054,88 @@ components:
         ResultDesc:
           type: string
           example: "Accepted"
+
+    AnalyticsSummary:
+      type: object
+      required: [period, gross_sales_cents, net_sales_cents, daraja_fees_cents, vat_liability_cents, payments_count, invoices_acked_count, invoices_pending_count, attention_count]
+      properties:
+        period:
+          type: string
+          enum: [today, month]
+        gross_sales_cents:
+          type: integer
+          format: int64
+        net_sales_cents:
+          type: integer
+          format: int64
+        daraja_fees_cents:
+          type: integer
+          format: int64
+        vat_liability_cents:
+          type: integer
+          format: int64
+        payments_count:
+          type: integer
+        invoices_acked_count:
+          type: integer
+        invoices_pending_count:
+          type: integer
+        attention_count:
+          type: integer
+
+    OrgMember:
+      type: object
+      required: [id, user_id, role, name, phone_masked, is_default, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+        name:
+          type: string
+        phone_masked:
+          type: string
+        is_default:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    OrgInvite:
+      type: object
+      required: [id, org_id, role, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        org_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    OrgInviteInput:
+      type: object
+      required: []
+      properties:
+        phone:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [accountant, staff, admin]
+          default: accountant

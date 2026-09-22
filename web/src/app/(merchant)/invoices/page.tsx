@@ -3,15 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Search, X } from "lucide-react";
+import { Download, Search, X } from "lucide-react";
 import { TopBar } from "@/components/shell/TopBar";
+import { Button } from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingRows } from "@/components/ui/LoadingRows";
 import { Money } from "@/components/ui/Money";
+import { Sheet } from "@/components/ui/Sheet";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { Tabs } from "@/components/ui/Tabs";
-import { useInvoices } from "@/lib/api/queries";
+import { useToast } from "@/components/ui/Toast";
+import { downloadItaxReport, useInvoices } from "@/lib/api/queries";
 import type { Schemas } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { invoiceChip } from "@/lib/status";
@@ -23,12 +26,23 @@ export default function InvoicesPage() {
   const t = useTranslations("invoices");
   const ts = useTranslations("status");
   const tc = useTranslations("common");
+  const toast = useToast();
   const router = useRouter();
 
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const [kindFilter, setKindFilter] = useState<KindFilter>("ALL");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Export iTax CSV state
+  const [exportOpen, setExportOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  });
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -45,9 +59,34 @@ export default function InvoicesPage() {
 
   const rows = data?.data ?? [];
 
+  async function handleExport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedMonth) return;
+    try {
+      setIsExporting(true);
+      await downloadItaxReport(selectedMonth);
+      toast.push("iTax CSV export downloaded successfully.");
+      setExportOpen(false);
+    } catch (err: unknown) {
+      toast.push(err instanceof Error ? err.message : "Failed to download iTax export", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <>
-      <TopBar title={t("title")} />
+      <TopBar
+        title={t("title")}
+        action={
+          <Button size="sm" variant="secondary" onClick={() => setExportOpen(true)}>
+            <span className="flex items-center gap-1.5">
+              <Download className="size-4" />
+              {t("exportItax")}
+            </span>
+          </Button>
+        }
+      />
 
       {/* Universal Search Bar */}
       <div className="relative mb-4">
@@ -211,6 +250,57 @@ export default function InvoicesPage() {
           />
         )}
       </div>
+
+      {/* Export iTax CSV Modal Sheet */}
+      <Sheet
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title={t("exportDialogTitle")}
+        closeLabel={tc("close")}
+      >
+        <form onSubmit={handleExport} className="space-y-4">
+          <p className="text-sm text-ink-2 leading-relaxed">
+            {t("exportDialogLead")}
+          </p>
+          <div>
+            <label htmlFor="itax-month-select" className="block text-xs font-semibold uppercase text-muted mb-1.5">
+              {t("selectMonth")}
+            </label>
+            <input
+              id="itax-month-select"
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              required
+              className="w-full rounded-r2 border border-hairline bg-paper px-3 py-2 font-mono text-sm text-ink focus:border-ochre focus:outline-none"
+            />
+          </div>
+
+          <div className="rounded-r2 border border-hairline bg-paper-2 p-3 text-xs text-muted space-y-1">
+            <p className="font-semibold text-ink">Included Columns:</p>
+            <p className="font-mono">Date, Invoice/Receipt No, PIN of Purchaser, Total Amount, Taxable Amount, VAT Amount, eTIMS Class Code, Tax Category</p>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setExportOpen(false)}
+            >
+              {tc("cancel")}
+            </Button>
+            <Button
+              type="submit"
+              loading={isExporting}
+            >
+              <span className="flex items-center gap-1.5">
+                <Download className="size-4" />
+                {isExporting ? t("downloading") : t("downloadCsv")}
+              </span>
+            </Button>
+          </div>
+        </form>
+      </Sheet>
     </>
   );
 }
