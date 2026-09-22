@@ -55,7 +55,22 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 		if c, err := r.Cookie(SessionCookie); err == nil {
 			token = c.Value
 		}
-		p, err := h.S.Principal(r.Context(), token, r.Header.Get(HeaderOrgID))
+		orgReq := r.Header.Get(HeaderOrgID)
+		if qOrg := r.URL.Query().Get("org_id"); qOrg != "" {
+			if orgReq != "" && orgReq != qOrg {
+				httpx.Fail(w, http.StatusForbidden, "forbidden", "You are not a member of that organisation")
+				return
+			}
+			orgReq = qOrg
+		}
+		if qOrg := r.URL.Query().Get("orgId"); qOrg != "" {
+			if orgReq != "" && orgReq != qOrg {
+				httpx.Fail(w, http.StatusForbidden, "forbidden", "You are not a member of that organisation")
+				return
+			}
+			orgReq = qOrg
+		}
+		p, err := h.S.Principal(r.Context(), token, orgReq)
 		switch {
 		case errors.Is(err, ErrUnauthorised):
 			httpx.Fail(w, http.StatusUnauthorized, "unauthenticated", "Sign in to continue")

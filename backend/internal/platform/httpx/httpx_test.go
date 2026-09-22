@@ -54,3 +54,44 @@ func TestCORS_UnknownOriginGetsNoHeaders(t *testing.T) {
 		t.Fatalf("request should still reach the handler, got %d", rec.Code)
 	}
 }
+
+func TestCORS_LocalNetworkIPAllowed(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := CORS([]string{"http://localhost:3000"})(next)
+
+	for _, origin := range []string{
+		"http://192.168.89.243:3000",
+		"http://10.0.0.5:3000",
+		"http://172.20.10.4:3000",
+		"http://127.0.0.1:3000",
+	} {
+		req := httptest.NewRequest(http.MethodOptions, "/payments", nil)
+		req.Header.Set("Origin", origin)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("origin %s preflight status = %d, want 204", origin, rec.Code)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != origin {
+			t.Fatalf("origin %s got Allow-Origin = %q", origin, got)
+		}
+		if rec.Header().Get("Access-Control-Allow-Credentials") != "true" {
+			t.Fatalf("origin %s credentials not allowed", origin)
+		}
+	}
+}
+
+func TestCORS_WildcardConfig(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := CORS([]string{"*"})(next)
+
+	req := httptest.NewRequest(http.MethodOptions, "/payments", nil)
+	req.Header.Set("Origin", "https://anything.local:8080")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://anything.local:8080" {
+		t.Fatalf("wildcard got Allow-Origin = %q", got)
+	}
+}

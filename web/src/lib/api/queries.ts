@@ -156,8 +156,9 @@ export function useAttention() {
 }
 
 export function useCurrentOrg() {
+  const orgId = getActiveOrgId();
   return useQuery({
-    queryKey: qk.org,
+    queryKey: [...qk.org, orgId ?? "default"],
     queryFn: async () => unwrap(await api.GET("/orgs/current")),
   });
 }

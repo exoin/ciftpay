@@ -10,10 +10,29 @@ export type ApiError = Schemas["Error"]["error"];
  * service name.
  */
 export function apiBaseUrl(): string {
+  // Respect NEXT_PUBLIC_API_URL first, then fallback to NEXT_PUBLIC_API_BASE_URL
+  const configured =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL;
+
   if (typeof window === "undefined") {
-    return process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+    return process.env.API_BASE_URL || configured || "http://localhost:8080";
   }
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+
+  // If NEXT_PUBLIC_API_URL is explicitly set to a remote/specified host, use it directly
+  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
+    return configured;
+  }
+
+  // If accessed directly on localhost, use configured or localhost:8080
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return configured || "http://localhost:8080";
+  }
+
+  // When accessing via a mobile device or local network IP (e.g. http://192.168.x.x:3000),
+  // dynamically talk to the same host on port 8080 so the phone does not query its own loopback
+  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  return `${protocol}//${window.location.hostname}:8080`;
 }
 
 const CSRF_STORAGE_KEY = "ciftpay.csrf";

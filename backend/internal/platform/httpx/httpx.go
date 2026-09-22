@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
+	"net/url"
 	"net/http"
 	"strings"
 	"sync"
@@ -102,6 +103,7 @@ func Recover(log *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // CORS allows the PWA origin(s) with credentials.
+// Supports configured origins, wildcard "*", and local/private network origins (ADR-0001, mobile LAN testing).
 func CORS(origins []string) func(http.Handler) http.Handler {
 	allowed := map[string]bool{}
 	for _, o := range origins {
@@ -110,15 +112,15 @@ func CORS(origins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			if origin != "" && allowed[origin] {
+			if origin != "" && isOriginAllowed(origin, allowed) {
 				h := w.Header()
 				h.Set("Access-Control-Allow-Origin", origin)
 				h.Set("Access-Control-Allow-Credentials", "true")
 				// X-Org-Id selects the tenant on every authenticated call from the PWA.
-				h.Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID, X-Org-Id")
+				h.Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID, X-Org-Id, Authorization")
 				h.Set("Access-Control-Expose-Headers", "X-Request-ID")
 				h.Set("Access-Control-Max-Age", "600")
-				h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+				h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS, PUT")
 				h.Set("Vary", "Origin")
 				if r.Method == http.MethodOptions {
 					w.WriteHeader(http.StatusNoContent)
@@ -128,6 +130,25 @@ func CORS(origins []string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func isOriginAllowed(origin string, allowed map[string]bool) bool {
+	if allowed["*"] || allowed[origin] || allowed[strings.TrimRight(origin, "/")] {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" || host == "127.0.0.1" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()) {
+		return true
+	}
+	return false
 }
 
 // SecurityHeaders sets conservative defaults for an API.

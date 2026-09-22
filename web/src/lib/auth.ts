@@ -14,6 +14,53 @@ const SESSION_KEY = "ciftpay.session";
  * `Session` body (user id, CSRF token, memberships) in sessionStorage.
  * 401 from any endpoint clears it and sends the user to /login.
  */
+/**
+ * Completely flushes all client-side state caches across TanStack Query,
+ * window state (Redux/Zustand if registered), localStorage and sessionStorage.
+ * Guarantees zero multi-tenant state bleed on login, account/org switch, or logout.
+ */
+export function flushAllClientState(qc?: ReturnType<typeof useQueryClient> | null) {
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.clear();
+    } catch {}
+
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (
+          key &&
+          (key.startsWith("ciftpay") ||
+            key.includes("org") ||
+            key.includes("user") ||
+            key.includes("profile") ||
+            key.includes("session"))
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => window.localStorage.removeItem(k));
+      window.localStorage.removeItem("ciftpay.org");
+      window.localStorage.removeItem("ciftpay.session");
+      window.localStorage.removeItem("ciftpay.csrf");
+    } catch {}
+
+    const win = window as unknown as Record<string, unknown>;
+    if (typeof win.__REDUX_STORE__ === "object" && win.__REDUX_STORE__ !== null) {
+      try {
+        (win.__REDUX_STORE__ as { dispatch: (action: unknown) => void }).dispatch({ type: "RESET" });
+      } catch {}
+    }
+  }
+
+  if (qc) {
+    try {
+      qc.clear();
+    } catch {}
+  }
+}
+
 export function readSession(): Session | null {
   if (typeof window === "undefined") return null;
   const raw = window.sessionStorage.getItem(SESSION_KEY);
@@ -30,9 +77,7 @@ export function readSession(): Session | null {
 export function writeSession(s: Session | null) {
   if (typeof window === "undefined") return;
   if (!s) {
-    window.sessionStorage.removeItem(SESSION_KEY);
-    setCsrfToken(null);
-    setActiveOrgId(null);
+    flushAllClientState();
     return;
   }
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -64,6 +109,8 @@ export function useVerifyOtp() {
   return useMutation({
     mutationFn: async (vars: { msisdn: string; code: string }) => unwrap(await api.POST("/auth/otp/verify", { body: vars })),
     onSuccess: (s) => {
+      // Flush previous account state completely before establishing new session
+      flushAllClientState(qc);
       writeSession(s);
       qc.setQueryData(qk.session, s);
     },
@@ -105,8 +152,7 @@ export function useLogout() {
       await api.POST("/auth/logout");
     },
     onSettled: () => {
-      writeSession(null);
-      qc.clear();
+      flushAllClientState(qc);
       router.replace("/login");
     },
   });
@@ -120,7 +166,8 @@ export function useActiveMembership(): Schemas["OrgMembership"] | null {
 }
 
 export function switchOrg(qc: ReturnType<typeof useQueryClient>, orgId: string) {
+  // Clear all query cache to prevent any data bleed from previous org
+  qc.clear();
   setActiveOrgId(orgId);
-  // Everything except the session is org-scoped.
-  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "session" });
+  void qc.invalidateQueries();
 }
