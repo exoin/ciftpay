@@ -843,6 +843,8 @@ FROM invoices
 WHERE invoices.org_id = $1
   AND ($4::text IS NULL OR invoices.state = $4)
   AND ($5::text IS NULL OR invoices.kind = $5)
+  AND ($8::timestamptz IS NULL OR invoices.created_at >= $8)
+  AND ($9::timestamptz IS NULL OR invoices.created_at < $9)
   AND (
     $6::text IS NULL OR $6 = '' OR (
       invoices.receipt_code ILIKE '%' || $6 || '%'
@@ -883,6 +885,8 @@ type ListInvoicesParams struct {
 	Kind      *string
 	Query     *string
 	PhoneHash []byte
+	FromDate  *time.Time
+	ToDate    *time.Time
 }
 
 func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error) {
@@ -894,6 +898,8 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]I
 		arg.Kind,
 		arg.Query,
 		arg.PhoneHash,
+		arg.FromDate,
+		arg.ToDate,
 	)
 	if err != nil {
 		return nil, err

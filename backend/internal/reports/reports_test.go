@@ -2,6 +2,7 @@ package reports
 
 import (
 	"testing"
+	"time"
 )
 
 func TestDarajaMerchantFeeCents(t *testing.T) {
@@ -58,5 +59,45 @@ func TestParsePeriod(t *testing.T) {
 
 	if _, _, err := ParsePeriod("invalid"); err == nil {
 		t.Error("expected error on invalid period format")
+	}
+}
+
+func TestParseSummaryWindow(t *testing.T) {
+	now := time.Date(2026, 9, 22, 14, 30, 0, 0, Nairobi)
+
+	// Today
+	f1, t1 := ParseSummaryWindow(now, "today")
+	if f1 != time.Date(2026, 9, 22, 0, 0, 0, 0, Nairobi) || t1 != time.Date(2026, 9, 23, 0, 0, 0, 0, Nairobi) {
+		t.Errorf("today mismatch: %v -> %v", f1, t1)
+	}
+
+	// Month
+	f2, t2 := ParseSummaryWindow(now, "month")
+	if f2 != time.Date(2026, 9, 1, 0, 0, 0, 0, Nairobi) || t2 != time.Date(2026, 10, 1, 0, 0, 0, 0, Nairobi) {
+		t.Errorf("month mismatch: %v -> %v", f2, t2)
+	}
+
+	// Quarter (Sep 2026 is Q3: Jul 1 -> Oct 1)
+	f3, t3 := ParseSummaryWindow(now, "quarter")
+	if f3 != time.Date(2026, 7, 1, 0, 0, 0, 0, Nairobi) || t3 != time.Date(2026, 10, 1, 0, 0, 0, 0, Nairobi) {
+		t.Errorf("quarter mismatch: %v -> %v", f3, t3)
+	}
+
+	// Year
+	f4, t4 := ParseSummaryWindow(now, "year")
+	if f4 != time.Date(2026, 1, 1, 0, 0, 0, 0, Nairobi) || t4 != time.Date(2027, 1, 1, 0, 0, 0, 0, Nairobi) {
+		t.Errorf("year mismatch: %v -> %v", f4, t4)
+	}
+
+	// Historical Quarter: "2026-Q1"
+	f5, t5 := ParseSummaryWindow(now, "2026-Q1")
+	if f5 != time.Date(2026, 1, 1, 0, 0, 0, 0, Nairobi) || t5 != time.Date(2026, 4, 1, 0, 0, 0, 0, Nairobi) {
+		t.Errorf("historical quarter mismatch: %v -> %v", f5, t5)
+	}
+
+	// Historical Year: "2025"
+	f6, t6 := ParseSummaryWindow(now, "2025")
+	if f6 != time.Date(2025, 1, 1, 0, 0, 0, 0, Nairobi) || t6 != time.Date(2026, 1, 1, 0, 0, 0, 0, Nairobi) {
+		t.Errorf("historical year mismatch: %v -> %v", f6, t6)
 	}
 }

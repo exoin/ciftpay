@@ -46,6 +46,7 @@ export default function ItemsPage() {
   const create = useCreateItem();
   const [open, setOpen] = useState(false);
   const [codeSearch, setCodeSearch] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const orgVatRegistered = Boolean(org?.vat_registered);
   const defaultTaxCat = orgVatRegistered ? "B" : "D";
@@ -112,6 +113,7 @@ export default function ItemsPage() {
   });
 
   async function submit(v: Form) {
+    setFormError(null);
     try {
       await create.mutateAsync({
         name: v.name,
@@ -131,12 +133,20 @@ export default function ItemsPage() {
         is_vat_applicable: orgVatRegistered,
       });
       setCodeSearch("");
+      setFormError(null);
       setOpen(false);
     } catch (e) {
-      toast.push(
-        e instanceof ApiRequestError ? tc("errorGeneric", { message: e.message }) : tc("noConnection"),
-        "error"
-      );
+      if (e instanceof ApiRequestError) {
+        if (e.status >= 500) {
+          toast.push(tc("errorGeneric", { message: e.message }), "error");
+        } else {
+          setFormError(e.message || "Failed to save item. Please verify the entered details.");
+        }
+      } else if (e instanceof Error) {
+        setFormError(e.message);
+      } else {
+        toast.push(tc("noConnection"), "error");
+      }
     }
   }
 
@@ -191,13 +201,26 @@ export default function ItemsPage() {
 
       <Sheet
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setFormError(null);
+          setOpen(false);
+        }}
         title={t("add")}
         closeLabel={tc("close")}
         footer={
-          <Button block loading={create.isPending} onClick={form.handleSubmit(submit)}>
-            {tc("save")}
-          </Button>
+          <div className="space-y-3">
+            {formError && (
+              <div
+                role="alert"
+                className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
+              >
+                {formError}
+              </div>
+            )}
+            <Button block disabled={create.isPending} loading={create.isPending} onClick={form.handleSubmit(submit)}>
+              {tc("save")}
+            </Button>
+          </div>
         }
       >
         <form className="space-y-4" noValidate onSubmit={form.handleSubmit(submit)}>

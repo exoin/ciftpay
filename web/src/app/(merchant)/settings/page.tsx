@@ -25,7 +25,7 @@ import {
   useRevokeInvite,
   useRemoveMember,
 } from "@/lib/api/queries";
-import { rawGet, type Schemas } from "@/lib/api/client";
+import { ApiRequestError, rawGet, type Schemas } from "@/lib/api/client";
 import { useLogout, useActiveMembership } from "@/lib/auth";
 import { setLocale } from "@/lib/i18n/actions";
 import { cn } from "@/lib/cn";
@@ -64,6 +64,7 @@ export default function SettingsPage() {
   const [invitePhone, setInvitePhone] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"accountant" | "staff" | "admin">("accountant");
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const { data: ent } = useQuery({
     queryKey: qk.entitlement,
@@ -73,7 +74,11 @@ export default function SettingsPage() {
 
   async function handleSendInvite(e: React.FormEvent) {
     e.preventDefault();
-    if (!invitePhone && !inviteEmail) return;
+    setInviteError(null);
+    if (!invitePhone.trim() && !inviteEmail.trim()) {
+      setInviteError("Please provide either a phone number or email address");
+      return;
+    }
     try {
       await createInvite.mutateAsync({
         phone: invitePhone.trim() || undefined,
@@ -84,8 +89,19 @@ export default function SettingsPage() {
       setInviteOpen(false);
       setInvitePhone("");
       setInviteEmail("");
+      setInviteError(null);
     } catch (err: unknown) {
-      toast.push(err instanceof Error ? err.message : "Failed to send invitation", "error");
+      if (err instanceof ApiRequestError) {
+        if (err.status >= 500) {
+          toast.push(tc("errorGeneric", { message: err.message }), "error");
+        } else {
+          setInviteError(err.message || "Failed to send invitation");
+        }
+      } else if (err instanceof Error) {
+        setInviteError(err.message);
+      } else {
+        toast.push(tc("noConnection"), "error");
+      }
     }
   }
 
@@ -338,7 +354,10 @@ export default function SettingsPage() {
             </label>
             <select
               value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as "accountant" | "staff" | "admin")}
+              onChange={(e) => {
+                if (inviteError) setInviteError(null);
+                setInviteRole(e.target.value as "accountant" | "staff" | "admin");
+              }}
               className="w-full rounded-r2 border border-hairline bg-paper px-3 py-2 text-sm text-ink focus:border-ochre focus:outline-none"
             >
               <option value="accountant">{t("roleAccountant")}</option>
@@ -354,7 +373,10 @@ export default function SettingsPage() {
             <input
               type="tel"
               value={invitePhone}
-              onChange={(e) => setInvitePhone(e.target.value)}
+              onChange={(e) => {
+                if (inviteError) setInviteError(null);
+                setInvitePhone(e.target.value);
+              }}
               placeholder="0712 345 678"
               className="w-full rounded-r2 border border-hairline bg-paper px-3 py-2 font-mono text-sm text-ink placeholder:text-muted focus:border-ochre focus:outline-none"
             />
@@ -367,22 +389,38 @@ export default function SettingsPage() {
             <input
               type="email"
               value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              onChange={(e) => {
+                if (inviteError) setInviteError(null);
+                setInviteEmail(e.target.value);
+              }}
               placeholder="accountant@example.com"
               className="w-full rounded-r2 border border-hairline bg-paper px-3 py-2 font-mono text-sm text-ink placeholder:text-muted focus:border-ochre focus:outline-none"
             />
           </div>
 
+          {inviteError && (
+            <div
+              role="alert"
+              className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
+            >
+              {inviteError}
+            </div>
+          )}
+
           <div className="pt-2 flex justify-end gap-2">
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setInviteOpen(false)}
+              onClick={() => {
+                setInviteError(null);
+                setInviteOpen(false);
+              }}
             >
               {tc("cancel")}
             </Button>
             <Button
               type="submit"
+              disabled={createInvite.isPending || (!invitePhone.trim() && !inviteEmail.trim())}
               loading={createInvite.isPending}
             >
               {t("sendInvite")}

@@ -45,6 +45,8 @@ FROM invoices
 WHERE invoices.org_id = $1
   AND (sqlc.narg('state')::text IS NULL OR invoices.state = sqlc.narg('state'))
   AND (sqlc.narg('kind')::text IS NULL OR invoices.kind = sqlc.narg('kind'))
+  AND (sqlc.narg('from_date')::timestamptz IS NULL OR invoices.created_at >= sqlc.narg('from_date'))
+  AND (sqlc.narg('to_date')::timestamptz IS NULL OR invoices.created_at < sqlc.narg('to_date'))
   AND (
     sqlc.narg('query')::text IS NULL OR sqlc.narg('query') = '' OR (
       invoices.receipt_code ILIKE '%' || sqlc.narg('query') || '%'

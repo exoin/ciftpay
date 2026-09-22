@@ -93,6 +93,8 @@ export type InvoiceFilterParams = {
   state?: Schemas["InvoiceState"];
   kind?: "INVOICE" | "CREDIT_NOTE";
   q?: string;
+  from?: string;
+  to?: string;
 };
 
 export function useInvoices(filters?: InvoiceFilterParams | Schemas["InvoiceState"]) {
@@ -109,6 +111,8 @@ export function useInvoices(filters?: InvoiceFilterParams | Schemas["InvoiceStat
               ...(params.state ? { state: params.state } : {}),
               ...(params.kind ? { kind: params.kind } : {}),
               ...(params.q ? { q: params.q } : {}),
+              ...(params.from ? { from: params.from } : {}),
+              ...(params.to ? { to: params.to } : {}),
             },
           },
         })
@@ -299,7 +303,7 @@ export function useSubmitShortcodeAuthorization() {
   });
 }
 
-export function useAnalyticsSummary(period: "today" | "month" = "today") {
+export function useAnalyticsSummary(period: string = "today") {
   const orgId = getActiveOrgId();
   return useQuery({
     queryKey: ["analytics", "summary", orgId, period] as const,

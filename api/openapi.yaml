@@ -941,9 +941,9 @@ paths:
         - name: period
           in: query
           required: false
+          description: "Reporting period: today, month, quarter, year, or historical period like YYYY-MM, YYYY-Q1..Q4, YYYY"
           schema:
             type: string
-            enum: [today, month]
             default: today
       responses:
         "200":

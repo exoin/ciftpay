@@ -7,6 +7,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -133,19 +135,60 @@ func (s *Service) Today(ctx context.Context, orgID uuid.UUID) (Today, error) {
 	return out, err
 }
 
-// AnalyticsSummary aggregates real-time metrics using Postgres.
-func (s *Service) AnalyticsSummary(ctx context.Context, orgID uuid.UUID, period string) (AnalyticsSummary, error) {
-	now := s.Now().In(Nairobi)
-	var from, to time.Time
+// ParseSummaryWindow returns [from, to) for a given period in Nairobi time.
+// Supports: "today", "month", "quarter", "year", and historical periods like "2026-09", "2026-Q1", "2026".
+func ParseSummaryWindow(now time.Time, period string) (from, to time.Time) {
+	now = now.In(Nairobi)
+	period = strings.TrimSpace(period)
 
-	if period == "month" {
+	switch {
+	case period == "month":
 		from = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, Nairobi)
 		to = from.AddDate(0, 1, 0)
-	} else {
-		period = "today"
+	case period == "quarter":
+		qMonth := ((int(now.Month())-1)/3)*3 + 1
+		from = time.Date(now.Year(), time.Month(qMonth), 1, 0, 0, 0, 0, Nairobi)
+		to = from.AddDate(0, 3, 0)
+	case period == "year":
+		from = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, Nairobi)
+		to = from.AddDate(1, 0, 0)
+	case strings.Contains(period, "-Q"): // e.g. "2026-Q1", "2026-Q2", "2026-Q3", "2026-Q4"
+		parts := strings.Split(period, "-Q")
+		if len(parts) == 2 {
+			y, err1 := strconv.Atoi(parts[0])
+			q, err2 := strconv.Atoi(parts[1])
+			if err1 == nil && err2 == nil && q >= 1 && q <= 4 {
+				qMonth := (q-1)*3 + 1
+				from = time.Date(y, time.Month(qMonth), 1, 0, 0, 0, 0, Nairobi)
+				to = from.AddDate(0, 3, 0)
+			}
+		}
+	case len(period) == 7 && period[4] == '-': // e.g. "2026-09"
+		if t, err := time.ParseInLocation("2006-01", period, Nairobi); err == nil {
+			from = t
+			to = t.AddDate(0, 1, 0)
+		}
+	case len(period) == 4: // e.g. "2026"
+		if y, err := strconv.Atoi(period); err == nil {
+			from = time.Date(y, 1, 1, 0, 0, 0, 0, Nairobi)
+			to = from.AddDate(1, 0, 0)
+		}
+	default:
 		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, Nairobi)
 		to = from.AddDate(0, 0, 1)
 	}
+
+	if from.IsZero() || to.IsZero() {
+		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, Nairobi)
+		to = from.AddDate(0, 0, 1)
+	}
+	return from, to
+}
+
+// AnalyticsSummary aggregates real-time metrics using Postgres.
+func (s *Service) AnalyticsSummary(ctx context.Context, orgID uuid.UUID, period string) (AnalyticsSummary, error) {
+	now := s.Now().In(Nairobi)
+	from, to := ParseSummaryWindow(now, period)
 
 	out := AnalyticsSummary{Period: period}
 
@@ -360,8 +403,8 @@ func (h *Handler) today(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) analyticsSummary(w http.ResponseWriter, r *http.Request) {
 	p, _ := httpx.PrincipalFrom(r.Context())
-	period := r.URL.Query().Get("period")
-	if period != "month" {
+	period := strings.TrimSpace(r.URL.Query().Get("period"))
+	if period == "" {
 		period = "today"
 	}
 	out, err := h.S.AnalyticsSummary(r.Context(), p.OrgID, period)

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Calendar,
   CheckCircle2,
   ChevronDown,
   Download,
@@ -56,7 +57,9 @@ export default function ClientWorkspacePage({
   const { data: orgData } = useCurrentOrg();
   const currentOrg = orgData;
 
-  const { data: summaryData, isPending: isSummaryPending } = useAnalyticsSummary("month");
+  // Historical quarterly & annual VAT aggregates
+  const [auditPeriod, setAuditPeriod] = useState<string>("month");
+  const { data: summaryData, isPending: isSummaryPending } = useAnalyticsSummary(auditPeriod);
   const summary = summaryData;
 
   const { data: todayData } = useToday();
@@ -71,10 +74,12 @@ export default function ClientWorkspacePage({
   });
   const [isExporting, setIsExporting] = useState(false);
 
-  // Ledger Browser state
+  // Ledger Browser state with date-range filtering
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<"ALL" | "INVOICE" | "CREDIT_NOTE">("ALL");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -84,6 +89,8 @@ export default function ClientWorkspacePage({
   const { data: invoicesData, isPending: isInvoicesPending } = useInvoices({
     kind: kindFilter === "ALL" ? undefined : kindFilter,
     q: debouncedSearch || undefined,
+    from: dateFrom || undefined,
+    to: dateTo || undefined,
   });
   const invoices = invoicesData?.data ?? [];
 
@@ -227,12 +234,38 @@ export default function ClientWorkspacePage({
 
         {/* 2. Reconciliation & Audit View */}
         <div className="rounded-r2 border border-hairline bg-paper p-5 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 text-ink">
-            <TrendingUp className="size-5 text-ochre" />
-            <h2 className="text-base font-semibold">Monthly Ledger & Tax Audit</h2>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-hairline pb-3">
+            <div className="flex items-center gap-2 text-ink">
+              <TrendingUp className="size-5 text-ochre" />
+              <h2 className="text-base font-semibold">Ledger & Tax Audit</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">Period:</span>
+              <select
+                aria-label="Audit Period"
+                value={auditPeriod}
+                onChange={(e) => setAuditPeriod(e.target.value)}
+                className="rounded-r2 border border-hairline bg-paper-2 px-2.5 py-1 text-xs font-semibold text-ink focus:border-green focus:outline-none"
+              >
+                <optgroup label="Standard Ranges">
+                  <option value="month">Current Month</option>
+                  <option value="quarter">Current Quarter</option>
+                  <option value="year">Current Year (Annual)</option>
+                </optgroup>
+                <optgroup label="Quarterly Historical">
+                  <option value="2026-Q1">2026 Q1 (Jan - Mar)</option>
+                  <option value="2026-Q2">2026 Q2 (Apr - Jun)</option>
+                  <option value="2026-Q3">2026 Q3 (Jul - Sep)</option>
+                  <option value="2026-Q4">2026 Q4 (Oct - Dec)</option>
+                </optgroup>
+                <optgroup label="Annual Historical">
+                  <option value="2025">2025 Full Year</option>
+                </optgroup>
+              </select>
+            </div>
           </div>
           <p className="text-xs text-ink-2 leading-relaxed">
-            High-level audit calculated from PostgreSQL ledger transactions and fiscal acknowledgements.
+            Real-time aggregates calculated from PostgreSQL ledger transactions and fiscal acknowledgements for the selected period.
           </p>
 
           {isSummaryPending ? (
@@ -323,25 +356,64 @@ export default function ClientWorkspacePage({
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by receipt code, buyer PIN, or amount..."
-            className="w-full rounded-r2 border border-hairline bg-paper py-2 pl-9 pr-9 text-sm text-ink placeholder:text-muted focus:border-green focus:outline-none"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
-            >
-              <X className="size-4" />
-            </button>
-          )}
+        {/* Filter Controls Bar (Search + Date Range) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          {/* Universal Search Bar */}
+          <div className="relative md:col-span-6">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by receipt code, buyer PIN, or amount..."
+              className="w-full rounded-r2 border border-hairline bg-paper py-2 pl-9 pr-9 text-sm text-ink placeholder:text-muted focus:border-green focus:outline-none"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Date Range Inputs */}
+          <div className="flex items-center gap-2 md:col-span-6">
+            <Calendar className="size-4 text-muted hidden sm:inline shrink-0" />
+            <div className="flex items-center gap-1.5 flex-1">
+              <span className="text-xs font-medium text-muted">From:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full rounded-r2 border border-hairline bg-paper px-2 py-1.5 font-mono text-xs text-ink focus:border-green focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 flex-1">
+              <span className="text-xs font-medium text-muted">To:</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full rounded-r2 border border-hairline bg-paper px-2 py-1.5 font-mono text-xs text-ink focus:border-green focus:outline-none"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="rounded border border-hairline bg-paper-2 px-2 py-1.5 text-xs text-muted hover:text-ink"
+                title="Clear date range"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Ledger Table */}

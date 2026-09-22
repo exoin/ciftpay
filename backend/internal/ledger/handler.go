@@ -28,6 +28,14 @@ import (
 
 var pinRe = regexp.MustCompile(`^[AP][0-9]{9}[A-Z]$`)
 
+var nairobiLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Africa/Nairobi")
+	if err != nil {
+		return time.FixedZone("EAT", 3*60*60)
+	}
+	return loc
+}()
+
 // STKPusher is the slice of the Daraja client the request-to-pay path needs
 // (mpesa.Client in production, a fake in tests).
 type STKPusher interface {
@@ -899,6 +907,26 @@ func (h *Handler) listInvoices(w http.ResponseWriter, r *http.Request) {
 	kind := optString(r.URL.Query().Get("kind"))
 	state := optString(r.URL.Query().Get("state"))
 
+	fromStr := strings.TrimSpace(r.URL.Query().Get("from"))
+	toStr := strings.TrimSpace(r.URL.Query().Get("to"))
+	var fromTime *time.Time
+	var toTime *time.Time
+	if fromStr != "" {
+		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
+			fromTime = &t
+		} else if t, err := time.ParseInLocation("2006-01-02", fromStr, nairobiLoc); err == nil {
+			fromTime = &t
+		}
+	}
+	if toStr != "" {
+		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
+			toTime = &t
+		} else if t, err := time.ParseInLocation("2006-01-02", toStr, nairobiLoc); err == nil {
+			t2 := t.AddDate(0, 0, 1)
+			toTime = &t2
+		}
+	}
+
 	var queryParam *string
 	var phoneHash []byte
 	if q != "" {
@@ -918,6 +946,8 @@ func (h *Handler) listInvoices(w http.ResponseWriter, r *http.Request) {
 			Kind:      kind,
 			Query:     queryParam,
 			PhoneHash: phoneHash,
+			FromDate:  fromTime,
+			ToDate:    toTime,
 		})
 		for _, i := range rows {
 			out = append(out, toInvoice(h.Keys, h.PublicBaseURL, i))

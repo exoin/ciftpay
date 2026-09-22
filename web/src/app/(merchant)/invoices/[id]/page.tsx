@@ -41,9 +41,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [showAmend, setShowAmend] = useState(false);
   const [amendPin, setAmendPin] = useState("");
   const [amendName, setAmendName] = useState("");
+  const [amendError, setAmendError] = useState<string | null>(null);
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   // Print-reveal only when the invoice flips to ACKED while on screen.
   const prev = useRef<string | undefined>(undefined);
@@ -87,6 +89,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   async function onAmend(e: React.FormEvent) {
     e.preventDefault();
+    setAmendError(null);
     if (!amendPin.trim()) return;
     try {
       const updated = await reissue.mutateAsync({
@@ -96,14 +99,26 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       });
       toast.push(t("reissued"));
       setShowAmend(false);
+      setAmendError(null);
       router.push(`/invoices/${updated.id}`);
     } catch (err) {
-      toast.push(err instanceof ApiRequestError ? tc("errorGeneric", { message: err.message }) : tc("noConnection"), "error");
+      if (err instanceof ApiRequestError) {
+        if (err.status >= 500) {
+          toast.push(tc("errorGeneric", { message: err.message }), "error");
+        } else {
+          setAmendError(err.message || "Failed to amend buyer PIN");
+        }
+      } else if (err instanceof Error) {
+        setAmendError(err.message);
+      } else {
+        toast.push(tc("noConnection"), "error");
+      }
     }
   }
 
   async function onConfirmCreditNote(e: React.FormEvent) {
     e.preventDefault();
+    setCancelError(null);
     try {
       const cn = await createCreditNote.mutateAsync({
         id: inv!.id,
@@ -111,12 +126,20 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       });
       toast.push(t("creditNoteCreated"));
       setShowCancelModal(false);
+      setCancelError(null);
       router.push(`/invoices/${cn.id}`);
     } catch (err) {
-      toast.push(
-        err instanceof ApiRequestError ? tc("errorGeneric", { message: err.message }) : tc("noConnection"),
-        "error",
-      );
+      if (err instanceof ApiRequestError) {
+        if (err.status >= 500) {
+          toast.push(tc("errorGeneric", { message: err.message }), "error");
+        } else {
+          setCancelError(err.message || "Failed to cancel invoice");
+        }
+      } else if (err instanceof Error) {
+        setCancelError(err.message);
+      } else {
+        toast.push(tc("noConnection"), "error");
+      }
     }
   }
 
@@ -210,14 +233,30 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     className="w-full rounded-r1 border border-border px-3 py-1.5 text-sm bg-paper"
                   />
                 </div>
+                {cancelError && (
+                  <div
+                    role="alert"
+                    className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
+                  >
+                    {cancelError}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <Button type="submit" variant="danger" loading={createCreditNote.isPending}>
+                  <Button
+                    type="submit"
+                    variant="danger"
+                    disabled={createCreditNote.isPending}
+                    loading={createCreditNote.isPending}
+                  >
                     Confirm Cancellation & Issue Credit Note
                   </Button>
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setShowCancelModal(false)}
+                    onClick={() => {
+                      setCancelError(null);
+                      setShowCancelModal(false);
+                    }}
                     disabled={createCreditNote.isPending}
                   >
                     Back
@@ -259,11 +298,31 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     className="w-full rounded-r1 border border-border px-3 py-1.5 text-sm bg-paper"
                   />
                 </div>
+                {amendError && (
+                  <div
+                    role="alert"
+                    className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
+                  >
+                    {amendError}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <Button type="submit" loading={reissue.isPending}>
+                  <Button
+                    type="submit"
+                    disabled={reissue.isPending || !amendPin.trim()}
+                    loading={reissue.isPending}
+                  >
                     Submit Amendment
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => setShowAmend(false)}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setAmendError(null);
+                      setShowAmend(false);
+                    }}
+                    disabled={reissue.isPending}
+                  >
                     Cancel
                   </Button>
                 </div>
