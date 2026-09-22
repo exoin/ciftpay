@@ -11,7 +11,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { useCreateSale, useItems } from "@/lib/api/queries";
 import { ApiRequestError } from "@/lib/api/client";
-import { normaliseMsisdn } from "@/lib/format";
+import { generateUUID, normaliseMsisdn } from "@/lib/format";
 
 type LineDraft = { item_id: string; qty: string; unit_price: string };
 
@@ -29,6 +29,7 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
   const [buyerName, setBuyerName] = useState("");
   const [buyerPin, setBuyerPin] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const totalCents = useMemo(() => {
     return lines.reduce((sum, l) => {
@@ -51,10 +52,13 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
 
   function handleClose() {
     setPhoneError(null);
+    setFormError(null);
     onClose();
   }
 
   async function submit() {
+    setFormError(null);
+    setPhoneError(null);
     const trimmedPhone = buyerPhone.trim();
     let normPhone: string | undefined = undefined;
     if (trimmedPhone) {
@@ -72,17 +76,17 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
         lines: lines.map((l) => {
           const item = items?.data.find((i) => i.id === l.item_id);
           const priceCents = l.unit_price ? Math.round(Number(l.unit_price) * 100) : (item?.price_cents ?? 0);
+          const rawQty = Math.max(1, Math.round(Number(l.qty) || 1));
           return {
             item_id: l.item_id,
-            // Quantity is a decimal string on the wire (OpenAPI `Quantity`).
-            qty: l.qty.trim() || "1",
+            qty: String(rawQty),
             unit_price_cents: priceCents,
           };
         }),
         ...(normPhone ? { buyer_msisdn: normPhone } : {}),
         ...(buyerName.trim() ? { buyer_name: buyerName.trim() } : {}),
         ...(buyerPin.trim() ? { buyer_pin: buyerPin.trim().toUpperCase() } : {}),
-        client_ref: crypto.randomUUID(),
+        client_ref: generateUUID(),
       });
       toast.push(t("queued"));
       setLines([{ item_id: "", qty: "1", unit_price: "" }]);
@@ -90,13 +94,25 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
       setBuyerName("");
       setBuyerPin("");
       setPhoneError(null);
+      setFormError(null);
       onClose();
     } catch (e) {
-      toast.push(e instanceof ApiRequestError ? tc("errorGeneric", { message: e.message }) : tc("noConnection"), "error");
+      if (e instanceof ApiRequestError) {
+        if (e.status >= 500) {
+          toast.push(tc("errorGeneric", { message: e.message }), "error");
+        } else {
+          setFormError(e.message || "Failed to record sale. Please verify the entered details.");
+        }
+      } else if (e instanceof Error) {
+        setFormError(e.message);
+      } else {
+        toast.push(tc("noConnection"), "error");
+      }
     }
   }
 
   function handleItemChange(index: number, selectedId: string) {
+    if (formError) setFormError(null);
     const item = items?.data.find((it) => it.id === selectedId);
     setLines((cur) =>
       cur.map((x, j) => {
@@ -109,6 +125,7 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
   }
 
   function removeLine(index: number) {
+    if (formError) setFormError(null);
     setLines((cur) => cur.filter((_, j) => j !== index));
   }
 
@@ -121,7 +138,15 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
       footer={
         <div className="space-y-3">
           <Leader strong label={t("total")} amount={<Money cents={totalCents} size="lg" />} />
-          <Button block disabled={!canSubmit} loading={create.isPending} onClick={submit}>
+          {formError && (
+            <div
+              role="alert"
+              className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
+            >
+              {formError}
+            </div>
+          )}
+          <Button block disabled={!canSubmit || create.isPending} loading={create.isPending} onClick={submit}>
             {t("submit")}
           </Button>
         </div>
@@ -147,10 +172,13 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             </SelectField>
             <Field
               label={tp("qty")}
-              inputMode="decimal"
+              inputMode="numeric"
               mono
               value={l.qty}
-              onChange={(e) => setLines((cur) => cur.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))}
+              onChange={(e) => {
+                if (formError) setFormError(null);
+                setLines((cur) => cur.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)));
+              }}
             />
             <Field
               label={ti("price")}
@@ -158,7 +186,10 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
               mono
               placeholder="0"
               value={l.unit_price}
-              onChange={(e) => setLines((cur) => cur.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)))}
+              onChange={(e) => {
+                if (formError) setFormError(null);
+                setLines((cur) => cur.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)));
+              }}
             />
             {lines.length > 1 ? (
               <button
@@ -175,7 +206,14 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             )}
           </fieldset>
         ))}
-        <Button variant="secondary" size="sm" onClick={() => setLines((cur) => [...cur, { item_id: "", qty: "1", unit_price: "" }])}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            if (formError) setFormError(null);
+            setLines((cur) => [...cur, { item_id: "", qty: "1", unit_price: "" }]);
+          }}
+        >
           {t("addLine")}
         </Button>
 
@@ -197,6 +235,7 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             onChange={(e) => {
               setBuyerPhone(e.target.value);
               if (phoneError) setPhoneError(null);
+              if (formError) setFormError(null);
             }}
           />
 
@@ -204,7 +243,10 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             label={t("buyerName")}
             placeholder="Jane Doe"
             value={buyerName}
-            onChange={(e) => setBuyerName(e.target.value)}
+            onChange={(e) => {
+              setBuyerName(e.target.value);
+              if (formError) setFormError(null);
+            }}
           />
 
           <Field
@@ -213,7 +255,10 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             mono
             placeholder="A123456789B"
             value={buyerPin}
-            onChange={(e) => setBuyerPin(e.target.value)}
+            onChange={(e) => {
+              setBuyerPin(e.target.value);
+              if (formError) setFormError(null);
+            }}
           />
         </div>
       </div>

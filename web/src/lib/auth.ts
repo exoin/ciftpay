@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, getActiveOrgId, setActiveOrgId, setCsrfToken, unwrap, type Schemas } from "./api/client";
+export { getActiveOrgId, setActiveOrgId } from "./api/client";
 import { qk } from "./api/queries";
 
 export type Session = Schemas["Session"];

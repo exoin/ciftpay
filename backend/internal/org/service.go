@@ -1,6 +1,7 @@
 package org
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -409,8 +410,7 @@ func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, 
 	var out Invite
 	var phoneNorm string
 	var phoneHash []byte
-	var phoneEnc []byte
-
+	
 	if in.Phone != "" {
 		p, err := crypto.NormaliseMSISDN(in.Phone)
 		if err != nil {
@@ -418,11 +418,7 @@ func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, 
 		}
 		phoneNorm = p
 		phoneHash = s.Keys.Hash(phoneNorm)
-		enc, err := s.Keys.EncryptString(phoneNorm)
-		if err != nil {
-			return Invite{}, err
-		}
-		phoneEnc = enc
+
 	}
 
 	var emailPtr *string
@@ -439,29 +435,18 @@ func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, 
 			status = "pending"
 
 			u, err := tx.GetUserByMSISDNHash(ctx, phoneHash)
-			if err != nil {
-				u, err = tx.CreateUser(ctx, gen.CreateUserParams{
-					MsisdnEnc:  phoneEnc,
-					MsisdnHash: phoneHash,
-					Name:       "",
-					Locale:     "en",
-				})
-				if err != nil {
-					return err
+			if err == nil {
+				if u.ID == inviterID {
+					return errors.New("you cannot invite yourself to this business")
 				}
-			}
-
-			if u.ID == inviterID {
-				return errors.New("you cannot invite yourself to this business")
-			}
-
-			if _, err := tx.CreateMembership(ctx, gen.CreateMembershipParams{
-				OrgID:     orgID,
-				UserID:    u.ID,
-				Role:      role,
-				IsDefault: false,
-			}); err != nil {
-				return err
+				members, err := tx.ListMembersForOrg(ctx, orgID)
+				if err == nil {
+					for _, m := range members {
+						if m.UserID == u.ID {
+							return errors.New("user is already a member of this business")
+						}
+					}
+				}
 			}
 		}
 
@@ -578,4 +563,232 @@ func (s *Service) RemoveMember(ctx context.Context, orgID, targetUserID uuid.UUI
 	return s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
 		return tx.DeleteMembership(ctx, gen.DeleteMembershipParams{OrgID: orgID, UserID: targetUserID})
 	})
+}
+
+// AccountantInvite represents an invitation presented to an accountant.
+type AccountantInvite struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	OrgName   string    `json:"org_name"`
+	KRAPin    string    `json:"kra_pin"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// AccountantClient represents a client organisation for an accountant overview.
+type AccountantClient struct {
+	OrgID             uuid.UUID `json:"org_id"`
+	Name              string    `json:"name"`
+	KRAPin            string    `json:"kra_pin"`
+	CurrentMonthGross int64     `json:"current_month_gross_cents"`
+	EstimatedVAT      int64     `json:"estimated_vat_cents"`
+	EtimsSyncHealth   string    `json:"etims_sync_health"`
+	Role              string    `json:"role"`
+}
+
+// ListPendingInvitesForUser returns all pending invites matching the user phone or email.
+func (s *Service) ListPendingInvitesForUser(ctx context.Context, userID uuid.UUID) ([]AccountantInvite, error) {
+	out := []AccountantInvite{}
+	err := s.DB.WithAccountant(ctx, func(ctx context.Context, tx db.Tx) error {
+		u, err := tx.GetUser(ctx, userID)
+		if err != nil {
+			return err
+		}
+		email := ""
+		if u.Email != nil {
+			email = *u.Email
+		}
+		rows, err := tx.ListPendingInvitesForPhoneOrEmail(ctx, gen.ListPendingInvitesForPhoneOrEmailParams{
+			PhoneHash: u.MsisdnHash,
+			Column2:   email,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			kraPin := ""
+			if len(r.KraPinEnc) > 0 {
+				if dec, err := s.Keys.DecryptString(r.KraPinEnc); err == nil {
+					kraPin = dec
+				}
+			}
+			out = append(out, AccountantInvite{
+				ID:        r.ID,
+				OrgID:     r.OrgID,
+				OrgName:   r.OrgName,
+				KRAPin:    kraPin,
+				Role:      r.Role,
+				CreatedAt: r.CreatedAt,
+			})
+		}
+		return nil
+	})
+	return out, err
+}
+
+// AcceptInvite accepts an invitation and provisions active membership.
+func (s *Service) AcceptInvite(ctx context.Context, userID, inviteID uuid.UUID) error {
+	return s.DB.WithAccountant(ctx, func(ctx context.Context, tx db.Tx) error {
+		u, err := tx.GetUser(ctx, userID)
+		if err != nil {
+			return err
+		}
+		inv, err := tx.GetInviteByID(ctx, inviteID)
+		if err != nil {
+			return ErrNotFound
+		}
+		if inv.Status != "pending" {
+			return errors.New("invitation is no longer pending")
+		}
+
+		// Verify recipient match
+		isPhoneMatch := len(inv.PhoneHash) > 0 && bytes.Equal(inv.PhoneHash, u.MsisdnHash)
+		isEmailMatch := inv.Email != nil && u.Email != nil && strings.EqualFold(*inv.Email, *u.Email)
+		if !isPhoneMatch && !isEmailMatch {
+			return ErrForbidden
+		}
+
+		// Transition invite status to accepted
+		if _, err := tx.AcceptInvite(ctx, inviteID); err != nil {
+			return err
+		}
+
+		// Provision active membership
+		ms, _ := tx.ListMembershipsForUser(ctx, userID)
+		isDefault := len(ms) == 0
+		_, err = tx.CreateMembership(ctx, gen.CreateMembershipParams{
+			OrgID:     inv.OrgID,
+			UserID:    userID,
+			Role:      inv.Role,
+			IsDefault: isDefault,
+		})
+		return err
+	})
+}
+
+// RejectInvite transitions a pending invitation to rejected.
+func (s *Service) RejectInvite(ctx context.Context, userID, inviteID uuid.UUID) error {
+	return s.DB.WithAccountant(ctx, func(ctx context.Context, tx db.Tx) error {
+		u, err := tx.GetUser(ctx, userID)
+		if err != nil {
+			return err
+		}
+		inv, err := tx.GetInviteByID(ctx, inviteID)
+		if err != nil {
+			return ErrNotFound
+		}
+		if inv.Status != "pending" {
+			return errors.New("invitation is no longer pending")
+		}
+
+		isPhoneMatch := len(inv.PhoneHash) > 0 && bytes.Equal(inv.PhoneHash, u.MsisdnHash)
+		isEmailMatch := inv.Email != nil && u.Email != nil && strings.EqualFold(*inv.Email, *u.Email)
+		if !isPhoneMatch && !isEmailMatch {
+			return ErrForbidden
+		}
+
+		_, err = tx.RejectInvite(ctx, inviteID)
+		return err
+	})
+}
+
+// ListAccountantClients returns client organizations with real-time financial metrics.
+func (s *Service) ListAccountantClients(ctx context.Context, userID uuid.UUID) ([]AccountantClient, error) {
+	out := []AccountantClient{}
+	var memberships []Membership
+	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+		ms, err := tx.ListMembershipsForUser(ctx, userID)
+		if err != nil {
+			return err
+		}
+		memberships = toMemberships(ms)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	nairobi, _ := time.LoadLocation("Africa/Nairobi")
+	if nairobi == nil {
+		nairobi = time.UTC
+	}
+	now := s.Now().In(nairobi)
+	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, nairobi)
+	to := from.AddDate(0, 1, 0)
+
+	for _, m := range memberships {
+		var client AccountantClient
+		client.OrgID = m.OrgID
+		client.Name = m.Name
+		client.Role = m.Role
+
+		// Query under WithOrg for strict tenant isolation
+		err := s.DB.WithOrg(ctx, m.OrgID, func(ctx context.Context, tx db.Tx) error {
+			org, err := tx.GetOrg(ctx, m.OrgID)
+			if err != nil {
+				return err
+			}
+			if len(org.KraPinEnc) > 0 {
+				if pin, err := s.Keys.DecryptString(org.KraPinEnc); err == nil {
+					client.KRAPin = pin
+				}
+			}
+
+			// Payments in current month
+			pmts, err := tx.AnalyticsPayments(ctx, gen.AnalyticsPaymentsParams{
+				OrgID:    m.OrgID,
+				PaidAt:   from,
+				PaidAt_2: to,
+			})
+			if err == nil {
+				for _, p := range pmts {
+					client.CurrentMonthGross += p.AmountCents
+				}
+			}
+
+			// VAT liability in current month
+			vatRow, err := tx.AnalyticsVATLiability(ctx, gen.AnalyticsVATLiabilityParams{
+				OrgID:     m.OrgID,
+				AckedAt:   &from,
+				AckedAt_2: &to,
+			})
+			if err == nil {
+				client.EstimatedVAT = vatRow.VatLiabilityCents
+			}
+
+			// eTIMS Sync Health
+			if org.EtimsStatus != "initialized" {
+				client.EtimsSyncHealth = "unconfigured"
+			} else {
+				states, err := tx.CountInvoicesByState(ctx, m.OrgID)
+				attentionCount := int64(0)
+				pendingCount := int64(0)
+				if err == nil {
+					for _, r := range states {
+						switch fiscal.State(r.State) {
+						case fiscal.StateNeedsReview, fiscal.StateFailedTerminal:
+							attentionCount += r.N
+						case fiscal.StateDraft, fiscal.StateTaxPending, fiscal.StateQueued, fiscal.StateSubmitted, fiscal.StateFailedRetryable:
+							pendingCount += r.N
+						}
+					}
+				}
+				if attentionCount > 0 {
+					client.EtimsSyncHealth = "action_required"
+				} else if pendingCount > 0 {
+					client.EtimsSyncHealth = "pending_sync"
+				} else {
+					client.EtimsSyncHealth = "healthy"
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, client)
+	}
+
+	return out, nil
 }

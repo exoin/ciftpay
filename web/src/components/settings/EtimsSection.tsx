@@ -138,13 +138,16 @@ export function EtimsSection() {
           )}
 
           {apiMessage && (
-            <p role="alert" className="text-sm text-red">
+            <div
+              role="alert"
+              className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
+            >
               {apiMessage}
-            </p>
+            </div>
           )}
 
           <div className="flex gap-2">
-            <Button onClick={submit} loading={configure.isPending}>
+            <Button onClick={submit} disabled={configure.isPending} loading={configure.isPending}>
               {t("connect")}
             </Button>
             {editing && data.status === "initialized" && (

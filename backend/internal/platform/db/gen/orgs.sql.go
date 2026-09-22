@@ -13,6 +13,31 @@ import (
 	"github.com/google/uuid"
 )
 
+const acceptInvite = `-- name: AcceptInvite :one
+UPDATE org_invites
+SET status = 'accepted', updated_at = now()
+WHERE id = $1 AND status = 'pending'
+RETURNING id, org_id, invited_by, role, phone, phone_hash, email, status, created_at, updated_at
+`
+
+func (q *Queries) AcceptInvite(ctx context.Context, id uuid.UUID) (OrgInvite, error) {
+	row := q.db.QueryRow(ctx, acceptInvite, id)
+	var i OrgInvite
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.InvitedBy,
+		&i.Role,
+		&i.Phone,
+		&i.PhoneHash,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const bumpOTPAttempts = `-- name: BumpOTPAttempts :exec
 UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1
 `
@@ -232,7 +257,7 @@ const createUser = `-- name: CreateUser :one
 INSERT INTO users (msisdn_enc, msisdn_hash, name, locale)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (msisdn_hash) DO UPDATE SET name = COALESCE(NULLIF(EXCLUDED.name, ''), users.name)
-RETURNING id, msisdn_enc, msisdn_hash, name, locale, last_login_at, created_at, updated_at
+RETURNING id, msisdn_enc, msisdn_hash, name, locale, last_login_at, created_at, updated_at, email, email_hash
 `
 
 type CreateUserParams struct {
@@ -259,6 +284,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.EmailHash,
 	)
 	return i, err
 }
@@ -276,6 +303,51 @@ type DeleteMembershipParams struct {
 func (q *Queries) DeleteMembership(ctx context.Context, arg DeleteMembershipParams) error {
 	_, err := q.db.Exec(ctx, deleteMembership, arg.OrgID, arg.UserID)
 	return err
+}
+
+const getInviteByID = `-- name: GetInviteByID :one
+SELECT i.id, i.org_id, i.invited_by, i.role, i.phone, i.phone_hash, i.email, i.status, i.created_at, i.updated_at,
+       o.name AS org_name, o.kra_pin_enc, o.kra_pin_hash
+FROM org_invites i
+JOIN orgs o ON o.id = i.org_id
+WHERE i.id = $1
+`
+
+type GetInviteByIDRow struct {
+	ID         uuid.UUID
+	OrgID      uuid.UUID
+	InvitedBy  uuid.UUID
+	Role       string
+	Phone      *string
+	PhoneHash  []byte
+	Email      *string
+	Status     string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	OrgName    string
+	KraPinEnc  []byte
+	KraPinHash []byte
+}
+
+func (q *Queries) GetInviteByID(ctx context.Context, id uuid.UUID) (GetInviteByIDRow, error) {
+	row := q.db.QueryRow(ctx, getInviteByID, id)
+	var i GetInviteByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.InvitedBy,
+		&i.Role,
+		&i.Phone,
+		&i.PhoneHash,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrgName,
+		&i.KraPinEnc,
+		&i.KraPinHash,
+	)
+	return i, err
 }
 
 const getOrg = `-- name: GetOrg :one
@@ -376,7 +448,7 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, msisdn_enc, msisdn_hash, name, locale, last_login_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, msisdn_enc, msisdn_hash, name, locale, last_login_at, created_at, updated_at, email, email_hash FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -391,12 +463,14 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.EmailHash,
 	)
 	return i, err
 }
 
 const getUserByMSISDNHash = `-- name: GetUserByMSISDNHash :one
-SELECT id, msisdn_enc, msisdn_hash, name, locale, last_login_at, created_at, updated_at FROM users WHERE msisdn_hash = $1
+SELECT id, msisdn_enc, msisdn_hash, name, locale, last_login_at, created_at, updated_at, email, email_hash FROM users WHERE msisdn_hash = $1
 `
 
 func (q *Queries) GetUserByMSISDNHash(ctx context.Context, msisdnHash []byte) (User, error) {
@@ -411,6 +485,8 @@ func (q *Queries) GetUserByMSISDNHash(ctx context.Context, msisdnHash []byte) (U
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.EmailHash,
 	)
 	return i, err
 }
@@ -609,6 +685,96 @@ func (q *Queries) ListOrgs(ctx context.Context, limit int32) ([]Org, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const listPendingInvitesForPhoneOrEmail = `-- name: ListPendingInvitesForPhoneOrEmail :many
+SELECT i.id, i.org_id, i.invited_by, i.role, i.phone, i.phone_hash, i.email, i.status, i.created_at, i.updated_at,
+       o.name AS org_name, o.kra_pin_enc, o.kra_pin_hash
+FROM org_invites i
+JOIN orgs o ON o.id = i.org_id
+WHERE (i.phone_hash = $1 OR (i.email IS NOT NULL AND $2::text != '' AND LOWER(i.email) = LOWER($2::text)))
+  AND i.status = 'pending'
+ORDER BY i.created_at DESC
+`
+
+type ListPendingInvitesForPhoneOrEmailParams struct {
+	PhoneHash []byte
+	Column2   string
+}
+
+type ListPendingInvitesForPhoneOrEmailRow struct {
+	ID         uuid.UUID
+	OrgID      uuid.UUID
+	InvitedBy  uuid.UUID
+	Role       string
+	Phone      *string
+	PhoneHash  []byte
+	Email      *string
+	Status     string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	OrgName    string
+	KraPinEnc  []byte
+	KraPinHash []byte
+}
+
+func (q *Queries) ListPendingInvitesForPhoneOrEmail(ctx context.Context, arg ListPendingInvitesForPhoneOrEmailParams) ([]ListPendingInvitesForPhoneOrEmailRow, error) {
+	rows, err := q.db.Query(ctx, listPendingInvitesForPhoneOrEmail, arg.PhoneHash, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPendingInvitesForPhoneOrEmailRow{}
+	for rows.Next() {
+		var i ListPendingInvitesForPhoneOrEmailRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.InvitedBy,
+			&i.Role,
+			&i.Phone,
+			&i.PhoneHash,
+			&i.Email,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrgName,
+			&i.KraPinEnc,
+			&i.KraPinHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const rejectInvite = `-- name: RejectInvite :one
+UPDATE org_invites
+SET status = 'rejected', updated_at = now()
+WHERE id = $1 AND status = 'pending'
+RETURNING id, org_id, invited_by, role, phone, phone_hash, email, status, created_at, updated_at
+`
+
+func (q *Queries) RejectInvite(ctx context.Context, id uuid.UUID) (OrgInvite, error) {
+	row := q.db.QueryRow(ctx, rejectInvite, id)
+	var i OrgInvite
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.InvitedBy,
+		&i.Role,
+		&i.Phone,
+		&i.PhoneHash,
+		&i.Email,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const revokeInvite = `-- name: RevokeInvite :exec

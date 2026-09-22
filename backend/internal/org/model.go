@@ -41,6 +41,7 @@ var (
 	ErrOTPInvalid    = errors.New("org: code is wrong or expired")
 	ErrUnauthorised  = errors.New("org: not authenticated")
 	ErrForbidden     = errors.New("org: not a member of that organisation")
+	ErrNotFound      = errors.New("org: not found")
 	ErrPINTaken      = errors.New("org: an organisation with this KRA PIN already exists")
 	ErrPINUnknown    = errors.New("org: KRA does not know this PIN")
 	ErrNoMembership  = errors.New("org: user has no organisation yet")

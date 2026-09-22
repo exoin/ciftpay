@@ -134,10 +134,15 @@ export function LoginForm() {
         const s = await verify.mutateAsync({ msisdn, code });
         // If user is solely an accountant or their primary membership is accountant,
         // take them directly to the Organizations portal (/clients).
-        if (hasNoOrg(s)) {
-          router.replace("/onboarding");
-        } else if (s.orgs?.some(m => m.role === "accountant") && !s.orgs.some(m => m.role === "owner" || m.role === "admin")) {
+        const isSolelyAccountant = (s.orgs ?? []).length > 0 && !(s.orgs ?? []).some(m => m.role === "owner" || m.role === "admin" || m.role === "staff");
+        if (isSolelyAccountant) {
           router.replace("/clients");
+        } else if (hasNoOrg(s)) {
+          if (mode === "signup") {
+            router.replace("/onboarding");
+          } else {
+            router.replace("/clients");
+          }
         } else {
           router.replace(next);
         }

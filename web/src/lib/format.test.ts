@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKES, formatQty, groupThousands, maskMsisdn, moneyParts, normaliseMsisdn, THIN_SPACE, MINUS } from "./format";
+import { formatKES, formatQty, generateUUID, groupThousands, maskMsisdn, moneyParts, normaliseMsisdn, THIN_SPACE, MINUS } from "./format";
 
 describe("formatKES", () => {
   it("renders cents with thin-space thousands and two decimals", () => {
@@ -63,5 +63,17 @@ describe("formatQty", () => {
   it("still tolerates numbers", () => {
     expect(formatQty(2)).toBe("2");
     expect(formatQty(0.25)).toBe("0.25");
+  });
+});
+
+describe("generateUUID", () => {
+  it("generates a valid UUID v4 string", () => {
+    const uuid = generateUUID();
+    expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  });
+
+  it("produces unique values across successive calls", () => {
+    const set = new Set([generateUUID(), generateUUID(), generateUUID()]);
+    expect(set.size).toBe(3);
   });
 });

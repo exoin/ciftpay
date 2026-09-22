@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AcceptInvite(ctx context.Context, id uuid.UUID) (OrgInvite, error)
 	AckInvoice(ctx context.Context, arg AckInvoiceParams) (Invoice, error)
 	// Progressive onboarding (ADR-0009): once a merchant configures eTIMS, every
 	// invoice that was withheld while etims_status was 'unconfigured' is queued
@@ -55,6 +56,7 @@ type Querier interface {
 	// Runs under app.scope = 'admin' (db.WithAdmin): ciftctl accepts the number.
 	FindShortcodesByNumber(ctx context.Context, shortcode string) ([]MpesaShortcode, error)
 	GetAckedInvoiceForSale(ctx context.Context, saleID uuid.UUID) (Invoice, error)
+	GetInviteByID(ctx context.Context, id uuid.UUID) (GetInviteByIDRow, error)
 	GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error)
 	GetInvoiceByPayment(ctx context.Context, paymentID *uuid.UUID) (Invoice, error)
 	// Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
@@ -91,6 +93,7 @@ type Querier interface {
 	ListNotificationsForInvoice(ctx context.Context, invoiceID *uuid.UUID) ([]Notification, error)
 	ListOrgs(ctx context.Context, limit int32) ([]Org, error)
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
+	ListPendingInvitesForPhoneOrEmail(ctx context.Context, arg ListPendingInvitesForPhoneOrEmailParams) ([]ListPendingInvitesForPhoneOrEmailRow, error)
 	ListPlans(ctx context.Context) ([]Plan, error)
 	ListSaleItems(ctx context.Context, saleID uuid.UUID) ([]SaleItem, error)
 	ListSales(ctx context.Context, arg ListSalesParams) ([]Sale, error)
@@ -106,6 +109,7 @@ type Querier interface {
 	MarkShortcodeC2BRegistered(ctx context.Context, id uuid.UUID) error
 	MarkWebhookProcessed(ctx context.Context, arg MarkWebhookProcessedParams) error
 	NextSaleRef(ctx context.Context, orgID uuid.UUID) (string, error)
+	RejectInvite(ctx context.Context, id uuid.UUID) (OrgInvite, error)
 	RejectShortcode(ctx context.Context, arg RejectShortcodeParams) (MpesaShortcode, error)
 	ResetInvoiceForRetry(ctx context.Context, id uuid.UUID) (Invoice, error)
 	// Runs under app.scope = 'ingest' (db.WithIngest): the only cross-tenant read

@@ -81,6 +81,12 @@ func (d *DB) WithAdmin(ctx context.Context, fn func(ctx context.Context, tx Tx) 
 	return d.scoped(ctx, "app.scope", "admin", fn)
 }
 
+// WithAccountant runs fn with the cross-tenant accountant scope:
+// allows reading and updating pending invitations addressed to the accountant.
+func (d *DB) WithAccountant(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error {
+	return d.scoped(ctx, "app.scope", "accountant", fn)
+}
+
 // WithReceipt runs fn with read access to exactly one invoice by receipt code.
 func (d *DB) WithReceipt(ctx context.Context, code string, fn func(ctx context.Context, tx Tx) error) error {
 	return d.scoped(ctx, "app.receipt_code", code, fn)

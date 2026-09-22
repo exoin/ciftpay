@@ -48,6 +48,41 @@ export function getCsrfToken(): string | null {
   return window.sessionStorage.getItem(CSRF_STORAGE_KEY);
 }
 
+let csrfRefreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Fetches the active session's CSRF token from the Go backend.
+ * Deduplicates in-flight calls to avoid stampeding the API.
+ */
+export async function fetchCsrfToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  if (csrfRefreshPromise) return csrfRefreshPromise;
+
+  csrfRefreshPromise = (async () => {
+    try {
+      const res = await fetch(`${apiBaseUrl()}/csrf`, {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { csrf_token?: string };
+        if (body.csrf_token) {
+          setCsrfToken(body.csrf_token);
+          return body.csrf_token;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      csrfRefreshPromise = null;
+    }
+  })();
+
+  return csrfRefreshPromise;
+}
+
 const ORG_STORAGE_KEY = "ciftpay.org";
 
 export function setActiveOrgId(id: string | null) {
@@ -61,11 +96,55 @@ export function getActiveOrgId(): string | null {
   return window.localStorage.getItem(ORG_STORAGE_KEY);
 }
 
-/** Adds the session cookie, CSRF token on mutations and the active org header. */
+/**
+ * Resilient fetch wrapper:
+ * 1. Clones mutating requests before dispatch so body streams remain reusable.
+ * 2. If a mutating request fails with 403 CSRF error, refreshes the CSRF token and seamlessly retries once.
+ */
+export async function resilientFetch(request: Request): Promise<Response> {
+  const isMutating = request.method !== "GET" && request.method !== "HEAD";
+  const retryCandidate = isMutating ? request.clone() : null;
+
+  const response = await fetch(request);
+
+  if (response.status === 403 && isMutating && retryCandidate) {
+    const cloned = response.clone();
+    let isCsrf = false;
+    try {
+      const data = await cloned.json();
+      const msg = data?.error?.message ?? "";
+      if (typeof msg === "string" && msg.toLowerCase().includes("csrf")) {
+        isCsrf = true;
+      }
+    } catch {
+      // not JSON
+    }
+
+    if (isCsrf) {
+      const newToken = await fetchCsrfToken();
+      if (newToken) {
+        const headers = new Headers(retryCandidate.headers);
+        headers.set("X-CSRF-Token", newToken);
+        const retryRequest = new Request(retryCandidate, {
+          headers,
+          ...(typeof window === "undefined" ? { duplex: "half" } : {}),
+        });
+        return await fetch(retryRequest);
+      }
+    }
+  }
+
+  return response;
+}
+
+/** Adds the session cookie, CSRF token on mutations (auto-retrieves if missing) and the active org header. */
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
     if (request.method !== "GET" && request.method !== "HEAD") {
-      const csrf = getCsrfToken();
+      let csrf = getCsrfToken();
+      if (!csrf) {
+        csrf = await fetchCsrfToken();
+      }
       if (csrf) request.headers.set("X-CSRF-Token", csrf);
     }
     const org = getActiveOrgId();
@@ -74,7 +153,11 @@ const authMiddleware: Middleware = {
   },
 };
 
-export const api = createClient<paths>({ baseUrl: apiBaseUrl(), credentials: "include" });
+export const api = createClient<paths>({
+  baseUrl: apiBaseUrl(),
+  credentials: "include",
+  fetch: resilientFetch,
+});
 api.use(authMiddleware);
 
 /** Server-side client (server components, route handlers). No cookies. */
@@ -101,21 +184,39 @@ export async function rawGet<T>(path: string): Promise<T> {
  */
 export async function rawPatch<T>(path: string, body?: unknown): Promise<T> {
   const headers = new Headers({ "Content-Type": "application/json" });
-  const csrf = getCsrfToken();
+  let csrf = getCsrfToken();
+  if (!csrf) {
+    csrf = await fetchCsrfToken();
+  }
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
-  const res = await fetch(`${apiBaseUrl()}${path}`, { method: "PATCH", credentials: "include", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const req = new Request(`${apiBaseUrl()}${path}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const res = await resilientFetch(req);
   return readJson<T>(res);
 }
 
 export async function rawPost<T>(path: string, body?: unknown): Promise<T> {
   const headers = new Headers({ "Content-Type": "application/json" });
-  const csrf = getCsrfToken();
+  let csrf = getCsrfToken();
+  if (!csrf) {
+    csrf = await fetchCsrfToken();
+  }
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
-  const res = await fetch(`${apiBaseUrl()}${path}`, { method: "POST", credentials: "include", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const req = new Request(`${apiBaseUrl()}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const res = await resilientFetch(req);
   return readJson<T>(res);
 }
 
@@ -126,11 +227,20 @@ export async function rawPost<T>(path: string, body?: unknown): Promise<T> {
  */
 export async function postForm<T>(path: string, form: FormData): Promise<T> {
   const headers = new Headers();
-  const csrf = getCsrfToken();
+  let csrf = getCsrfToken();
+  if (!csrf) {
+    csrf = await fetchCsrfToken();
+  }
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
-  const res = await fetch(`${apiBaseUrl()}${path}`, { method: "POST", credentials: "include", headers, body: form });
+  const req = new Request(`${apiBaseUrl()}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: form,
+  });
+  const res = await resilientFetch(req);
   return readJson<T>(res);
 }
 

@@ -34,6 +34,8 @@ func (h *Handler) MountPublic(r chi.Router) {
 
 // MountPrivate registers routes that need a session (mount behind Authenticate).
 func (h *Handler) MountPrivate(r chi.Router) {
+	r.Get("/csrf", h.csrf)
+	r.Get("/auth/csrf", h.csrf)
 	r.Post("/auth/logout", h.logout)
 	r.Get("/orgs", h.listOrgs)
 	r.Post("/orgs", h.createOrg)
@@ -45,6 +47,12 @@ func (h *Handler) MountPrivate(r chi.Router) {
 	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Get("/org/invites", h.listInvites)
 	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Delete("/org/invites/{id}", h.revokeInvite)
 	r.With(RequireOrg, RequireRole(RoleOwner, RoleAdmin)).Delete("/org/members/{userId}", h.removeMember)
+
+	// Dedicated Accountant Portal Endpoints
+	r.Get("/accountant/invites", h.listAccountantInvites)
+	r.Post("/accountant/invites/{id}/accept", h.acceptAccountantInvite)
+	r.Post("/accountant/invites/{id}/reject", h.rejectAccountantInvite)
+	r.Get("/accountant/clients", h.listAccountantClients)
 }
 
 // Authenticate resolves the session cookie into an httpx.Principal on the
@@ -171,6 +179,15 @@ func (h *Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 		})
 		httpx.JSON(w, http.StatusOK, sess)
 	}
+}
+
+func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) {
+	p, ok := httpx.PrincipalFrom(r.Context())
+	if !ok || p.CSRF == "" {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthenticated", "Sign in to continue")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"csrf_token": p.CSRF})
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
@@ -348,4 +365,66 @@ func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) listAccountantInvites(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	invites, err := h.S.ListPendingInvitesForUser(r.Context(), p.UserID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not load invitations")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"data": invites})
+}
+
+func (h *Handler) acceptAccountantInvite(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Invalid invite id")
+		return
+	}
+	if err := h.S.AcceptInvite(r.Context(), p.UserID, id); err != nil {
+		switch {
+		case errors.Is(err, ErrNotFound):
+			httpx.Fail(w, http.StatusNotFound, "not_found", "Invitation not found")
+		case errors.Is(err, ErrForbidden):
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "You are not the recipient of this invitation")
+		default:
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) rejectAccountantInvite(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Invalid invite id")
+		return
+	}
+	if err := h.S.RejectInvite(r.Context(), p.UserID, id); err != nil {
+		switch {
+		case errors.Is(err, ErrNotFound):
+			httpx.Fail(w, http.StatusNotFound, "not_found", "Invitation not found")
+		case errors.Is(err, ErrForbidden):
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "You are not the recipient of this invitation")
+		default:
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", err.Error())
+		}
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) listAccountantClients(w http.ResponseWriter, r *http.Request) {
+	p, _ := httpx.PrincipalFrom(r.Context())
+	clients, err := h.S.ListAccountantClients(r.Context(), p.UserID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not load client organisations")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"data": clients})
 }

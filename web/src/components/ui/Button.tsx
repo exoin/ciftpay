@@ -28,7 +28,7 @@ const sizes: Record<Size, string> = {
   sm: "min-h-9 px-3 text-sm",
 };
 
-/** Always labelled with a verb. Loading replaces the label with three static dots. */
+/** Always labelled with a verb. Loading displays an accessible spinning loader and disables interaction. */
 export function Button({ variant = "primary", size = "md", loading = false, block = false, className, children, disabled, ...rest }: ButtonProps) {
   return (
     <button
@@ -39,9 +39,10 @@ export function Button({ variant = "primary", size = "md", loading = false, bloc
       {...rest}
     >
       {loading ? (
-        <span aria-hidden className="font-mono tracking-[0.2em]">
-          ···
-        </span>
+        <span
+          aria-hidden
+          className="inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+        />
       ) : (
         children
       )}

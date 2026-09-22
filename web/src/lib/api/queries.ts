@@ -300,8 +300,9 @@ export function useSubmitShortcodeAuthorization() {
 }
 
 export function useAnalyticsSummary(period: "today" | "month" = "today") {
+  const orgId = getActiveOrgId();
   return useQuery({
-    queryKey: ["analytics", "summary", period] as const,
+    queryKey: ["analytics", "summary", orgId, period] as const,
     queryFn: async () =>
       unwrap(
         await api.GET("/analytics/summary", {
@@ -312,11 +313,11 @@ export function useAnalyticsSummary(period: "today" | "month" = "today") {
   });
 }
 
-export async function downloadItaxReport(month: string): Promise<void> {
+export async function downloadItaxReport(month: string, overrideOrgId?: string): Promise<void> {
   const base = apiBaseUrl();
   const url = `${base}/reports/itax/export?month=${encodeURIComponent(month)}`;
   const headers: HeadersInit = {};
-  const orgId = getActiveOrgId();
+  const orgId = overrideOrgId ?? getActiveOrgId();
   if (orgId) headers["X-Org-Id"] = orgId;
 
   const res = await fetch(url, {
@@ -383,5 +384,44 @@ export function useRemoveMember() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["org", "members"] });
     },
+  });
+}
+
+export function useAccountantInvites() {
+  return useQuery({
+    queryKey: ["accountant", "invites"] as const,
+    queryFn: async () => unwrap(await api.GET("/accountant/invites")),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useAcceptAccountantInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.POST("/accountant/invites/{id}/accept", { params: { path: { id } } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["accountant"] });
+      void qc.invalidateQueries({ queryKey: ["orgs"] });
+    },
+  });
+}
+
+export function useRejectAccountantInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.POST("/accountant/invites/{id}/reject", { params: { path: { id } } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["accountant", "invites"] });
+    },
+  });
+}
+
+export function useAccountantClients() {
+  return useQuery({
+    queryKey: ["accountant", "clients"] as const,
+    queryFn: async () => unwrap(await api.GET("/accountant/clients")),
+    refetchInterval: 60_000,
   });
 }

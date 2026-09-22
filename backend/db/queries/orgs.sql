@@ -116,3 +116,31 @@ ORDER BY m.created_at ASC;
 -- name: DeleteMembership :exec
 DELETE FROM memberships
 WHERE org_id = $1 AND user_id = $2;
+
+-- name: ListPendingInvitesForPhoneOrEmail :many
+SELECT i.id, i.org_id, i.invited_by, i.role, i.phone, i.phone_hash, i.email, i.status, i.created_at, i.updated_at,
+       o.name AS org_name, o.kra_pin_enc, o.kra_pin_hash
+FROM org_invites i
+JOIN orgs o ON o.id = i.org_id
+WHERE (i.phone_hash = $1 OR (i.email IS NOT NULL AND $2::text != '' AND LOWER(i.email) = LOWER($2::text)))
+  AND i.status = 'pending'
+ORDER BY i.created_at DESC;
+
+-- name: GetInviteByID :one
+SELECT i.id, i.org_id, i.invited_by, i.role, i.phone, i.phone_hash, i.email, i.status, i.created_at, i.updated_at,
+       o.name AS org_name, o.kra_pin_enc, o.kra_pin_hash
+FROM org_invites i
+JOIN orgs o ON o.id = i.org_id
+WHERE i.id = $1;
+
+-- name: AcceptInvite :one
+UPDATE org_invites
+SET status = 'accepted', updated_at = now()
+WHERE id = $1 AND status = 'pending'
+RETURNING *;
+
+-- name: RejectInvite :one
+UPDATE org_invites
+SET status = 'rejected', updated_at = now()
+WHERE id = $1 AND status = 'pending'
+RETURNING *;
