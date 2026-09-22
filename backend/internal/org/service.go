@@ -436,7 +436,7 @@ func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, 
 
 		if phoneNorm != "" {
 			phonePtr = &phoneNorm
-			status = "accepted"
+			status = "pending"
 
 			u, err := tx.GetUserByMSISDNHash(ctx, phoneHash)
 			if err != nil {
@@ -449,6 +449,10 @@ func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, 
 				if err != nil {
 					return err
 				}
+			}
+
+			if u.ID == inviterID {
+				return errors.New("you cannot invite yourself to this business")
 			}
 
 			if _, err := tx.CreateMembership(ctx, gen.CreateMembershipParams{
@@ -522,9 +526,19 @@ func (s *Service) ListInvites(ctx context.Context, orgID uuid.UUID) ([]Invite, e
 	return out, err
 }
 
-// RevokeInvite cancels a pending invite.
+// RevokeInvite cancels a pending invite and removes any provisioned membership.
 func (s *Service) RevokeInvite(ctx context.Context, orgID, inviteID uuid.UUID) error {
-	return s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
+	return s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+		invites, err := tx.ListInvitesForOrg(ctx, orgID)
+		if err == nil {
+			for _, inv := range invites {
+				if inv.ID == inviteID && len(inv.PhoneHash) > 0 {
+					if u, err := tx.GetUserByMSISDNHash(ctx, inv.PhoneHash); err == nil {
+						_ = tx.DeleteMembership(ctx, gen.DeleteMembershipParams{OrgID: orgID, UserID: u.ID})
+					}
+				}
+			}
+		}
 		return tx.RevokeInvite(ctx, gen.RevokeInviteParams{ID: inviteID, OrgID: orgID})
 	})
 }

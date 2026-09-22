@@ -26,6 +26,8 @@ CREATE POLICY org_invites_tenant ON org_invites
   USING (org_id = current_org())
   WITH CHECK (org_id = current_org());
 
+GRANT ALL ON org_invites TO ciftpay;
+
 -- +goose StatementEnd
 
 -- +goose Down
