@@ -63,6 +63,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/shortcodes/{id}/authorization", h.submitAuthorization)
 
 	r.Get("/payments", h.listPayments)
+	r.Get("/payments/{id}", h.getPayment)
 	r.Post("/payments/{id}/convert", h.convertPayment)
 
 	r.Get("/items", h.listItems)
@@ -352,9 +353,28 @@ func (h *Handler) submitAuthorization(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) listPayments(w http.ResponseWriter, r *http.Request) {
 	orgID, _ := org(r)
 	limit, offset := page(r)
+	status := optString(r.URL.Query().Get("status"))
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	var queryParam *string
+	var phoneHash []byte
+	if q != "" {
+		queryParam = &q
+		if norm, err := crypto.NormaliseMSISDN(q); err == nil && norm != "" {
+			phoneHash = h.Keys.Hash(norm)
+		}
+	}
+
 	out := []PaymentView{}
 	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
-		rows, err := tx.ListPayments(ctx, gen.ListPaymentsParams{OrgID: orgID, Limit: limit, Offset: offset, Status: optString(r.URL.Query().Get("status"))})
+		rows, err := tx.ListPayments(ctx, gen.ListPaymentsParams{
+			OrgID:     orgID,
+			Limit:     limit,
+			Offset:    offset,
+			Status:    status,
+			Query:     queryParam,
+			PhoneHash: phoneHash,
+		})
 		if err != nil {
 			return err
 		}
@@ -368,6 +388,28 @@ func (h *Handler) listPayments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"data": out, "limit": limit, "offset": offset})
+}
+
+func (h *Handler) getPayment(w http.ResponseWriter, r *http.Request) {
+	orgID, _ := org(r)
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	var out PaymentView
+	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
+		p, err := tx.GetPayment(ctx, id)
+		if err != nil {
+			return err
+		}
+		out = toPayment(h.Keys, p, h.invoiceIDForSale(ctx, tx, p.SaleID))
+		return nil
+	})
+	if err != nil {
+		fail(w, err, "Payment not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) invoiceIDForSale(ctx context.Context, tx db.Tx, saleID *uuid.UUID) *uuid.UUID {

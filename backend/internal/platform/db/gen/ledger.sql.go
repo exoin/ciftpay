@@ -497,15 +497,25 @@ func (q *Queries) ListItems(ctx context.Context, orgID uuid.UUID) ([]Item, error
 
 const listPayments = `-- name: ListPayments :many
 SELECT id, org_id, shortcode_id, webhook_event_id, trans_id, amount_cents, msisdn_enc, msisdn_hash, payer_name, bill_ref, paid_at, status, sale_id, match_rule, reversed_at, created_at, updated_at FROM payments
-WHERE org_id = $1 AND ($4::text IS NULL OR status = $4)
+WHERE org_id = $1
+  AND ($4::text IS NULL OR status = $4)
+  AND (
+    $5::text IS NULL
+    OR trans_id ILIKE '%' || $5 || '%'
+    OR payer_name ILIKE '%' || $5 || '%'
+    OR bill_ref ILIKE '%' || $5 || '%'
+    OR ($6::bytea IS NOT NULL AND msisdn_hash = $6)
+  )
 ORDER BY paid_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListPaymentsParams struct {
-	OrgID  uuid.UUID
-	Limit  int32
-	Offset int32
-	Status *string
+	OrgID     uuid.UUID
+	Limit     int32
+	Offset    int32
+	Status    *string
+	Query     *string
+	PhoneHash []byte
 }
 
 func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error) {
@@ -514,6 +524,8 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]P
 		arg.Limit,
 		arg.Offset,
 		arg.Status,
+		arg.Query,
+		arg.PhoneHash,
 	)
 	if err != nil {
 		return nil, err

@@ -76,7 +76,15 @@ SELECT * FROM payments WHERE trans_id = $1;
 
 -- name: ListPayments :many
 SELECT * FROM payments
-WHERE org_id = $1 AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+WHERE org_id = $1
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (
+    sqlc.narg('query')::text IS NULL
+    OR trans_id ILIKE '%' || sqlc.narg('query') || '%'
+    OR payer_name ILIKE '%' || sqlc.narg('query') || '%'
+    OR bill_ref ILIKE '%' || sqlc.narg('query') || '%'
+    OR (sqlc.narg('phone_hash')::bytea IS NOT NULL AND msisdn_hash = sqlc.narg('phone_hash'))
+  )
 ORDER BY paid_at DESC LIMIT $2 OFFSET $3;
 
 -- name: AttachPaymentToSale :exec

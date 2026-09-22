@@ -10,7 +10,12 @@ export const qk = {
   orgs: ["orgs"] as const,
   today: ["reports", "today"] as const,
   vat: (period: string) => ["reports", "vat", period] as const,
-  payments: (status?: string) => ["payments", status ?? "all"] as const,
+  payments: (params?: { status?: string; q?: string } | string) => {
+    if (typeof params === "string") {
+      return ["payments", params, ""] as const;
+    }
+    return ["payments", params?.status ?? "all", params?.q ?? ""] as const;
+  },
   invoices: (params?: { state?: string; kind?: string; q?: string }) =>
     ["invoices", params?.state ?? "all", params?.kind ?? "all", params?.q ?? ""] as const,
   invoice: (id: string) => ["invoices", "detail", id] as const,
@@ -59,10 +64,28 @@ export function useToday() {
   });
 }
 
-export function usePayments(status?: Schemas["PaymentStatus"]) {
+export type PaymentFilterParams = {
+  status?: Schemas["PaymentStatus"];
+  q?: string;
+};
+
+export function usePayments(filters?: PaymentFilterParams | Schemas["PaymentStatus"]) {
+  const params: PaymentFilterParams =
+    typeof filters === "string" ? { status: filters } : filters ?? {};
+
   return useQuery({
-    queryKey: qk.payments(status),
-    queryFn: async () => unwrap(await api.GET("/payments", { params: { query: status ? { status } : {} } })),
+    queryKey: qk.payments(params),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/payments", {
+          params: {
+            query: {
+              ...(params.status ? { status: params.status } : {}),
+              ...(params.q ? { q: params.q } : {}),
+            },
+          },
+        })
+      ),
   });
 }
 
