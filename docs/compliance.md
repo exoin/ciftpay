@@ -55,7 +55,12 @@ Selection criteria for the integrator (checklist for §9.2 of `plan.md`):
 5. Pricing: per-invoice fee ≤ KES 2 at 100k invoices/month or flat.
 6. Data-processing agreement compatible with §4 below.
 
-**Phase 3 (OSCU adapter):** CiftPay applies for its own system-to-system integrator certification with KRA and implements `internal/fiscal/oscu`. The product does not change; `FISCAL_ADAPTER` is switched per org after migration.
+**Phase 1 Acceleration (Direct OSCU Adapter — ADR-0009, ADR-0011):** While ADR-0002 initially planned an interim third-party aggregator (`vendor` adapter) with direct OSCU deferred to Phase 3, CiftPay acquired direct KRA developer credentials and implemented direct OSCU system-to-system integration ahead of schedule in Phase 1. 
+
+Direct OSCU integrates under the merchant's own KRA PIN (`tin`), branch ID (`bhfId`), and KRA-issued device serial (`dvcSrlNo`), returning a cryptographic `cmcKey` for local request signing. Communication routes via KRA's OAuth Gateway (`https://sbx.kra.go.ke` in sandbox) and direct eTIMS API origin (`https://etims-api-sbx.kra.go.ke` in sandbox, `https://etims-api.kra.go.ke` in production).
+
+**Credit Notes & Immutability (ADR-0010):**
+Under KRA eTIMS regulations, invoices are strictly immutable once acknowledged (`ACKED`). Any adjustment, retroactive addition of a buyer KRA PIN, or cancellation requires issuing a formal Credit Note (`rcptTyCd: "R"`, refund reason code `rfdRsnCd: "01"`) citing the original KRA invoice number (`orgInvcNo`). Replacement invoices are linked via forward/parent pointer chains (`superseded_by_id`, `parent_invoice_id`) and superseded documents cannot be re-amended.
 
 **Engineering consequences (ADR-0002):**
 - Invoice content follows KRA's mandatory fields: seller PIN, seller name, invoice number (KRA-assigned), date/time, item description, item classification code, quantity, unit price, tax category (A/B/C/D/E), tax amount, total, buyer PIN (optional), QR/signature.

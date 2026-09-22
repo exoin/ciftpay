@@ -47,7 +47,12 @@ erDiagram
 | kra_pin_hash | bytea UNIQUE | HMAC for uniqueness/lookup |
 | kra_pin_verified_at | timestamptz | iTax PIN-checker lookup |
 | vat_registered | boolean | drives default tax category (B vs D) |
-| fiscal_profile | jsonb | `{"adapter":"vendor","device_ref":"...","branch_id":"00"}` |
+| fiscal_profile | jsonb | `{"adapter":"oscu","device_ref":"...","branch_id":"00"}` |
+| etims_status | text | `unconfigured` / `initialized` / `failed` (ADR-0009) |
+| etims_failed_reason | text | Last KRA rejection code / error message |
+| kra_bhf_id | text | KRA Branch ID (default `00`) |
+| kra_device_serial | text | Assigned KRA OSCU device serial |
+| kra_cmc_key_enc | bytea | Envelope-encrypted communication signing key |
 | locale | text | `en` / `sw` |
 | status | text | `active` / `suspended` |
 
@@ -146,11 +151,14 @@ Migration `0003` dropped `shortcode_verifications` and `verification_checkout_id
 | sale_id | uuid → sales | |
 | payment_id | uuid → payments | nullable (manual sale) |
 | kind | text | `INVOICE` / `CREDIT_NOTE` |
-| parent_invoice_id | uuid → invoices | for credit notes |
+| parent_invoice_id | uuid → invoices | for credit notes and replacement invoices |
+| superseded_by_id | uuid → invoices | forward pointer to active replacement invoice (ADR-0010) |
+| refund_reason_code | text | KRA refund reason code (`01` etc.) for credit notes |
 | state | text | `DRAFT` / `QUEUED` / `SUBMITTED` / `ACKED` / `FAILED_RETRYABLE` / `FAILED_TERMINAL` / `NEEDS_REVIEW` |
 | attempt | int | current attempt number |
 | next_attempt_at | timestamptz | |
 | buyer_pin_enc / buyer_pin_hash | bytea | optional |
+| buyer_name | text | optional buyer legal name |
 | kra_invoice_no | text | from ack |
 | kra_signature | text | |
 | kra_qr_payload | text | |

@@ -4,18 +4,25 @@ This directory holds the architecture decision records (ADRs) for CiftPay. An AD
 
 See `plan.md` section 2 ("How to work this plan") for when an ADR is required. In short: any change that alters the architecture, a non-negotiable (N1–N10), a datastore, an external integration boundary, or the regulatory posture needs an ADR before the code lands.
 
+For a summary of architectural decisions that departed from or accelerated past the original phases, see [`docs/decisions-and-deviations.md`](../decisions-and-deviations.md).
+
 ## Index
 
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-modular-monolith.md) | Modular monolith with two binaries (`api`, `worker`) | Accepted |
-| [0002](0002-fiscal-port-third-party-first.md) | `fiscal.Provider` port, third-party integrator first, direct OSCU later | Accepted |
+| [0002](0002-fiscal-port-third-party-first.md) | `fiscal.Provider` port, third-party integrator first, direct OSCU later | Superseded by ADR-0009 |
 | [0003](0003-zero-custody.md) | Zero custody: CiftPay never holds, routes or settles funds | Accepted |
 | [0004](0004-river-postgres-queue.md) | Postgres-backed job queue (River) instead of a separate broker | Accepted |
 | [0005](0005-sqlc-no-orm.md) | Explicit SQL with sqlc + pgx + goose, no ORM, money as integer cents | Accepted |
 | [0006](0006-openapi-first.md) | OpenAPI-first contract in `api/openapi.yaml` | Accepted |
 | [0007](0007-rls-multitenancy.md) | Multi-tenancy by `org_id` column and forced Postgres RLS | Accepted |
 | [0008](0008-administrative-gate.md) | The Administrative Gate: shortcode ownership proven by Safaricom's authorization letter, recorded by an operator | Accepted |
+| [0009](0009-direct-oscu-progressive-onboarding.md) | Direct KRA OSCU adapter, per-merchant device provisioning, and progressive eTIMS onboarding | Accepted |
+| [0010](0010-immutable-credit-notes-and-superseded-invoices.md) | Immutable Credit Note & Superseded Invoice Pointer Chain | Accepted |
+| [0011](0011-dual-origin-kra-gateway-and-live-verification.md) | Dual-Origin KRA Gateway Architecture & Live Zero-Mock Validation | Accepted |
+| [0012](0012-unified-transaction-pipeline-and-customer-sms.md) | Unified Transaction Pipeline for Manual Sales and Webhooks with Customer SMS Receipts | Accepted |
+| [0013](0013-self-healing-onboarding-pin-lockout.md) | Self-Healing Onboarding and KRA PIN Lockout Recovery | Accepted |
 
 ## Numbering and naming
 

@@ -61,7 +61,7 @@ The same `ShortcodeForm` and `AuthorizationStep` power **Settings › Shortcodes
 ### 3.3 Invoices — `/invoices`
 - Filter tabs: All · Sent to KRA · Pending · Failed · Credit notes.
 - Row: KRA invoice no. (mono) or "—" while pending, buyer (masked phone / PIN / name), `Money`, `StatusChip`, time.
-- Detail `/invoices/[id]`: `ReceiptCard` facsimile identical to the public page, `Stamp` per state, actions: `Resend to buyer` (`POST /invoices/{id}/resend`), `Share link`, `Download PDF` (Phase 2), `Issue credit note` (Phase 2). Failed: shows KRA/vendor message in plain words and one fix action.
+- Detail `/invoices/[id]`: `ReceiptCard` facsimile identical to the public page, `Stamp` per state, actions: `Resend to buyer` (`POST /invoices/{id}/resend`), `Share link`, `Issue credit note` (ADR-0010), `Amend / Reissue with Buyer PIN` (ADR-0010), `Download PDF` (Phase 2). Failed: shows KRA/vendor message in plain words and one fix action.
 - **Print reveal** animation when a pending invoice becomes ACKED while open.
 
 ### 3.4 Attention — `/attention`
@@ -91,7 +91,7 @@ Sections (each its own route under `/settings/*`): Business (name, PIN masked, V
 Server-rendered HTML only, ≤ 30 KB, works on Opera Mini.
 
 1. `ReceiptCard` centred at 360 px: merchant name (Fraunces), KRA PIN, "KRA INVOICE No." + number (mono), date/time EAT, lines (`Leader`), subtotal / VAT by category / total, buyer PIN if present (masked), QR (SVG) bottom-left, `Stamp` top-right: **KRA VERIFIED** (green) / **PENDING KRA** (ochre, with "Refresh in a minute") / **CANCELLED** (red, credit note reference).
-2. Under the card: `Save to phone` (uses Web Share where available, else a plain `<a download>` to `/r/[code].pdf` in Phase 2), `Add my KRA PIN` (Phase 2).
+2. Under the card: `Save to phone` (uses Web Share where available, else a plain `<a download>` to `/r/[code].pdf` in Phase 2), `Add my KRA PIN` (live in Phase 1 per ADR-0010: triggers credit note cancellation and issues active replacement invoice with buyer PIN).
 3. Footer: "Issued through CiftPay. Issue your own eTIMS receipts — ciftpay.co.ke" + privacy notice link. UTM on the link.
 4. Not found: a receipt with "NO SUCH RECEIPT" stamp and "Check the code in your SMS."
 

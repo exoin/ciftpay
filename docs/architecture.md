@@ -56,6 +56,7 @@ backend/
 │   ├── mpesa/        Daraja client (OAuth token cache, RegisterURL, STK push, TransactionStatus), webhook handlers, payload types, testdata/
 │   ├── ledger/       payments, sales, sale_items, customers; Matcher; reversal → credit note
 │   ├── fiscal/       Provider port, Invoice/Ack types, state machine, tax categories, retry classification
+│   │   ├── oscu/         Direct KRA OSCU system-to-system client (ADR-0009, ADR-0011)
 │   │   ├── mock/         deterministic acks; failure injection
 │   │   ├── vendor/       KRA-approved integrator HTTP adapter (stub in Phase 0)
 │   │   └── providertest/ contract suite every adapter must pass
