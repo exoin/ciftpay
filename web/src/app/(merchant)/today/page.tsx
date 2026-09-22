@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { TopBar } from "@/components/shell/TopBar";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -23,13 +22,11 @@ export default function TodayPage() {
   const tc = useTranslations("common");
 
   const [period, setPeriod] = useState<"today" | "month">("today");
-  const { data: todayData, isPending: isTodayPending } = useToday();
-  const { data: analytics, isPending: isAnalyticsPending } = useAnalyticsSummary(period);
+  const { data, isPending } = useToday();
+  const { data: analytics } = useAnalyticsSummary(period);
   const [saleOpen, setSaleOpen] = useState(false);
 
-  const hasNoActivity =
-    (analytics?.payments_count ?? todayData?.payments_count ?? 0) === 0 &&
-    (analytics?.gross_sales_cents ?? todayData?.received_cents ?? 0) === 0;
+  const hasNoActivity = (data?.payments_count ?? 0) === 0 && (data?.received_cents ?? 0) === 0;
 
   return (
     <>
@@ -42,11 +39,35 @@ export default function TodayPage() {
         }
       />
 
-      {/* Analytics Interval Switcher & Live Metric Cards */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Live receipt strip: the number first (hero card matching design-system §12). */}
+      <section aria-live="polite" className="perforated-top bg-paper-2 px-5 pb-5 pt-6">
+        <div className="receipt-head text-xs text-muted">{t("received")}</div>
+        <div className="mt-1">
+          <Money cents={data?.received_cents ?? 0} size="3xl" className="w-full justify-start" />
+        </div>
+        <div className="mt-1 font-mono text-sm text-muted">{t("payments", { count: data?.payments_count ?? 0 })}</div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <StatusChip tone="acked">
+            {data?.invoices_acked ?? 0} {t("acked")}
+          </StatusChip>
+          <StatusChip tone="pending">
+            {data?.invoices_pending ?? 0} {t("pending")}
+          </StatusChip>
+          {(data?.attention_count ?? 0) > 0 && (
+            <Link href="/attention">
+              <StatusChip tone="failed">
+                {data?.attention_count} {t("attention")}
+              </StatusChip>
+            </Link>
+          )}
+        </div>
+      </section>
+
+      {/* Thin Analytics Strip below the hero receipt */}
+      <section className="mt-3 rounded-r1 border border-hairline bg-paper-2 p-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline/60 pb-2">
           <Tabs<"today" | "month">
-            ariaLabel="Analytics Period"
+            ariaLabel="Period"
             value={period}
             onChange={setPeriod}
             items={[
@@ -54,85 +75,53 @@ export default function TodayPage() {
               { value: "month", label: t("periodMonth") },
             ]}
           />
-          <span className="font-mono text-xs text-muted">
-            {period === "today" ? todayData?.date : new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+          <span className="font-mono text-[11px] text-muted">
+            {period === "today" ? data?.date : new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" })}
           </span>
         </div>
 
-        {/* Real Metrics Grid */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-2.5 grid grid-cols-1 divide-y divide-hairline/60 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {/* Gross Sales */}
-          <div className="rounded-r2 border border-hairline bg-paper-2 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs text-muted">
-              <span className="font-medium uppercase tracking-wider">{t("grossSales")}</span>
-              <span className="font-mono text-[11px] text-ink-2">
-                {analytics?.payments_count ?? todayData?.payments_count ?? 0} {t("payments", { count: analytics?.payments_count ?? todayData?.payments_count ?? 0 })}
+          <div className="py-1.5 sm:px-3 first:pl-0">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted">{t("grossSales")}</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <Money cents={analytics?.gross_sales_cents ?? 0} size="md" />
+              <span className="font-mono text-[10px] text-muted">
+                ({analytics?.payments_count ?? 0})
               </span>
             </div>
-            <div className="mt-2">
-              <Money cents={analytics?.gross_sales_cents ?? todayData?.received_cents ?? 0} size="2xl" />
-            </div>
-            <p className="mt-1 text-[11px] text-muted">Total M-Pesa volume received</p>
           </div>
 
           {/* Net Sales */}
-          <div className="rounded-r2 border border-hairline bg-paper-2 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs text-muted">
-              <span className="font-medium uppercase tracking-wider">{t("netSales")}</span>
+          <div className="py-1.5 sm:px-3">
+            <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted">
+              <span>{t("netSales")}</span>
               {(analytics?.daraja_fees_cents ?? 0) > 0 && (
-                <span className="font-mono text-[11px] text-ink-2">
+                <span className="font-mono text-[10px] text-ink-2">
                   -{(analytics?.daraja_fees_cents ?? 0) / 100} fee
                 </span>
               )}
             </div>
-            <div className="mt-2">
-              <Money cents={analytics?.net_sales_cents ?? todayData?.received_cents ?? 0} size="2xl" />
+            <div className="mt-1">
+              <Money cents={analytics?.net_sales_cents ?? 0} size="md" />
             </div>
-            <p className="mt-1 text-[11px] text-muted">{t("netSalesHint")}</p>
           </div>
 
-          {/* Estimated VAT Liability */}
-          <div className="rounded-r2 border border-hairline bg-paper-2 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs text-muted">
-              <span className="font-medium uppercase tracking-wider text-ochre">{t("vatLiability")}</span>
-              <span className="rounded bg-ochre/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ochre">KRA</span>
+          {/* Est. VAT Liability */}
+          <div className="py-1.5 sm:px-3 last:pr-0">
+            <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted">
+              <span className="text-ochre">{t("vatLiability")}</span>
+              <span className="rounded bg-ochre/15 px-1 font-mono text-[9px] font-semibold text-ochre">{"KRA"}</span>
             </div>
-            <div className="mt-2">
-              <Money cents={analytics?.vat_liability_cents ?? 0} size="2xl" />
+            <div className="mt-1">
+              <Money cents={analytics?.vat_liability_cents ?? 0} size="md" />
             </div>
-            <p className="mt-1 text-[11px] text-muted">{t("vatLiabilityHint")}</p>
           </div>
-        </div>
-
-        {/* Live status chips */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <StatusChip tone="acked">
-            <span className="flex items-center gap-1">
-              <CheckCircle2 className="size-3.5" />
-              {analytics?.invoices_acked_count ?? todayData?.invoices_acked ?? 0} {t("acked")}
-            </span>
-          </StatusChip>
-          <StatusChip tone="pending">
-            <span className="flex items-center gap-1">
-              <Clock className="size-3.5" />
-              {analytics?.invoices_pending_count ?? todayData?.invoices_pending ?? 0} {t("pending")}
-            </span>
-          </StatusChip>
-          {(analytics?.attention_count ?? todayData?.attention_count ?? 0) > 0 && (
-            <Link href="/attention">
-              <StatusChip tone="failed">
-                <span className="flex items-center gap-1">
-                  <AlertTriangle className="size-3.5" />
-                  {analytics?.attention_count ?? todayData?.attention_count} {t("attention")}
-                </span>
-              </StatusChip>
-            </Link>
-          )}
         </div>
       </section>
 
       {/* First-action empty state / setup checklist for new merchants */}
-      {hasNoActivity && !isTodayPending && !isAnalyticsPending && (
+      {hasNoActivity && !isPending && (
         <section className="mt-6 rounded-r2 border border-hairline bg-paper p-5">
           <h2 className="text-base font-semibold text-ink">{t("quickStartTitle")}</h2>
           <p className="mt-1 text-xs text-ink-2 leading-relaxed">{t("quickStartLead")}</p>
@@ -141,7 +130,7 @@ export default function TodayPage() {
             <div className="flex flex-col justify-between rounded-r1 border border-hairline bg-paper-2 p-3.5">
               <div>
                 <span className="inline-flex size-5 items-center justify-center rounded-full bg-ochre/20 font-mono text-xs font-bold text-ochre">
-                  1
+                  {"1"}
                 </span>
                 <p className="mt-2 text-xs font-semibold text-ink">{t("step1Title")}</p>
                 <p className="mt-1 text-[11px] text-muted leading-normal">{t("step1Desc")}</p>
@@ -158,7 +147,7 @@ export default function TodayPage() {
             <div className="flex flex-col justify-between rounded-r1 border border-hairline bg-paper-2 p-3.5">
               <div>
                 <span className="inline-flex size-5 items-center justify-center rounded-full bg-ochre/20 font-mono text-xs font-bold text-ochre">
-                  2
+                  {"2"}
                 </span>
                 <p className="mt-2 text-xs font-semibold text-ink">{t("step2Title")}</p>
                 <p className="mt-1 text-[11px] text-muted leading-normal">{t("step2Desc")}</p>
@@ -175,7 +164,7 @@ export default function TodayPage() {
             <div className="flex flex-col justify-between rounded-r1 border border-hairline bg-paper-2 p-3.5">
               <div>
                 <span className="inline-flex size-5 items-center justify-center rounded-full bg-ochre/20 font-mono text-xs font-bold text-ochre">
-                  3
+                  {"3"}
                 </span>
                 <p className="mt-2 text-xs font-semibold text-ink">{t("step3Title")}</p>
                 <p className="mt-1 text-[11px] text-muted leading-normal">{t("step3Desc")}</p>
@@ -190,7 +179,6 @@ export default function TodayPage() {
         </section>
       )}
 
-      {/* Latest Payments */}
       <section className="mt-8">
         <div className="flex items-baseline justify-between">
           <h2>{t("recent")}</h2>
@@ -199,13 +187,13 @@ export default function TodayPage() {
           </Link>
         </div>
         <div className="mt-3">
-          {isTodayPending ? (
+          {isPending ? (
             <LoadingRows rows={5} label={tc("loading")} />
-          ) : !todayData || todayData.recent_payments.length === 0 ? (
+          ) : !data || data.recent_payments.length === 0 ? (
             <EmptyState>{t("emptyPayments")}</EmptyState>
           ) : (
             <ul className="ruled">
-              {todayData.recent_payments.map((p: Schemas["Payment"]) => {
+              {data.recent_payments.map((p: Schemas["Payment"]) => {
                 const chip = paymentChip(p.status);
                 return (
                   <li key={p.id} className="flex min-h-[var(--row)] items-center gap-3 py-2">

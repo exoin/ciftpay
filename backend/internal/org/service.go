@@ -430,7 +430,7 @@ func (s *Service) InviteMember(ctx context.Context, orgID, inviterID uuid.UUID, 
 		emailPtr = &in.Email
 	}
 
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
 		var phonePtr *string
 		status := "pending"
 
