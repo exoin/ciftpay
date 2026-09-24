@@ -30,8 +30,8 @@ RETURNING *;
 SELECT * FROM customers WHERE org_id = $1 AND msisdn_hash = $2 ORDER BY created_at LIMIT 1;
 
 -- name: CreateSale :one
-INSERT INTO sales (org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO sales (org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, buyer_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetSale :one

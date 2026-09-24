@@ -72,6 +72,7 @@ type Session struct {
 type Org struct {
 	ID               uuid.UUID  `json:"id"`
 	Name             string     `json:"name"`
+	KRAPin           string     `json:"kra_pin,omitempty"`
 	KRAPinMasked     string     `json:"kra_pin_masked"`
 	KRAPinVerifiedAt *time.Time `json:"kra_pin_verified_at"`
 	VATRegistered    bool       `json:"vat_registered"`
@@ -98,7 +99,7 @@ func toMemberships(rows []gen.ListMembershipsForUserRow) []Membership {
 
 func toOrg(o gen.Org, pin, adapter string) Org {
 	return Org{
-		ID: o.ID, Name: o.Name, KRAPinMasked: plog.MaskPIN(pin), KRAPinVerifiedAt: o.KraPinVerifiedAt,
+		ID: o.ID, Name: o.Name, KRAPin: pin, KRAPinMasked: plog.MaskPIN(pin), KRAPinVerifiedAt: o.KraPinVerifiedAt,
 		VATRegistered: o.VatRegistered, Locale: o.Locale, FiscalAdapter: adapter, CreatedAt: o.CreatedAt,
 	}
 }

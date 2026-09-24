@@ -128,6 +128,8 @@ func (s *Service) ConfigureEtims(ctx context.Context, orgID uuid.UUID, bhfID, de
 			return EtimsSettings{}, err
 		}
 	}
+	legalName := decodeTaxpayerName(ref.Raw)
+
 	err = s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
 		var err error
 		o, err = tx.SetEtimsConfigured(ctx, gen.SetEtimsConfiguredParams{
@@ -135,6 +137,12 @@ func (s *Service) ConfigureEtims(ctx context.Context, orgID uuid.UUID, bhfID, de
 		})
 		if err != nil {
 			return err
+		}
+		// If KRA returned the registered legal name, overwrite the organization's official name
+		if legalName != "" && legalName != o.Name {
+			if _, err := tx.Tx.Exec(ctx, "UPDATE orgs SET name = $1 WHERE id = $2", legalName, orgID); err == nil {
+				o.Name = legalName
+			}
 		}
 		actor := orgID.String()
 		return tx.AppendAudit(ctx, gen.AppendAuditParams{OrgID: orgID, ActorType: "user", ActorID: &actor, Action: "org.etims_configured", Entity: "org", EntityID: orgID.String()})
@@ -162,4 +170,14 @@ func truncateReason(s string) string {
 		return s
 	}
 	return s[:max]
+}
+
+func decodeTaxpayerName(raw json.RawMessage) string {
+	var v struct {
+		TaxpayerName string `json:"taxpayer_name"`
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &v)
+	}
+	return strings.TrimSpace(v.TaxpayerName)
 }

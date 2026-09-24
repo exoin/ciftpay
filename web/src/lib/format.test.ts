@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKES, formatQty, generateUUID, groupThousands, maskMsisdn, moneyParts, normaliseMsisdn, THIN_SPACE, MINUS } from "./format";
+import { formatKES, formatQty, generateUUID, groupThousands, maskKraPin, maskMsisdn, moneyParts, normaliseMsisdn, THIN_SPACE, MINUS } from "./format";
 
 describe("formatKES", () => {
   it("renders cents with thin-space thousands and two decimals", () => {
@@ -50,6 +50,21 @@ describe("msisdn helpers", () => {
   it("normalises the 01xx Safaricom range", () => {
     expect(normaliseMsisdn("0140994513")).toBe("254140994513");
     expect(maskMsisdn("254140994513")).toBe("2541•••••513");
+  });
+});
+
+describe("maskKraPin", () => {
+  it("reveals first 3 and last 3 characters, masking middle 5 with bullets", () => {
+    expect(maskKraPin("P051234567X")).toBe("P05•••••67X");
+    expect(maskKraPin("A012345678Z")).toBe("A01•••••78Z");
+    expect(maskKraPin("p051234567x")).toBe("P05•••••67X");
+  });
+  it("handles short or empty inputs gracefully", () => {
+    expect(maskKraPin("")).toBe("");
+    expect(maskKraPin("A12")).toBe("•••");
+  });
+  it("is idempotent when already masked with 5 middle bullets", () => {
+    expect(maskKraPin("P05•••••67X")).toBe("P05•••••67X");
   });
 });
 

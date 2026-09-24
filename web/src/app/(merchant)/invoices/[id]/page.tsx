@@ -21,6 +21,7 @@ import { ApiRequestError } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/format";
 import { invoiceChip, receiptState } from "@/lib/status";
 import { useActiveMembership } from "@/lib/auth";
+import { exportElementToPdf } from "@/lib/pdf";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -42,6 +43,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [amendPin, setAmendPin] = useState("");
   const [amendName, setAmendName] = useState("");
   const [amendError, setAmendError] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const receiptCardRef = useRef<HTMLDivElement>(null);
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -148,8 +151,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   return (
     <>
       <TopBar title={t("detailTitle")} action={<StatusChip tone={chip.tone}>{ts(chip.key)}</StatusChip>} />
-      <div className="grid gap-8 lg:grid-cols-[1fr_var(--receipt-w)]">
-        <div className="space-y-6">
+      <div className="grid gap-8 lg:grid-cols-[1fr_var(--receipt-w)] print:block">
+        <div className="space-y-6 print:hidden">
           {inv.last_error && (inv.state === "NEEDS_REVIEW" || inv.state === "FAILED_TERMINAL") && (
             <p role="alert" className="rounded-r2 border border-red bg-bad-bg px-3 py-2 text-sm text-ink">
               {inv.last_error}
@@ -350,8 +353,35 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        <div>
-          <ReceiptCard
+        <div className="space-y-3">
+          <div className="flex items-center justify-end gap-2 print:hidden">
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={isExportingPdf}
+              onClick={async () => {
+                if (!receiptCardRef.current || isExportingPdf) return;
+                setIsExportingPdf(true);
+                try {
+                  await exportElementToPdf(receiptCardRef.current, {
+                    filename: `ciftpay-receipt-${inv.receipt_code}.pdf`,
+                    format: "receipt",
+                    scale: 3,
+                  });
+                } finally {
+                  setIsExportingPdf(false);
+                }
+              }}
+            >
+              {tr("downloadPdf")}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => window.print()}>
+              {tr("print")}
+            </Button>
+          </div>
+
+          <div ref={receiptCardRef} className="print:m-0 print:p-0">
+            <ReceiptCard
             state={state}
             kind={inv.kind}
             sellerName={inv.seller.name}
@@ -360,6 +390,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             receiptCode={inv.receipt_code}
             issuedAt={inv.acked_at ?? inv.created_at}
             buyerPinMasked={inv.buyer_pin_masked}
+            buyerName={inv.buyer_name}
             lines={inv.lines}
             subtotalCents={inv.total_cents - inv.tax_cents}
             taxCents={inv.tax_cents}
@@ -372,6 +403,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               invoiceNo: tr("invoiceNo"),
               date: tr("date"),
               buyerPin: tr("buyerPin"),
+              billedTo: tr("billedTo"),
+              paidBy: tr("paidBy"),
               cancels: tr("cancels", { kraNo: "" }).trim(),
               subtotal: tr("subtotal"),
               vat: tr("vat"),
@@ -380,6 +413,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               poweredBy: tr("poweredBy"),
             }}
           />
+          </div>
         </div>
       </div>
     </>

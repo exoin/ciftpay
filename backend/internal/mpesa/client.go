@@ -146,3 +146,56 @@ func (c *Client) do(req *http.Request, out any) error {
 	}
 	return nil
 }
+
+// PullTransaction represents a single transaction record returned by Safaricom Pull API.
+type PullTransaction struct {
+	TransactionType   string `json:"TransactionType"`
+	TransID           string `json:"TransID"`
+	TransTime         string `json:"TransTime"`
+	TransAmount       string `json:"TransAmount"`
+	BusinessShortCode string `json:"BusinessShortCode"`
+	BillRefNumber     string `json:"BillRefNumber"`
+	InvoiceNumber     string `json:"InvoiceNumber"`
+	OrgAccountBalance string `json:"OrgAccountBalance"`
+	ThirdPartyTransID string `json:"ThirdPartyTransID"`
+	MSISDN            string `json:"MSISDN"`
+	FirstName         string `json:"FirstName"`
+	MiddleName        string `json:"MiddleName"`
+	LastName          string `json:"LastName"`
+}
+
+// PullTransactionsQuery is the payload for Daraja Pull Transactions API.
+type PullTransactionsQuery struct {
+	ShortCode   string `json:"ShortCode"`
+	StartDate   string `json:"StartDate"`   // Format: YYYY-MM-DD HH:mm:ss
+	EndDate     string `json:"EndDate"`     // Format: YYYY-MM-DD HH:mm:ss
+	OffSetValue string `json:"OffSetValue"` // e.g. "0"
+}
+
+// PullTransactions invokes Safaricom Daraja's Pull Transactions API.
+func (c *Client) PullTransactions(ctx context.Context, shortcode, startDate, endDate, offset string) ([]PullTransaction, error) {
+	if !c.Configured() {
+		return nil, fmt.Errorf("mpesa: DARAJA credentials not configured")
+	}
+	if offset == "" {
+		offset = "0"
+	}
+	query := PullTransactionsQuery{
+		ShortCode:   shortcode,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		OffSetValue: offset,
+	}
+
+	var res struct {
+		ResponseCode        string            `json:"ResponseCode"`
+		ResponseDescription string            `json:"ResponseDescription"`
+		Response            []PullTransaction `json:"Response"`
+	}
+
+	err := c.post(ctx, "/pulltransactions/v1/query", query, &res)
+	if err != nil {
+		return nil, err
+	}
+	return res.Response, nil
+}

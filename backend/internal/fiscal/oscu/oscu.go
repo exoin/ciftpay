@@ -398,6 +398,11 @@ func (p *Provider) Health(ctx context.Context) error {
 	return err
 }
 
+// Client returns the underlying *Client for token reuse.
+func (p *Provider) Client() *Client {
+	return p.c
+}
+
 // deviceProfile is the shape RegisterDevice stores on orgs.fiscal_profile
 // (device_id/branch_id are shared with every other adapter's profile struct,
 // see internal/fiscal/submitter.go; device_serial/cmc_key/sdc_id/mrc_no are
@@ -409,6 +414,7 @@ type deviceProfile struct {
 	CmcKey       string `json:"cmc_key"`
 	SDCID        string `json:"sdc_id"`
 	MRCNo        string `json:"mrc_no"`
+	TaxpayerName string `json:"taxpayer_name,omitempty"`
 }
 
 func decodeDeviceProfile(raw json.RawMessage) deviceProfile {
@@ -442,6 +448,7 @@ func (p *Provider) RegisterDevice(ctx context.Context, org fiscal.OrgFiscalProfi
 	raw, err := json.Marshal(deviceProfile{
 		DeviceID: info.DeviceID, BranchID: info.BranchID, DeviceSerial: serial,
 		CmcKey: info.CmcKey, SDCID: info.SDCID, MRCNo: info.MRCNo,
+		TaxpayerName: info.TaxpayerName,
 	})
 	if err != nil {
 		return fiscal.DeviceRef{}, err

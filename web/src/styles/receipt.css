@@ -217,8 +217,9 @@
 .rc-meta-row dd {
   margin: 0 0 0 auto;
   text-align: right;
-  /* Long KRA numbers drop to their own right-aligned line rather than splitting. */
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .rc-rule {
   margin: var(--s-4) 0;
@@ -267,11 +268,15 @@
   height: 88px;
   color: var(--ink);
 }
+.rc-qr:empty {
+  display: none;
+}
 .rc-qr svg {
   width: 100%;
   height: 100%;
 }
 .rc-code {
+  margin-left: auto;
   text-align: right;
   font-family: var(--font-mono);
   font-size: var(--t-xs);
@@ -317,5 +322,32 @@
     to {
       opacity: 1;
     }
+  }
+}
+@page {
+  margin: 0;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+  .rc {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+  }
+  .stamp {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .stamp--ok {
+    color: var(--ok) !important;
+  }
+  .stamp--pending {
+    color: var(--ochre) !important;
+  }
+  .stamp--failed {
+    color: var(--kra-red) !important;
   }
 }

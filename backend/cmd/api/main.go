@@ -21,6 +21,8 @@ import (
 	"github.com/exoin/ciftpay/internal/billing"
 	"github.com/exoin/ciftpay/internal/boot"
 	"github.com/exoin/ciftpay/internal/fiscal"
+	"github.com/exoin/ciftpay/internal/fiscal/oscu"
+	kragw "github.com/exoin/ciftpay/internal/kra/gateway"
 	"github.com/exoin/ciftpay/internal/ledger"
 	"github.com/exoin/ciftpay/internal/mpesa"
 	"github.com/exoin/ciftpay/internal/notify"
@@ -99,6 +101,24 @@ func run() error {
 		return err
 	}
 
+	// KRA Gateway Client & Handler
+	var tp kragw.TokenProvider
+	if oscuProv, ok := provider.(*oscu.Provider); ok {
+		tp = oscuProv.Client()
+	}
+	kraGatewayClient := kragw.NewClient(kragw.Config{
+		BaseURL:        cfg.KRA.BaseURL,
+		APIBaseURL:     cfg.KRA.APIBaseURL,
+		ConsumerKey:    cfg.KRA.ConsumerKey,
+		ConsumerSecret: cfg.KRA.ConsumerSecret,
+		DNSResolver:    cfg.KRA.DNSResolver,
+		Timeout:        time.Duration(cfg.Fiscal.TimeoutSeconds) * time.Second,
+		UseMockGateway: cfg.KRA.UseMockGateway,
+		IsProduction:   cfg.IsProduction(),
+	}, tp)
+	kraGatewayH := &kragw.Handler{Client: kraGatewayClient}
+	ledgerSvc.TaxpayerResolver = kraGatewayClient
+
 	// Tax Settings (ADR-0009): the org service needs the live fiscal provider
 	// only for ConfigureEtims; wired here rather than through org.New so every
 	// other caller (including tests) is unaffected.
@@ -157,6 +177,7 @@ func run() error {
 	})
 	receiptH.Mount(r)
 	orgH.MountPublic(r)
+	kraGatewayH.Mount(r)
 	r.Get("/plans", func(w http.ResponseWriter, r *http.Request) {
 		plans, err := billingSvc.Plans(r.Context())
 		if err != nil {

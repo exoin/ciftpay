@@ -52,6 +52,20 @@ export function maskMsisdn(msisdn: string): string {
   return `${d.slice(0, 4)}${"•".repeat(d.length - 7)}${d.slice(-3)}`;
 }
 
+/**
+ * Masks a KRA PIN (standard 11 characters) revealing the first three and last three
+ * characters, masking the middle five characters with bullet points: P05•••••67X.
+ */
+export function maskKraPin(pin: string): string {
+  if (!pin) return "";
+  const clean = pin.trim().toUpperCase();
+  if (clean.length < 7) return clean.replace(/./g, "•");
+  const first = clean.slice(0, 3);
+  const last = clean.slice(-3);
+  const middleLen = Math.max(clean.length - 6, 5);
+  return `${first}${"•".repeat(middleLen)}${last}`;
+}
+
 /** Normalises local input (07xx, +2547xx, 2547xx) to E.164 without plus. */
 export function normaliseMsisdn(input: string): string | null {
   const d = input.replace(/[^\d]/g, "");

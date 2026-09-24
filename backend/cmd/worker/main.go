@@ -52,11 +52,14 @@ func run() error {
 	ledgerSvc := ledger.New(d.DB, jc, d.Keys, d.Log)
 	submitter := fiscal.NewSubmitter(d.DB, jc, d.Keys, provider, d.Log)
 	notifier := d.Notifier()
+	daraja := mpesa.NewClient(d.Cfg.Daraja)
 	reconciler := mpesa.NewReconciler(d.DB, ledgerSvc, d.Log)
+	pullWorker := mpesa.NewPullWorker(d.DB, daraja, ledgerSvc, d.Log)
 
 	river.AddWorker(workers, &fiscal.Worker{S: submitter})
 	river.AddWorker(workers, &notify.Worker{S: notifier})
 	river.AddWorker(workers, &mpesa.Worker{R: reconciler})
+	river.AddWorker(workers, pullWorker)
 
 	if err := jc.Start(ctx); err != nil {
 		return err

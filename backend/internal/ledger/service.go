@@ -6,15 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"regexp"
-	"strings"
-	"github.com/exoin/ciftpay/internal/notify"
 
 	"github.com/exoin/ciftpay/internal/fiscal"
+	kragw "github.com/exoin/ciftpay/internal/kra/gateway"
+	"github.com/exoin/ciftpay/internal/notify"
 	"github.com/exoin/ciftpay/internal/platform/crypto"
 	"github.com/exoin/ciftpay/internal/platform/db"
 	"github.com/exoin/ciftpay/internal/platform/db/gen"
@@ -46,13 +47,19 @@ func abs64(n int64) int64 {
 	return n
 }
 
+// TaxpayerResolver validates a KRA PIN and resolves taxpayer details via KRA Gateway.
+type TaxpayerResolver interface {
+	CheckPIN(ctx context.Context, pin string) (kragw.TaxpayerDetails, error)
+}
+
 // Service applies matcher decisions to the database.
 type Service struct {
-	DB   *db.DB
-	Jobs *jobs.Client
-	Keys *crypto.Keyring
-	Log  *slog.Logger
-	Now  func() time.Time
+	DB               *db.DB
+	Jobs             *jobs.Client
+	Keys             *crypto.Keyring
+	Log              *slog.Logger
+	Now              func() time.Time
+	TaxpayerResolver TaxpayerResolver
 }
 
 // New builds a Service.
@@ -269,6 +276,7 @@ func (s *Service) createCashSale(ctx context.Context, tx db.Tx, sc gen.ResolveSh
 	sale, err := tx.CreateSale(ctx, gen.CreateSaleParams{
 		OrgID: sc.OrgID, Ref: ref, Kind: "cash", Status: "paid", CustomerID: customerID,
 		SubtotalCents: in.AmountCents - tax, TaxCents: tax, TotalCents: in.AmountCents, PaidAt: &in.PaidAt,
+		BuyerName: in.PayerName,
 	})
 	if err != nil {
 		return gen.Sale{}, err
@@ -310,6 +318,9 @@ func (s *Service) CreateInvoiceForSale(ctx context.Context, tx db.Tx, orgID, sal
 		if c, err := tx.Queries.FindCustomerByID(ctx, *sale.CustomerID); err == nil {
 			buyerName, buyerPinEnc, buyerPinHash = c.Name, c.KraPinEnc, c.KraPinHash
 		}
+	}
+	if buyerName == "" && sale.BuyerName != "" {
+		buyerName = sale.BuyerName
 	}
 	var inv gen.Invoice
 	for attempt := 0; attempt < 5; attempt++ {
@@ -423,7 +434,6 @@ func isUniqueViolation(err error) bool {
 	var pgErr interface{ SQLState() string }
 	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
 }
-
 
 // ReissueInput contains details for re-issuing an invoice with updated buyer info.
 type ReissueInput struct {
@@ -570,10 +580,15 @@ func (s *Service) ReissueInvoice(ctx context.Context, orgID, invoiceID uuid.UUID
 			}
 		}
 
-		// Update Customer if linked to sale
+		// Update Customer & Sale if linked
 		sale, err := tx.GetSale(ctx, orig.SaleID)
-		if err == nil && sale.CustomerID != nil && len(encPIN) > 0 {
-			_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET kra_pin_enc = $1, kra_pin_hash = $2 WHERE id = $3 AND kra_pin_hash IS NULL`, encPIN, hashPIN, *sale.CustomerID)
+		if err == nil {
+			if buyerName != "" {
+				_, _ = tx.Tx.Exec(ctx, `UPDATE sales SET buyer_name = $1 WHERE id = $2`, buyerName, orig.SaleID)
+			}
+			if sale.CustomerID != nil && len(encPIN) > 0 {
+				_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET kra_pin_enc = $1, kra_pin_hash = $2, name = COALESCE(NULLIF(name, ''), $4) WHERE id = $3 AND (kra_pin_hash IS NULL OR name = '')`, encPIN, hashPIN, *sale.CustomerID, buyerName)
+			}
 		}
 
 		// Enqueue submission job for new invoice
@@ -612,6 +627,17 @@ func (s *Service) ClaimReceiptByCode(ctx context.Context, code, buyerPIN, buyerN
 	pin := strings.ToUpper(strings.TrimSpace(buyerPIN))
 	if !PINRe.MatchString(pin) {
 		return gen.Invoice{}, ErrInvalidPIN
+	}
+
+	// Validate the PIN and fetch taxpayerName via KRA Gateway
+	if s.TaxpayerResolver != nil {
+		tp, err := s.TaxpayerResolver.CheckPIN(ctx, pin)
+		if err != nil {
+			return gen.Invoice{}, fmt.Errorf("kra gateway: %w", err)
+		}
+		if tp.TaxpayerName != "" {
+			buyerName = tp.TaxpayerName
+		}
 	}
 
 	var row gen.GetInvoiceByReceiptCodeRow
@@ -782,7 +808,7 @@ func (s *Service) IngestReversal(ctx context.Context, origTransID, reason string
 		}
 		if payment.SaleID != nil {
 			i, err := tx.GetInvoiceBySale(ctx, *payment.SaleID)
-		if err == nil {
+			if err == nil {
 				inv = i
 				found = true
 				return nil

@@ -211,9 +211,9 @@ func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (P
 }
 
 const createSale = `-- name: CreateSale :one
-INSERT INTO sales (org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at
+INSERT INTO sales (org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, buyer_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at, buyer_name
 `
 
 type CreateSaleParams struct {
@@ -228,6 +228,7 @@ type CreateSaleParams struct {
 	ClientRef     *string
 	CreatedBy     *uuid.UUID
 	PaidAt        *time.Time
+	BuyerName     string
 }
 
 func (q *Queries) CreateSale(ctx context.Context, arg CreateSaleParams) (Sale, error) {
@@ -243,6 +244,7 @@ func (q *Queries) CreateSale(ctx context.Context, arg CreateSaleParams) (Sale, e
 		arg.ClientRef,
 		arg.CreatedBy,
 		arg.PaidAt,
+		arg.BuyerName,
 	)
 	var i Sale
 	err := row.Scan(
@@ -260,6 +262,7 @@ func (q *Queries) CreateSale(ctx context.Context, arg CreateSaleParams) (Sale, e
 		&i.PaidAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BuyerName,
 	)
 	return i, err
 }
@@ -392,7 +395,7 @@ func (q *Queries) GetItem(ctx context.Context, id uuid.UUID) (Item, error) {
 }
 
 const getOpenSaleByRef = `-- name: GetOpenSaleByRef :one
-SELECT id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at FROM sales WHERE org_id = $1 AND status = 'open' AND upper(ref) = upper($2)
+SELECT id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at, buyer_name FROM sales WHERE org_id = $1 AND status = 'open' AND upper(ref) = upper($2)
 `
 
 type GetOpenSaleByRefParams struct {
@@ -418,6 +421,7 @@ func (q *Queries) GetOpenSaleByRef(ctx context.Context, arg GetOpenSaleByRefPara
 		&i.PaidAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BuyerName,
 	)
 	return i, err
 }
@@ -481,7 +485,7 @@ func (q *Queries) GetPaymentByTransID(ctx context.Context, transID string) (Paym
 }
 
 const getSale = `-- name: GetSale :one
-SELECT id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at FROM sales WHERE id = $1
+SELECT id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at, buyer_name FROM sales WHERE id = $1
 `
 
 func (q *Queries) GetSale(ctx context.Context, id uuid.UUID) (Sale, error) {
@@ -502,6 +506,7 @@ func (q *Queries) GetSale(ctx context.Context, id uuid.UUID) (Sale, error) {
 		&i.PaidAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BuyerName,
 	)
 	return i, err
 }
@@ -649,7 +654,7 @@ func (q *Queries) ListSaleItems(ctx context.Context, saleID uuid.UUID) ([]SaleIt
 }
 
 const listSales = `-- name: ListSales :many
-SELECT id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at FROM sales
+SELECT id, org_id, ref, kind, status, customer_id, subtotal_cents, tax_cents, total_cents, client_ref, created_by, paid_at, created_at, updated_at, buyer_name FROM sales
 WHERE org_id = $1 AND ($4::text IS NULL OR status = $4)
 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
@@ -690,6 +695,7 @@ func (q *Queries) ListSales(ctx context.Context, arg ListSalesParams) ([]Sale, e
 			&i.PaidAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BuyerName,
 		); err != nil {
 			return nil, err
 		}

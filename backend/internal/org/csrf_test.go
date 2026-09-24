@@ -24,17 +24,27 @@ func TestCsrfEndpoint(t *testing.T) {
 	h := &Handler{S: s, SecureCookie: false}
 
 	r := chi.NewRouter()
+	h.MountPublic(r)
 	r.Group(func(pr chi.Router) {
 		pr.Use(h.Authenticate)
 		h.MountPrivate(pr)
 	})
 
-	// 1. Unauthenticated request to /csrf should fail with 401
+	// 1. Unauthenticated request to /csrf should succeed with 200 and empty token
 	req := httptest.NewRequest(http.MethodGet, "/csrf", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for unauthenticated /csrf, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for unauthenticated /csrf, got %d: %s", w.Code, w.Body.String())
+	}
+	var unauthRes struct {
+		CsrfToken string `json:"csrf_token"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &unauthRes); err != nil {
+		t.Fatalf("failed to decode json: %v", err)
+	}
+	if unauthRes.CsrfToken != "" {
+		t.Fatalf("expected empty csrf token for unauthenticated caller, got %q", unauthRes.CsrfToken)
 	}
 
 	// 2. Create user & session

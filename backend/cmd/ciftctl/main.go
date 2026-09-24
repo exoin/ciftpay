@@ -325,7 +325,7 @@ func seed(ctx context.Context, d *boot.Deps) error {
 		if err != nil {
 			return err
 		}
-		sale, err := tx.CreateSale(ctx, gen.CreateSaleParams{OrgID: org.ID, Ref: ref, Kind: "open", Status: "open", CustomerID: &cust.ID, SubtotalCents: 86, TaxCents: 14, TotalCents: 100})
+		sale, err := tx.CreateSale(ctx, gen.CreateSaleParams{OrgID: org.ID, Ref: ref, Kind: "open", Status: "open", CustomerID: &cust.ID, SubtotalCents: 86, TaxCents: 14, TotalCents: 100, BuyerName: "Mary Wanjiku Kamau"})
 		if err != nil {
 			return err
 		}

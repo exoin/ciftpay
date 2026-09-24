@@ -88,7 +88,8 @@ func (p *Provider) RegisterDevice(_ context.Context, org fiscal.OrgFiscalProfile
 		branch = "00"
 	}
 	id := "MOCKDEV" + shortHash(org.OrgID)[:8]
-	raw, _ := json.Marshal(map[string]string{"deviceId": id, "bhfId": branch})
+	taxpayerName := "TAXPAYER " + strings.ToUpper(shortHash(org.KRAPIN)[:6])
+	raw, _ := json.Marshal(map[string]string{"deviceId": id, "bhfId": branch, "taxpayer_name": taxpayerName})
 	return fiscal.DeviceRef{DeviceID: id, BranchID: branch, Raw: raw}, nil
 }
 

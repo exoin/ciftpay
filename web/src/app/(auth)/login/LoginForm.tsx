@@ -34,7 +34,17 @@ export function LoginForm() {
 
   useEffect(() => {
     const s = readSession();
-    if (s) router.replace(hasNoOrg(s) ? "/onboarding" : next);
+    if (s) {
+      const orgs = s.orgs ?? [];
+      const isSolelyAccountant = orgs.length > 0 && !orgs.some(m => m.role === "owner" || m.role === "admin" || m.role === "staff");
+      if (isSolelyAccountant) {
+        router.replace("/clients");
+      } else if (hasNoOrg(s)) {
+        router.replace("/onboarding");
+      } else {
+        router.replace(next || "/today");
+      }
+    }
   }, [router, next]);
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({ resolver: zodResolver(phoneSchema), defaultValues: { phone: "" } });
@@ -144,7 +154,7 @@ export function LoginForm() {
             router.replace("/clients");
           }
         } else {
-          router.replace(next);
+          router.replace(next || "/today");
         }
       })}
     >

@@ -1066,6 +1066,126 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /receipts/{code}:
+    get:
+      tags: [public]
+      operationId: getPublicReceiptAlias
+      security: []
+      summary: Public receipt lookup alias
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9A-HJKMNP-TV-Z]{6,8}$"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicReceipt"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /receipts/{code}/amend:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^[0-9A-HJKMNP-TV-Z]{6,8}$"
+    post:
+      tags: [public]
+      operationId: amendPublicReceipt
+      security: []
+      summary: Add buyer KRA PIN to an anonymous receipt (amendment flow)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [buyer_pin]
+              properties:
+                buyer_pin:
+                  $ref: "#/components/schemas/KraPin"
+                buyer_name:
+                  type: string
+      responses:
+        "200":
+          description: Updated receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicReceipt"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /kra/pin/{pin}:
+    parameters:
+      - name: pin
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/KraPin"
+    get:
+      tags: [kra]
+      operationId: checkKraPin
+      security: []
+      summary: Validate KRA PIN and resolve registered legal name
+      responses:
+        "200":
+          description: Taxpayer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KraTaxpayer"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /kra/obligations/{pin}:
+    parameters:
+      - name: pin
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/KraPin"
+    get:
+      tags: [kra]
+      operationId: fetchKraObligations
+      security: []
+      summary: Query active tax obligations for a KRA PIN
+      responses:
+        "200":
+          description: List of obligations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pin, obligations]
+                properties:
+                  pin:
+                    $ref: "#/components/schemas/KraPin"
+                  obligations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/KraObligation"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+
   /admin/shortcodes:
     get:
       tags: [admin]
@@ -1422,6 +1542,42 @@ components:
       pattern: "^[AP][0-9]{9}[A-Z]$"
       example: "A123456789B"
 
+    KraTaxpayer:
+      type: object
+      required: [pin, taxpayer_name, taxpayer_status, vat_registered]
+      properties:
+        pin:
+          $ref: "#/components/schemas/KraPin"
+        taxpayer_name:
+          type: string
+          example: "SAFARICOM COMMERCIAL PARTNER LTD"
+        taxpayer_status:
+          type: string
+          example: "ACTIVE"
+        vat_registered:
+          type: boolean
+          example: true
+        email:
+          type: string
+          nullable: true
+
+    KraObligation:
+      type: object
+      required: [obligation_id, obligation_name, status]
+      properties:
+        obligation_id:
+          type: string
+          example: "VAT01"
+        obligation_name:
+          type: string
+          example: "Value Added Tax (VAT)"
+        effective_from:
+          type: string
+          example: "2021-06-01"
+        status:
+          type: string
+          example: "ACTIVE"
+
     MaskedKraPin:
       type: string
       example: "A•••••••••B"
@@ -1498,6 +1654,8 @@ components:
           format: uuid
         name:
           type: string
+        kra_pin:
+          $ref: "#/components/schemas/KraPin"
         kra_pin_masked:
           $ref: "#/components/schemas/MaskedKraPin"
         kra_pin_verified_at:
@@ -1962,6 +2120,10 @@ components:
         kra_qr_payload:
           type: [string, "null"]
         buyer_pin_masked:
+          type: [string, "null"]
+        buyer_name:
+          type: [string, "null"]
+        payer_name:
           type: [string, "null"]
         lines:
           type: array

@@ -27,6 +27,8 @@ type Handler struct {
 
 // MountPublic registers the unauthenticated auth routes.
 func (h *Handler) MountPublic(r chi.Router) {
+	r.Get("/csrf", h.csrf)
+	r.Get("/auth/csrf", h.csrf)
 	otpKey := func(r *http.Request) string { return "otp:" + httpx.ClientIP(r) }
 	r.With(httpx.RateLimit(20, time.Hour, otpKey)).Post("/auth/otp/request", h.requestOTP)
 	r.With(httpx.RateLimit(30, time.Hour, otpKey)).Post("/auth/otp/verify", h.verifyOTP)
@@ -34,8 +36,6 @@ func (h *Handler) MountPublic(r chi.Router) {
 
 // MountPrivate registers routes that need a session (mount behind Authenticate).
 func (h *Handler) MountPrivate(r chi.Router) {
-	r.Get("/csrf", h.csrf)
-	r.Get("/auth/csrf", h.csrf)
 	r.Post("/auth/logout", h.logout)
 	r.Get("/orgs", h.listOrgs)
 	r.Post("/orgs", h.createOrg)
@@ -182,12 +182,24 @@ func (h *Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) {
-	p, ok := httpx.PrincipalFrom(r.Context())
-	if !ok || p.CSRF == "" {
-		httpx.Fail(w, http.StatusUnauthorized, "unauthenticated", "Sign in to continue")
+	if p, ok := httpx.PrincipalFrom(r.Context()); ok && p.CSRF != "" {
+		httpx.JSON(w, http.StatusOK, map[string]string{"csrf_token": p.CSRF})
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]string{"csrf_token": p.CSRF})
+
+	token := ""
+	if c, err := r.Cookie(SessionCookie); err == nil {
+		token = c.Value
+	}
+	if token != "" {
+		if p, err := h.S.Principal(r.Context(), token, ""); err == nil && p.CSRF != "" {
+			httpx.JSON(w, http.StatusOK, map[string]string{"csrf_token": p.CSRF})
+			return
+		}
+	}
+
+	// Public/anonymous: 200 OK with empty csrf_token
+	httpx.JSON(w, http.StatusOK, map[string]string{"csrf_token": ""})
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {

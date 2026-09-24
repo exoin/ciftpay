@@ -744,6 +744,11 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 				if !pinRe.MatchString(pin) {
 					return invalid("buyer_pin must be a valid KRA PIN (A or P, 9 digits and a letter)")
 				}
+				if h.S.TaxpayerResolver != nil {
+					if tp, err := h.S.TaxpayerResolver.CheckPIN(ctx, pin); err == nil && tp.TaxpayerName != "" {
+						name = tp.TaxpayerName
+					}
+				}
 				enc, err := h.Keys.EncryptString(pin)
 				if err != nil {
 					return err
@@ -859,7 +864,7 @@ func (h *Handler) createSale(w http.ResponseWriter, r *http.Request) {
 			paidAt = db.Ptr(h.S.Now())
 		}
 		sale, err := tx.CreateSale(ctx, gen.CreateSaleParams{OrgID: orgID, Ref: ref, Kind: kind, Status: status, CustomerID: customerID,
-			SubtotalCents: subtotal, TaxCents: tax, TotalCents: subtotal + tax, ClientRef: in.ClientRef, CreatedBy: &userID, PaidAt: paidAt})
+			SubtotalCents: subtotal, TaxCents: tax, TotalCents: subtotal + tax, ClientRef: in.ClientRef, CreatedBy: &userID, PaidAt: paidAt, BuyerName: name})
 		if err != nil {
 			return err
 		}

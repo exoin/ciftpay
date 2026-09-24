@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Leader } from "@/components/ui/Leader";
 import { Money } from "@/components/ui/Money";
 import { Stamp } from "@/components/ui/Stamp";
-import { formatDateTime, formatQty } from "@/lib/format";
+import { formatDateTime, formatQty, maskKraPin } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 export type ReceiptState = "verified" | "pending" | "cancelled";
@@ -25,6 +25,8 @@ export type ReceiptCardProps = {
   receiptCode: string;
   issuedAt: string;
   buyerPinMasked?: string | null;
+  buyerName?: string | null;
+  payerName?: string | null;
   lines: ReceiptLine[];
   subtotalCents: number;
   taxCents: number;
@@ -42,6 +44,8 @@ export type ReceiptCardProps = {
     invoiceNo: string;
     date: string;
     buyerPin: string;
+    billedTo?: string;
+    paidBy?: string;
     subtotal: string;
     vat: string;
     total: string;
@@ -96,7 +100,22 @@ export function ReceiptCard(p: ReceiptCardProps) {
         <dl className="rc-meta">
           <Row k={p.labels.invoiceNo} v={p.kraInvoiceNo ?? "—"} />
           <Row k={p.labels.date} v={formatDateTime(p.issuedAt)} />
-          {p.buyerPinMasked && <Row k={p.labels.buyerPin} v={p.buyerPinMasked} />}
+          {p.buyerPinMasked && p.buyerName ? (
+            <>
+              <Row k={p.labels.billedTo || "Billed to"} v={p.buyerName} />
+              <Row k={p.labels.buyerPin || "Buyer PIN"} v={maskKraPin(p.buyerPinMasked)} />
+              {p.payerName && <Row k={p.labels.paidBy || "Paid by"} v={p.payerName} />}
+            </>
+          ) : p.buyerPinMasked ? (
+            <>
+              <Row k={p.labels.buyerPin} v={maskKraPin(p.buyerPinMasked)} />
+              {p.payerName && <Row k={p.labels.paidBy || "Paid by"} v={p.payerName} />}
+            </>
+          ) : p.payerName ? (
+            <Row k={p.labels.billedTo || "Billed to"} v={p.payerName} />
+          ) : p.buyerName ? (
+            <Row k={p.labels.billedTo || "Billed to"} v={p.buyerName} />
+          ) : null}
           {isCN && p.creditNoteOf && p.labels.cancels && <Row k={p.labels.cancels} v={p.creditNoteOf} />}
         </dl>
 

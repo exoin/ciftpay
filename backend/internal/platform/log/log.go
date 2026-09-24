@@ -35,13 +35,18 @@ func MaskMSISDN(msisdn string) string {
 	return msisdn[:4] + strings.Repeat("•", len(msisdn)-7) + msisdn[len(msisdn)-3:]
 }
 
-// MaskPIN keeps the first and last character of a KRA PIN: A•••••••••B.
+// MaskPIN reveals the first three and last three characters of a KRA PIN,
+// masking the middle five characters with bullet points: P05•••••67X.
 func MaskPIN(pin string) string {
 	pin = strings.TrimSpace(pin)
-	if len(pin) < 3 {
+	if len(pin) < 7 {
 		return strings.Repeat("•", len(pin))
 	}
-	return pin[:1] + strings.Repeat("•", len(pin)-2) + pin[len(pin)-1:]
+	middleLen := len(pin) - 6
+	if middleLen < 5 {
+		middleLen = 5
+	}
+	return pin[:3] + strings.Repeat("•", middleLen) + pin[len(pin)-3:]
 }
 
 // Redact wraps a personal value so it can be logged safely.

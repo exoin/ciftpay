@@ -67,6 +67,12 @@ type ReconcilePaymentsArgs struct{}
 // Kind implements river.JobArgs.
 func (ReconcilePaymentsArgs) Kind() string { return "mpesa.reconcile_payments" }
 
+// PullTransactionsArgs is the periodic sweep to ingest transactions directly from Safaricom Pull API.
+type PullTransactionsArgs struct{}
+
+// Kind implements river.JobArgs.
+func (PullTransactionsArgs) Kind() string { return "mpesa.pull_transactions" }
+
 // Client wraps the River client for the api (insert-only) and worker.
 type Client struct {
 	River *river.Client[pgx.Tx]
@@ -99,6 +105,11 @@ func New(pool *pgxpool.Pool, workers *river.Workers) (*Client, error) {
 				river.PeriodicInterval(5*time.Minute),
 				func() (river.JobArgs, *river.InsertOpts) { return ReconcilePaymentsArgs{}, nil },
 				&river.PeriodicJobOpts{RunOnStart: true},
+			),
+			river.NewPeriodicJob(
+				river.PeriodicInterval(24*time.Hour),
+				func() (river.JobArgs, *river.InsertOpts) { return PullTransactionsArgs{}, nil },
+				&river.PeriodicJobOpts{RunOnStart: false},
 			),
 		},
 	})

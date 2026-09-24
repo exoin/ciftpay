@@ -574,10 +574,12 @@ SELECT c.id, c.org_id, c.sale_id, c.payment_id, c.kind, c.parent_invoice_id, c.s
        c.kra_signature, c.kra_qr_payload, c.receipt_code, c.subtotal_cents, c.tax_cents,
        c.total_cents, c.issued_at, c.submitted_at, c.acked_at, c.last_error, c.created_at,
        c.updated_at, c.superseded_by_id, c.superseded_at,
-       o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref
+       o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref,
+       COALESCE(p.payer_name, '')::text AS payer_name
 FROM chain c
 JOIN orgs o ON o.id = c.org_id
 JOIN sales s ON s.id = c.sale_id
+LEFT JOIN payments p ON p.id = c.payment_id
 ORDER BY c.depth DESC
 LIMIT 1
 `
@@ -613,6 +615,7 @@ type GetInvoiceByReceiptCodeRow struct {
 	OrgName         string
 	OrgPinEnc       []byte
 	SaleRef         string
+	PayerName       string
 }
 
 // Runs under app.receipt_code (db.WithReceipt) for the public /r/{code} page.
@@ -651,6 +654,7 @@ func (q *Queries) GetInvoiceByReceiptCode(ctx context.Context, receiptCode strin
 		&i.OrgName,
 		&i.OrgPinEnc,
 		&i.SaleRef,
+		&i.PayerName,
 	)
 	return i, err
 }
@@ -843,34 +847,34 @@ FROM invoices
 WHERE invoices.org_id = $1
   AND ($4::text IS NULL OR invoices.state = $4)
   AND ($5::text IS NULL OR invoices.kind = $5)
-  AND ($8::timestamptz IS NULL OR invoices.created_at >= $8)
-  AND ($9::timestamptz IS NULL OR invoices.created_at < $9)
+  AND ($6::timestamptz IS NULL OR invoices.created_at >= $6)
+  AND ($7::timestamptz IS NULL OR invoices.created_at < $7)
   AND (
-    $6::text IS NULL OR $6 = '' OR (
-      invoices.receipt_code ILIKE '%' || $6 || '%'
-      OR invoices.kra_invoice_no ILIKE '%' || $6 || '%'
-      OR invoices.buyer_name ILIKE '%' || $6 || '%'
-      OR ($7::bytea IS NOT NULL AND (
-        invoices.buyer_pin_hash = $7
+    $8::text IS NULL OR $8 = '' OR (
+      invoices.receipt_code ILIKE '%' || $8 || '%'
+      OR invoices.kra_invoice_no ILIKE '%' || $8 || '%'
+      OR invoices.buyer_name ILIKE '%' || $8 || '%'
+      OR ($9::bytea IS NOT NULL AND (
+        invoices.buyer_pin_hash = $9
         OR EXISTS (
-          SELECT 1 FROM payments p WHERE p.id = invoices.payment_id AND p.msisdn_hash = $7
+          SELECT 1 FROM payments p WHERE p.id = invoices.payment_id AND p.msisdn_hash = $9
         )
       ))
       OR EXISTS (
         SELECT 1 FROM sale_items si
         WHERE si.sale_id = invoices.sale_id
-          AND si.description ILIKE '%' || $6 || '%'
+          AND si.description ILIKE '%' || $8 || '%'
       )
       OR EXISTS (
         SELECT 1 FROM payments p
         WHERE p.id = invoices.payment_id
-          AND (p.trans_id ILIKE '%' || $6 || '%' OR p.payer_name ILIKE '%' || $6 || '%')
+          AND (p.trans_id ILIKE '%' || $8 || '%' OR p.payer_name ILIKE '%' || $8 || '%')
       )
       OR EXISTS (
         SELECT 1 FROM sales s
         JOIN customers c ON s.customer_id = c.id
         WHERE s.id = invoices.sale_id
-          AND c.name ILIKE '%' || $6 || '%'
+          AND c.name ILIKE '%' || $8 || '%'
       )
     )
   )
@@ -883,10 +887,10 @@ type ListInvoicesParams struct {
 	Offset    int32
 	State     *string
 	Kind      *string
-	Query     *string
-	PhoneHash []byte
 	FromDate  *time.Time
 	ToDate    *time.Time
+	Query     *string
+	PhoneHash []byte
 }
 
 func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error) {
@@ -896,10 +900,10 @@ func (q *Queries) ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]I
 		arg.Offset,
 		arg.State,
 		arg.Kind,
-		arg.Query,
-		arg.PhoneHash,
 		arg.FromDate,
 		arg.ToDate,
+		arg.Query,
+		arg.PhoneHash,
 	)
 	if err != nil {
 		return nil, err

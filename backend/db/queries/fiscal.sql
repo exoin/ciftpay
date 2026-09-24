@@ -27,10 +27,12 @@ SELECT c.id, c.org_id, c.sale_id, c.payment_id, c.kind, c.parent_invoice_id, c.s
        c.kra_signature, c.kra_qr_payload, c.receipt_code, c.subtotal_cents, c.tax_cents,
        c.total_cents, c.issued_at, c.submitted_at, c.acked_at, c.last_error, c.created_at,
        c.updated_at, c.superseded_by_id, c.superseded_at,
-       o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref
+       o.name AS org_name, o.kra_pin_enc AS org_pin_enc, s.ref AS sale_ref,
+       COALESCE(p.payer_name, '')::text AS payer_name
 FROM chain c
 JOIN orgs o ON o.id = c.org_id
 JOIN sales s ON s.id = c.sale_id
+LEFT JOIN payments p ON p.id = c.payment_id
 ORDER BY c.depth DESC
 LIMIT 1;
 

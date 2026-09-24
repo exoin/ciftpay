@@ -235,6 +235,7 @@ type Sale struct {
 	PaidAt        *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	BuyerName     string
 }
 
 type SaleItem struct {

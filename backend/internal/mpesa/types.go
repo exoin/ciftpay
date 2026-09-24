@@ -35,9 +35,12 @@ type C2BPayload struct {
 	OrgAccountBalance string `json:"OrgAccountBalance"`
 	ThirdPartyTransID string `json:"ThirdPartyTransID"`
 	MSISDN            string `json:"MSISDN"`
-	FirstName         string `json:"FirstName"`
-	MiddleName        string `json:"MiddleName"`
-	LastName          string `json:"LastName"`
+	FirstName         string          `json:"FirstName"`
+	MiddleName        string          `json:"MiddleName"`
+	LastName          string          `json:"LastName"`
+	KYCInfo           json.RawMessage `json:"KYCInfo,omitempty"`
+	KYCName           string          `json:"KYCName,omitempty"`
+	CustomerName      string          `json:"CustomerName,omitempty"`
 }
 
 // IsReversal reports whether this confirmation reverses ThirdPartyTransID.
@@ -45,7 +48,7 @@ func (p C2BPayload) IsReversal() bool {
 	return strings.EqualFold(strings.TrimSpace(p.TransactionType), "Reversal")
 }
 
-// PayerName joins the name parts Daraja sends.
+// PayerName joins the name parts Daraja sends or extracts from KYC payload.
 func (p C2BPayload) PayerName() string {
 	parts := []string{}
 	for _, s := range []string{p.FirstName, p.MiddleName, p.LastName} {
@@ -53,7 +56,42 @@ func (p C2BPayload) PayerName() string {
 			parts = append(parts, s)
 		}
 	}
-	return strings.Join(parts, " ")
+	if len(parts) > 0 {
+		return strings.Join(parts, " ")
+	}
+	if s := strings.TrimSpace(p.KYCName); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(p.CustomerName); s != "" {
+		return s
+	}
+	if len(p.KYCInfo) > 0 {
+		var str string
+		if err := json.Unmarshal(p.KYCInfo, &str); err == nil && strings.TrimSpace(str) != "" {
+			return strings.TrimSpace(str)
+		}
+		var kycObj struct {
+			FirstName  string `json:"FirstName"`
+			LastName   string `json:"LastName"`
+			MiddleName string `json:"MiddleName"`
+			Name       string `json:"Name"`
+		}
+		if err := json.Unmarshal(p.KYCInfo, &kycObj); err == nil {
+			kparts := []string{}
+			for _, s := range []string{kycObj.FirstName, kycObj.MiddleName, kycObj.LastName} {
+				if s = strings.TrimSpace(s); s != "" {
+					kparts = append(kparts, s)
+				}
+			}
+			if len(kparts) > 0 {
+				return strings.Join(kparts, " ")
+			}
+			if strings.TrimSpace(kycObj.Name) != "" {
+				return strings.TrimSpace(kycObj.Name)
+			}
+		}
+	}
+	return ""
 }
 
 // Validate checks the fields the ledger depends on.

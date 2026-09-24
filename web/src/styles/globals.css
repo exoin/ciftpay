@@ -4,6 +4,13 @@
 @import "./fonts.css";
 @import "./receipt.css";
 
+/* Universal fallback to prevent html2canvas oklab crashes */
+*,
+::before,
+::after {
+  border-color: #d9d2c3;
+}
+
 /* Expose tokens to Tailwind utilities: bg-paper, text-ink, font-mono, rounded-r2 … */
 @theme inline {
   --color-ink: var(--ink);
@@ -161,5 +168,41 @@
       transform: translateY(0);
       opacity: 1;
     }
+  }
+}
+
+/* Suppress browser native headers/footers (URL, date, title, page numbers) */
+@page {
+  margin: 0;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide app navigation chrome and non-printable elements */
+  nav,
+  aside,
+  header:not([data-printable]),
+  button:not([data-printable]),
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Ensure printed sheets retain exact background colours and clean borders */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

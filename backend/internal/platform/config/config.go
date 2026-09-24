@@ -96,6 +96,11 @@ type KRA struct {
 	TestPIN          string `env:"KRA_OSCU_TEST_PIN"`
 	TestBhfID        string `env:"KRA_OSCU_TEST_BHF_ID" envDefault:"00"`
 	TestDeviceSerial string `env:"KRA_OSCU_TEST_DEVICE_SERIAL"`
+
+	// UseMockGateway enables mock responses for KRA gateway endpoints (/kra/pin, /kra/obligations).
+	// STRICT GUARDRAIL: Only permitted when APP_ENV != production. If APP_ENV == production,
+	// this flag is rejected in Validate().
+	UseMockGateway bool `env:"USE_MOCK_KRA_GATEWAY" envDefault:"false"`
 }
 
 // Configured reports whether the OSCU credentials are present.
@@ -156,6 +161,9 @@ func (c Config) Validate() error {
 		if c.KRA.Env == "production" && strings.Contains(c.KRA.BaseURL, "sbx.") {
 			return fmt.Errorf("config: KRA_OSCU_ENV=production cannot use the sandbox KRA_OSCU_BASE_URL")
 		}
+	}
+	if c.IsProduction() && c.KRA.UseMockGateway {
+		return fmt.Errorf("config: USE_MOCK_KRA_GATEWAY cannot be true when APP_ENV=production")
 	}
 	if c.IsProduction() {
 		if strings.HasPrefix(c.SessionSecret, "dev-") || strings.HasPrefix(c.HashPepper, "dev-") {

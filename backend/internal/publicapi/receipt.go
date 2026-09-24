@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/exoin/ciftpay/internal/fiscal"
+	kragw "github.com/exoin/ciftpay/internal/kra/gateway"
 	"github.com/exoin/ciftpay/internal/ledger"
 	"github.com/exoin/ciftpay/internal/platform/crypto"
 	"github.com/exoin/ciftpay/internal/platform/db"
@@ -63,6 +64,8 @@ type Receipt struct {
 	KRAInvoiceNo   *string    `json:"kra_invoice_no,omitempty"`
 	KRAQRPayload   *string    `json:"kra_qr_payload,omitempty"`
 	BuyerPinMasked string     `json:"buyer_pin_masked,omitempty"`
+	BuyerName      string     `json:"buyer_name,omitempty"`
+	PayerName      string     `json:"payer_name,omitempty"`
 	Lines          []Line     `json:"lines"`
 	VATByCategory  []VATRow   `json:"vat_by_category"`
 	SubtotalCents  int64      `json:"subtotal_cents"`
@@ -130,6 +133,7 @@ func (s *Service) build(row gen.GetInvoiceByReceiptCodeRow, items []gen.SaleItem
 		ReceiptCode: row.ReceiptCode, Kind: row.Kind, Seller: Seller{Name: row.OrgName, KRAPin: pin},
 		KRAInvoiceNo: row.KraInvoiceNo, KRAQRPayload: row.KraQrPayload, SubtotalCents: row.SubtotalCents,
 		TaxCents: row.TaxCents, TotalCents: row.TotalCents, IssuedAt: row.IssuedAt, CreditNoteOf: row.ParentInvoiceID,
+		BuyerName: row.BuyerName, PayerName: row.PayerName,
 		Lines: make([]Line, 0, len(items)), VATByCategory: []VATRow{},
 	}
 	switch fiscal.State(row.State) {
@@ -175,10 +179,13 @@ type Handler struct {
 
 // Mount registers the routes with a per-IP rate limit (codes are guessable).
 func (h *Handler) Mount(r chi.Router) {
-	r.With(httpx.RateLimit(120, time.Minute, func(r *http.Request) string { return "receipt:" + httpx.ClientIP(r) })).
-		Get("/r/{code}", h.get)
-	r.With(httpx.RateLimit(20, time.Hour, func(r *http.Request) string { return "receipt_claim:" + httpx.ClientIP(r) })).
-		Post("/r/{code}/claim", h.claim)
+	receiptLimiter := httpx.RateLimit(120, time.Minute, func(r *http.Request) string { return "receipt:" + httpx.ClientIP(r) })
+	r.With(receiptLimiter).Get("/r/{code}", h.get)
+	r.With(receiptLimiter).Get("/receipts/{code}", h.get)
+
+	claimLimiter := httpx.RateLimit(20, time.Hour, func(r *http.Request) string { return "receipt_claim:" + httpx.ClientIP(r) })
+	r.With(claimLimiter).Post("/r/{code}/claim", h.claim)
+	r.With(claimLimiter).Post("/receipts/{code}/amend", h.claim)
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -215,8 +222,10 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrNotFound), errors.Is(err, fiscal.ErrInvalidReceiptCode):
 		httpx.Fail(w, http.StatusNotFound, "not_found", "No receipt with that code")
-	case errors.Is(err, ledger.ErrInvalidPIN):
+	case errors.Is(err, ledger.ErrInvalidPIN), errors.Is(err, kragw.ErrPINInvalid):
 		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin must be a valid KRA PIN (A or P, 9 digits and a letter)")
+	case errors.Is(err, kragw.ErrPINNotFound):
+		httpx.Fail(w, http.StatusUnprocessableEntity, "validation", "buyer_pin was not found in KRA registry")
 	case err != nil:
 		h.Log.Error("receipt claim failed", "code", code, "err", err)
 		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not claim receipt with your PIN")
