@@ -128,11 +128,13 @@ export function useCreateOrg() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: Schemas["OrgCreate"]) => unwrap(await api.POST("/orgs", { body })),
-    onSuccess: (org) => {
+    onSuccess: (org, vars) => {
       const s = readSession();
       const orgs = s?.orgs ?? [];
+      const candidateRole = (org.role || (vars as { role?: string; profile?: string })?.role || ((vars as { profile?: string })?.profile === "accountant" ? "accountant" : "owner")) as Schemas["Role"];
+      const role: Schemas["Role"] = candidateRole === "accountant" || candidateRole === "admin" || candidateRole === "staff" ? candidateRole : "owner";
       if (s && !orgs.some((o) => o.org_id === org.id)) {
-        const next: Session = { ...s, orgs: [...orgs, { org_id: org.id, name: org.name, role: "owner", is_default: orgs.length === 0 }] };
+        const next: Session = { ...s, orgs: [...orgs, { org_id: org.id, name: org.name, role, is_default: orgs.length === 0 }] };
         writeSession(next);
         qc.setQueryData(qk.session, next);
       }

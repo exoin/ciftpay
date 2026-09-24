@@ -78,6 +78,8 @@ type Org struct {
 	VATRegistered    bool       `json:"vat_registered"`
 	Locale           string     `json:"locale"`
 	FiscalAdapter    string     `json:"fiscal_adapter,omitempty"`
+	Role             string     `json:"role,omitempty"`
+	Profile          string     `json:"profile,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 }
 
@@ -87,6 +89,8 @@ type CreateOrgInput struct {
 	KRAPin        string `json:"kra_pin"`
 	VATRegistered bool   `json:"vat_registered"`
 	Locale        string `json:"locale"`
+	Role          string `json:"role,omitempty"`
+	Profile       string `json:"profile,omitempty"`
 }
 
 func toMemberships(rows []gen.ListMembershipsForUserRow) []Membership {
@@ -97,10 +101,14 @@ func toMemberships(rows []gen.ListMembershipsForUserRow) []Membership {
 	return out
 }
 
-func toOrg(o gen.Org, pin, adapter string) Org {
+func toOrg(o gen.Org, pin, adapter, role string) Org {
+	var masked string
+	if pin != "" {
+		masked = plog.MaskPIN(pin)
+	}
 	return Org{
-		ID: o.ID, Name: o.Name, KRAPin: pin, KRAPinMasked: plog.MaskPIN(pin), KRAPinVerifiedAt: o.KraPinVerifiedAt,
-		VATRegistered: o.VatRegistered, Locale: o.Locale, FiscalAdapter: adapter, CreatedAt: o.CreatedAt,
+		ID: o.ID, Name: o.Name, KRAPin: pin, KRAPinMasked: masked, KRAPinVerifiedAt: o.KraPinVerifiedAt,
+		VATRegistered: o.VatRegistered, Locale: o.Locale, FiscalAdapter: adapter, Role: role, CreatedAt: o.CreatedAt,
 	}
 }
 

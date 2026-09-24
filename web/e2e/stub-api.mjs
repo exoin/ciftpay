@@ -129,20 +129,27 @@ const dynamic = [
     method: "POST",
     re: /^\/orgs$/,
     handle: (_m, body) => {
-      if (!body?.name || !/^[AP]\d{9}[A-Z]$/.test(body.kra_pin ?? "")) return [422, { error: { code: "validation", message: "KRA PIN must be A or P, nine digits and a letter" } }];
-      if (body.kra_pin === UNKNOWN_PIN) return [422, { error: { code: "pin_unknown", message: "KRA does not recognise this PIN. Check it on iTax and try again" } }];
-      if (body.kra_pin === TAKEN_PIN) return [409, { error: { code: "conflict", message: "A business with this KRA PIN is already registered" } }];
+      if (!body?.name) return [422, { error: { code: "validation", message: "Name is required" } }];
+      const isAccountant = body.role === "accountant" || body.profile === "accountant";
+      if (!isAccountant) {
+        if (!/^[AP]\d{9}[A-Z]$/.test(body.kra_pin ?? "")) return [422, { error: { code: "validation", message: "KRA PIN must be A or P, nine digits and a letter" } }];
+        if (body.kra_pin === UNKNOWN_PIN) return [422, { error: { code: "pin_unknown", message: "KRA does not recognise this PIN. Check it on iTax and try again" } }];
+        if (body.kra_pin === TAKEN_PIN) return [409, { error: { code: "conflict", message: "A business with this KRA PIN is already registered" } }];
+      }
       const id = randomUUID();
-      state.orgs.push({ org_id: id, name: body.name, role: "owner", is_default: state.orgs.length === 0 });
+      const role = isAccountant ? "accountant" : "owner";
+      state.orgs.push({ org_id: id, name: body.name, role, is_default: state.orgs.length === 0 });
       return [
         201,
         {
           id,
           name: body.name,
-          kra_pin_masked: `${body.kra_pin[0]}•••••••••${body.kra_pin.slice(-1)}`,
-          kra_pin_verified_at: new Date().toISOString(),
+          kra_pin: body.kra_pin ?? "",
+          kra_pin_masked: body.kra_pin ? `${body.kra_pin[0]}•••••••••${body.kra_pin.slice(-1)}` : "",
+          kra_pin_verified_at: isAccountant ? null : new Date().toISOString(),
           vat_registered: Boolean(body.vat_registered),
           locale: body.locale ?? "en",
+          role,
           fiscal_adapter: "mock",
           created_at: new Date().toISOString(),
         },

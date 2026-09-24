@@ -127,3 +127,40 @@ func TestAccountantInvitationLifecycle(t *testing.T) {
 		t.Fatal("expected error accepting already rejected invite, got nil")
 	}
 }
+
+
+func TestCreateAccountantOrg(t *testing.T) {
+	d := dbtest.Open(t)
+	ctx := context.Background()
+	s := newTestService(t, d, NewFiscalPINChecker(mock.New(mock.FailNone), time.Second))
+
+	accountant := createTestUser(t, s, "254700999888")
+
+	// Create accountant practice without KRA PIN
+	org, err := s.CreateOrg(ctx, accountant.ID, CreateOrgInput{
+		Name:    "Mwangi & Partners Tax Advisory",
+		Role:    RoleAccountant,
+		Profile: "accountant",
+	})
+	if err != nil {
+		t.Fatalf("CreateOrg accountant: %v", err)
+	}
+
+	if org.Name != "Mwangi & Partners Tax Advisory" {
+		t.Errorf("expected name Mwangi & Partners Tax Advisory, got %q", org.Name)
+	}
+	if org.Role != RoleAccountant {
+		t.Errorf("expected org role accountant, got %q", org.Role)
+	}
+
+	memberships, err := s.ListMemberships(ctx, accountant.ID)
+	if err != nil {
+		t.Fatalf("ListMemberships: %v", err)
+	}
+	if len(memberships) != 1 {
+		t.Fatalf("expected 1 membership, got %d", len(memberships))
+	}
+	if memberships[0].Role != RoleAccountant {
+		t.Errorf("expected membership role accountant, got %q", memberships[0].Role)
+	}
+}

@@ -32,18 +32,22 @@ export function LoginForm() {
   const request = useRequestOtp();
   const verify = useVerifyOtp();
 
+  const routePostLogin = (orgs: { role?: string }[] | undefined) => {
+    if (!orgs || orgs.length === 0) {
+      router.replace("/onboarding");
+    } else if (orgs.some((o) => o.role === "merchant" || o.role === "owner" || o.role === "admin" || o.role === "staff")) {
+      router.replace(next && next !== "/clients" ? next : "/today");
+    } else if (orgs.some((o) => o.role === "accountant")) {
+      router.replace("/clients");
+    } else {
+      router.replace("/onboarding");
+    }
+  };
+
   useEffect(() => {
     const s = readSession();
     if (s) {
-      const orgs = s.orgs ?? [];
-      const isSolelyAccountant = orgs.length > 0 && !orgs.some(m => m.role === "owner" || m.role === "admin" || m.role === "staff");
-      if (isSolelyAccountant) {
-        router.replace("/clients");
-      } else if (hasNoOrg(s)) {
-        router.replace("/onboarding");
-      } else {
-        router.replace(next || "/today");
-      }
+      routePostLogin(s.orgs);
     }
   }, [router, next]);
 
@@ -142,20 +146,7 @@ export function LoginForm() {
       className="space-y-4"
       onSubmit={codeForm.handleSubmit(async ({ code }) => {
         const s = await verify.mutateAsync({ msisdn, code });
-        // If user is solely an accountant or their primary membership is accountant,
-        // take them directly to the Organizations portal (/clients).
-        const isSolelyAccountant = (s.orgs ?? []).length > 0 && !(s.orgs ?? []).some(m => m.role === "owner" || m.role === "admin" || m.role === "staff");
-        if (isSolelyAccountant) {
-          router.replace("/clients");
-        } else if (hasNoOrg(s)) {
-          if (mode === "signup") {
-            router.replace("/onboarding");
-          } else {
-            router.replace("/clients");
-          }
-        } else {
-          router.replace(next || "/today");
-        }
+        routePostLogin(s.orgs);
       })}
     >
       <div>

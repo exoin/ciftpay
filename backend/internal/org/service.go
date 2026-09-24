@@ -263,36 +263,69 @@ func (s *Service) CreateOrg(ctx context.Context, userID uuid.UUID, in CreateOrgI
 	if len(in.Name) < 2 || len(in.Name) > 80 {
 		return Org{}, ErrBadName
 	}
-	pin := crypto.NormalisePIN(in.KRAPin)
-	if !PINRe.MatchString(pin) {
-		return Org{}, ErrBadPIN
-	}
 	if !validLocale(in.Locale) {
 		return Org{}, ErrInvalidLocale
 	}
 	if in.Locale == "" {
 		in.Locale = "en"
 	}
-	verified := true
-	switch err := s.PIN.CheckPIN(ctx, pin); {
-	case errors.Is(err, ErrPINUnknown), errors.Is(err, ErrBadPIN):
-		return Org{}, err
-	case err != nil:
-		s.Log.Warn("pin check unavailable, continuing unverified", "err", err, "pin", plog.MaskPIN(pin))
-		verified = false
+
+	isAccountant := in.Role == RoleAccountant || in.Profile == "accountant"
+	var pin string
+	var pinEnc []byte
+	var pinHash []byte
+	verified := false
+
+	if isAccountant {
+		// Bypasses KRA eTIMS and Daraja validation steps for accountants.
+		if in.KRAPin != "" {
+			clean := crypto.NormalisePIN(in.KRAPin)
+			if PINRe.MatchString(clean) {
+				pin = clean
+				pinEnc, _ = s.Keys.EncryptString(pin)
+				pinHash = s.Keys.Hash(pin)
+			}
+		}
+	} else {
+		pin = crypto.NormalisePIN(in.KRAPin)
+		if !PINRe.MatchString(pin) {
+			return Org{}, ErrBadPIN
+		}
+		verified = true
+		switch err := s.PIN.CheckPIN(ctx, pin); {
+		case errors.Is(err, ErrPINUnknown), errors.Is(err, ErrBadPIN):
+			return Org{}, err
+		case err != nil:
+			s.Log.Warn("pin check unavailable, continuing unverified", "err", err, "pin", plog.MaskPIN(pin))
+			verified = false
+		}
+		var err error
+		pinEnc, err = s.Keys.EncryptString(pin)
+		if err != nil {
+			return Org{}, err
+		}
+		pinHash = s.Keys.Hash(pin)
 	}
-	pinEnc, err := s.Keys.EncryptString(pin)
-	if err != nil {
-		return Org{}, err
+
+	membershipRole := RoleOwner
+	if isAccountant {
+		membershipRole = RoleAccountant
 	}
-	pinHash := s.Keys.Hash(pin)
 
 	var out gen.Org
-	err = s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
-		if _, err := tx.GetOrgByPINHash(ctx, pinHash); err == nil {
-			return ErrPINTaken
+	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+		if pinHash != nil {
+			if _, err := tx.GetOrgByPINHash(ctx, pinHash); err == nil {
+				return ErrPINTaken
+			}
 		}
-		o, err := tx.CreateOrg(ctx, gen.CreateOrgParams{Name: in.Name, KraPinEnc: pinEnc, KraPinHash: pinHash, VatRegistered: in.VATRegistered, Locale: in.Locale})
+		o, err := tx.CreateOrg(ctx, gen.CreateOrgParams{
+			Name:          in.Name,
+			KraPinEnc:     pinEnc,
+			KraPinHash:    pinHash,
+			VatRegistered: in.VATRegistered,
+			Locale:        in.Locale,
+		})
 		if err != nil {
 			return err
 		}
@@ -303,11 +336,26 @@ func (s *Service) CreateOrg(ctx context.Context, userID uuid.UUID, in CreateOrgI
 			now := s.Now()
 			o.KraPinVerifiedAt = &now
 		}
+		if isAccountant {
+			profileJSON := []byte(`{"profile":"accountant","accountant":true}`)
+			if err := tx.UpdateOrgFiscalProfile(ctx, gen.UpdateOrgFiscalProfileParams{
+				ID:            o.ID,
+				FiscalProfile: profileJSON,
+			}); err != nil {
+				return err
+			}
+			o.FiscalProfile = profileJSON
+		}
 		existing, err := tx.ListMembershipsForUser(ctx, userID)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.CreateMembership(ctx, gen.CreateMembershipParams{OrgID: o.ID, UserID: userID, Role: RoleOwner, IsDefault: len(existing) == 0}); err != nil {
+		if _, err := tx.CreateMembership(ctx, gen.CreateMembershipParams{
+			OrgID:     o.ID,
+			UserID:    userID,
+			Role:      membershipRole,
+			IsDefault: len(existing) == 0,
+		}); err != nil {
 			return err
 		}
 		out = o
@@ -319,10 +367,17 @@ func (s *Service) CreateOrg(ctx context.Context, userID uuid.UUID, in CreateOrgI
 	// Audit under the new org's scope.
 	_ = s.DB.WithOrg(ctx, out.ID, func(ctx context.Context, tx db.Tx) error {
 		actor := userID.String()
-		return tx.AppendAudit(ctx, gen.AppendAuditParams{OrgID: out.ID, ActorType: "user", ActorID: &actor, Action: "org.created", Entity: "org", EntityID: out.ID.String()})
+		return tx.AppendAudit(ctx, gen.AppendAuditParams{
+			OrgID:     out.ID,
+			ActorType: "user",
+			ActorID:   &actor,
+			Action:    "org.created",
+			Entity:    "org",
+			EntityID:  out.ID.String(),
+		})
 	})
-	s.Log.Info("org created", "org", out.ID, "user", userID, "pin", plog.MaskPIN(pin))
-	return toOrg(out, pin, s.FiscalAdapter), nil
+	s.Log.Info("org created", "org", out.ID, "user", userID, "role", membershipRole, "pin", plog.MaskPIN(pin))
+	return toOrg(out, pin, s.FiscalAdapter, membershipRole), nil
 }
 
 // GetOrg returns the API view of an organisation.
@@ -337,7 +392,7 @@ func (s *Service) GetOrg(ctx context.Context, id uuid.UUID) (Org, error) {
 		return Org{}, err
 	}
 	pin, _ := s.Keys.DecryptString(o.KraPinEnc)
-	return toOrg(o, pin, s.FiscalAdapter), nil
+	return toOrg(o, pin, s.FiscalAdapter, ""), nil
 }
 
 // ListMemberships returns the caller's organisations.

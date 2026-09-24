@@ -1631,7 +1631,7 @@ components:
 
     OrgCreate:
       type: object
-      required: [name, kra_pin]
+      required: [name]
       properties:
         name:
           type: string
@@ -1644,6 +1644,11 @@ components:
           default: false
         locale:
           $ref: "#/components/schemas/Locale"
+        role:
+          type: string
+          enum: [owner, accountant]
+        profile:
+          type: string
 
     Org:
       type: object
@@ -1668,6 +1673,10 @@ components:
         fiscal_adapter:
           type: string
           enum: [mock, vendor, oscu]
+        role:
+          type: string
+        profile:
+          type: string
         created_at:
           type: string
           format: date-time
