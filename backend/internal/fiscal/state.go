@@ -11,7 +11,7 @@ type State string
 
 // Invoice states. See docs/architecture.md §4.
 const (
-	StateDraft           State = "DRAFT"
+	StateDraft State = "DRAFT"
 	// StateTaxPending holds an invoice that was created for a paid sale but
 	// cannot be submitted yet because the org's etims_status is not
 	// "initialized" (progressive onboarding, ADR-0009). It never times out or
@@ -34,7 +34,7 @@ var transitions = map[State][]State{
 	StateTaxPending:      {StateQueued},
 	StateQueued:          {StateSubmitted},
 	StateSubmitted:       {StateAcked, StateFailedRetryable, StateFailedTerminal},
-	StateFailedRetryable: {StateQueued, StateFailedTerminal},
+	StateFailedRetryable: {StateQueued, StateSubmitted, StateFailedTerminal},
 	StateFailedTerminal:  {StateNeedsReview},
 	StateNeedsReview:     {StateQueued},
 	StateAcked:           {},
@@ -48,7 +48,9 @@ func (s State) Valid() bool {
 
 // Terminal reports whether no automatic transition leaves s: nothing but a
 // merchant/admin action (retry, or configuring eTIMS) moves it further.
-func (s State) Terminal() bool { return s == StateAcked || s == StateNeedsReview || s == StateTaxPending }
+func (s State) Terminal() bool {
+	return s == StateAcked || s == StateNeedsReview || s == StateTaxPending
+}
 
 // CanTransition reports whether from → to is allowed.
 func CanTransition(from, to State) bool {
@@ -74,16 +76,17 @@ func Transition(from, to State) (State, error) {
 // MaxAttempts is the number of submission attempts before NEEDS_REVIEW.
 const MaxAttempts = 6
 
-// Outage backoff schedule: 1m, 5m, 1h, 12h.
+// Outage backoff schedule: 1m, 5m, 1h, 12h, 12h.
 var backoffSchedule = []time.Duration{
 	1 * time.Minute,
 	5 * time.Minute,
 	1 * time.Hour,
 	12 * time.Hour,
+	12 * time.Hour,
 }
 
-// Backoff returns the delay before attempt n+1 after attempt n (1-based)
-// failed: 1m, 5m, 1h, 12h.
+// Backoff returns the delay before attempt n+1 after attempt n (1-based):
+// 1m, 5m, 1h, 12h, 12h.
 func Backoff(attempt int) time.Duration {
 	if attempt < 1 {
 		return backoffSchedule[0]

@@ -185,6 +185,14 @@ func Run(t *testing.T, newProvider Factory) {
 		}
 	})
 
+	t.Run("LookupInvoice", func(t *testing.T) {
+		p := newProvider(t)
+		_, err := p.LookupInvoice(ctx, "nonexistent-inv")
+		if err == nil {
+			t.Fatal("lookup on nonexistent invoice should return error")
+		}
+	})
+
 	t.Run("ContextCancelled", func(t *testing.T) {
 		p := newProvider(t)
 		cctx, cancel := context.WithCancel(ctx)

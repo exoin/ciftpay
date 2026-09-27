@@ -604,6 +604,21 @@ func (p *Provider) submit(ctx context.Context, id string, prof deviceProfile, w 
 	return ack, nil
 }
 
+// LookupInvoice implements fiscal.Provider. KRA OSCU does not support querying
+// a transaction by the client's internal reference ID.
+func (p *Provider) LookupInvoice(ctx context.Context, invoiceID string) (fiscal.Ack, error) {
+	if err := ctx.Err(); err != nil {
+		return fiscal.Ack{}, err
+	}
+	p.mu.Lock()
+	if ack, ok := p.acks[invoiceID]; ok {
+		p.mu.Unlock()
+		return ack, nil
+	}
+	p.mu.Unlock()
+	return fiscal.Ack{}, fiscal.ErrLookupNotSupported
+}
+
 const itemCodePath = "/etims-api/selectItemClsCodeList"
 
 // LookupItemCodes implements fiscal.Provider.

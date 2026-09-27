@@ -1,5 +1,5 @@
 // Minimal CiftPay API stub for Playwright smoke tests. Shapes follow
-// api/openapi.yaml; only the endpoints the shell and onboarding touch are
+// api/openapi.yaml; only the endpoints the shell, onboarding, and ops-core touch are
 // implemented. Onboarding routes keep a little in-memory state so a spec can
 // create a business, add a Till and upload the Safaricom authorization letter.
 import http from "node:http";
@@ -78,49 +78,155 @@ function newShortcode(fields) {
 }
 
 // Pre-seeded rows (default org) so the Settings list shows all three
-// administrative-gate states: verified (C2B connected), pending with no letter
-// yet, and rejected. Rows are scoped by X-Org-Id like the real api.
-const seededShortcodes = [
-  newShortcode({ org_id: defaultOrg.org_id, kind: "till", shortcode: "123456", label: "Shop", status: "verified", verified: true, verified_at: "2026-09-01T09:00:00Z", authorization_letter_uploaded: true, authorization_submitted_at: "2026-08-29T10:00:00Z", c2b_urls_registered_at: "2026-09-01T09:00:00Z" }),
-  newShortcode({ org_id: defaultOrg.org_id, kind: "paybill", shortcode: "654321", label: "Kiosk" }),
-  newShortcode({ org_id: defaultOrg.org_id, kind: "till", shortcode: "111222", status: "rejected", authorization_letter_uploaded: true, authorization_submitted_at: "2026-09-02T10:00:00Z", rejection_reason: "Stamp missing" }),
-];
-
+// status states across tests.
 const state = {
-  orgs: [], // memberships created through POST /orgs in this process
-  shortcodes: [...seededShortcodes], // Shortcode rows, seeded + created through POST /shortcodes
+  orgs: [],
+  shortcodes: [
+    newShortcode({
+      org_id: defaultOrg.org_id,
+      kind: "till",
+      shortcode: "600123",
+      label: "Main Counter",
+      status: "verified",
+      verified: true,
+      verified_at: "2026-09-01T10:00:00Z",
+      authorization_letter_uploaded: true,
+      authorization_submitted_at: "2026-09-01T09:30:00Z",
+      c2b_urls_registered_at: "2026-09-01T10:01:00Z",
+    }),
+    newShortcode({
+      org_id: defaultOrg.org_id,
+      kind: "till",
+      shortcode: "600456",
+      label: "Butchery",
+      status: "pending_authorization",
+      authorization_letter_uploaded: true,
+      authorization_submitted_at: "2026-09-02T14:10:00Z",
+    }),
+    newShortcode({
+      org_id: defaultOrg.org_id,
+      kind: "paybill",
+      shortcode: "400200",
+      label: "Deliveries",
+      status: "rejected",
+      rejection_reason: "Stamp missing on authorization letter",
+      authorization_letter_uploaded: true,
+      authorization_submitted_at: "2026-09-02T11:00:00Z",
+    }),
+  ],
+  adminOrgs: [
+    {
+      id: defaultOrg.org_id,
+      name: defaultOrg.name,
+      kra_pin_masked: "P••••••••X",
+      vat_registered: true,
+      status: "active",
+      daraja_status: "ready_for_safaricom",
+      tier: "duka",
+      kra_initialized: true,
+      created_at: "2026-09-01T08:00:00Z",
+      shortcodes: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          shortcode: "600123",
+          kind: "till",
+          status: "verified",
+          authorization_letter_uploaded: true,
+        },
+      ],
+    },
+    {
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      name: "Acme Enterprises",
+      kra_pin_masked: "A••••••••B",
+      vat_registered: false,
+      status: "active",
+      daraja_status: "pending_upload",
+      tier: "hustler",
+      kra_initialized: false,
+      created_at: "2026-09-02T10:00:00Z",
+      shortcodes: [],
+    },
+  ],
+  dlqInvoices: [
+    {
+      id: "invo-dlq-1111-2222-3333",
+      org_id: defaultOrg.org_id,
+      org_name: defaultOrg.name,
+      state: "FAILED_TERMINAL",
+      attempt: 5,
+      total_cents: 82000,
+      receipt_code: "DLQ123",
+      last_error: "oscu_rejected_901: Invalid taxpayer device state",
+      created_at: "2026-09-03T11:00:00Z",
+      raw_error_payload: {
+        error_code: 901,
+        message: "Invalid device signature",
+        upstream_status: "TERMINAL_REJECTED",
+      },
+    },
+  ],
+  darajaIps: ["196.201.214.0/24", "196.201.213.0/24"],
+  webhooks: [
+    {
+      id: "wh-1111-2222",
+      provider: "mpesa",
+      kind: "c2b_confirmation",
+      external_id: "RKTQDM7W6S",
+      payload: {
+        TransID: "RKTQDM7W6S",
+        TransAmount: "2400.00",
+        BillRefNumber: "ACC123",
+        MSISDN: "254700000000",
+      },
+      received_at: "2026-09-03T08:15:30Z",
+      processed_at: "2026-09-03T08:15:32Z",
+      error: null,
+    },
+  ],
 };
-
-function maskMsisdn(m) {
-  return `${m.slice(0, 4)}•••••${m.slice(-3)}`;
-}
 
 function orgOf(req) {
   return req.headers["x-org-id"] ?? defaultOrg.org_id;
 }
 
-// Rows go over the wire without the internal org_id.
-function shortcodeView(sc) {
-  const view = { ...sc };
-  delete view.org_id;
-  return view;
+function shortcodeView(s) {
+  return {
+    id: s.id,
+    kind: s.kind,
+    shortcode: s.shortcode,
+    label: s.label,
+    default_item_id: s.default_item_id,
+    auto_invoice: s.auto_invoice,
+    status: s.status,
+    verified: s.status === "verified",
+    verified_at: s.verified_at,
+    authorization_letter_uploaded: s.authorization_letter_uploaded,
+    authorization_submitted_at: s.authorization_submitted_at,
+    rejection_reason: s.rejection_reason,
+    c2b_urls_registered_at: s.c2b_urls_registered_at,
+    created_at: s.created_at ?? "2026-09-01T09:00:00Z",
+  };
 }
 
-// Routes with a path parameter or a body; matched before the static table.
 const dynamic = [
   {
     method: "POST",
     re: /^\/auth\/otp\/verify$/,
     handle: (_m, body) => {
-      const brandNew = body?.msisdn === NEW_USER_MSISDN;
+      if (body?.code !== "123456") {
+        return [401, { error: { code: "invalid_code", message: "That code didn't work. Check the text and try again." } }];
+      }
+      const isNewUser = body?.msisdn === NEW_USER_MSISDN;
       return [
         200,
         {
-          user_id: brandNew ? "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          csrf_token: "csrf-test",
-          expires_at: new Date(Date.now() + 3600_000).toISOString(),
-          msisdn_masked: maskMsisdn(body?.msisdn ?? "254712345678"),
-          orgs: brandNew ? [] : [defaultOrg],
+          session: {
+            user_id: isNewUser ? "00000000-0000-4000-8000-000000000001" : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            csrf_token: "csrf-test",
+            expires_at: new Date(Date.now() + 3600_000).toISOString(),
+            orgs: isNewUser ? [] : [defaultOrg],
+          },
         },
       ];
     },
@@ -129,27 +235,24 @@ const dynamic = [
     method: "POST",
     re: /^\/orgs$/,
     handle: (_m, body) => {
-      if (!body?.name) return [422, { error: { code: "validation", message: "Name is required" } }];
-      const isAccountant = body.role === "accountant" || body.profile === "accountant";
-      if (!isAccountant) {
-        if (!/^[AP]\d{9}[A-Z]$/.test(body.kra_pin ?? "")) return [422, { error: { code: "validation", message: "KRA PIN must be A or P, nine digits and a letter" } }];
-        if (body.kra_pin === UNKNOWN_PIN) return [422, { error: { code: "pin_unknown", message: "KRA does not recognise this PIN. Check it on iTax and try again" } }];
-        if (body.kra_pin === TAKEN_PIN) return [409, { error: { code: "conflict", message: "A business with this KRA PIN is already registered" } }];
+      const pin = (body?.kra_pin ?? "").trim().toUpperCase();
+      if (pin === UNKNOWN_PIN) {
+        return [422, { error: { code: "kra_pin_not_found", message: "KRA has no record of this PIN. Double-check your certificate." } }];
       }
-      const id = randomUUID();
-      const role = isAccountant ? "accountant" : "owner";
-      state.orgs.push({ org_id: id, name: body.name, role, is_default: state.orgs.length === 0 });
+      if (pin === TAKEN_PIN) {
+        return [409, { error: { code: "kra_pin_taken", message: "This KRA PIN is already registered to another CiftPay business." } }];
+      }
+      const org = { org_id: randomUUID(), name: body.name, role: "owner", is_default: true };
+      state.orgs.push(org);
       return [
         201,
         {
-          id,
-          name: body.name,
-          kra_pin: body.kra_pin ?? "",
-          kra_pin_masked: body.kra_pin ? `${body.kra_pin[0]}•••••••••${body.kra_pin.slice(-1)}` : "",
-          kra_pin_verified_at: isAccountant ? null : new Date().toISOString(),
+          id: org.org_id,
+          name: org.name,
+          kra_pin_masked: `${pin.slice(0, 1)}••••••••${pin.slice(-1)}`,
           vat_registered: Boolean(body.vat_registered),
           locale: body.locale ?? "en",
-          role,
+          role: "owner",
           fiscal_adapter: "mock",
           created_at: new Date().toISOString(),
         },
@@ -194,6 +297,95 @@ const dynamic = [
       if (!sc) return [404, { error: { code: "not_found", message: "Not found" } }];
       return [200, shortcodeView(sc)];
     },
+  },
+  // Ops-Core Admin Endpoints
+  {
+    method: "GET",
+    re: /^\/admin\/orgs$/,
+    handle: () => [200, { data: state.adminOrgs }],
+  },
+  {
+    method: "PATCH",
+    re: /^\/admin\/orgs\/([^/]+)$/,
+    handle: (m, body) => {
+      const org = state.adminOrgs.find((o) => o.id === m[1]);
+      if (!org) return [404, { error: { code: "not_found", message: "Org not found" } }];
+      if (body?.daraja_status) org.daraja_status = body.daraja_status;
+      if (body?.tier) org.tier = body.tier;
+      return [200, { data: org }];
+    },
+  },
+  {
+    method: "POST",
+    re: /^\/admin\/orgs\/batch-safaricom-export$/,
+    handle: () => [
+      200,
+      {
+        data: state.adminOrgs
+          .filter((o) => o.daraja_status === "ready_for_safaricom")
+          .map((o) => ({
+            org_id: o.id,
+            company_name: o.name,
+            kra_pin: o.kra_pin_masked,
+            shortcodes: o.shortcodes.map((sc) => ({
+              shortcode: sc.shortcode,
+              kind: sc.kind,
+              authorization_letter_url: `/admin/shortcodes/${sc.id}/authorization`,
+            })),
+          })),
+      },
+    ],
+  },
+  {
+    method: "POST",
+    re: /^\/admin\/orgs\/([^/]+)\/notify$/,
+    handle: () => [200, { data: { status: "sent", delivered: true } }],
+  },
+  {
+    method: "GET",
+    re: /^\/admin\/invoices\/dlq$/,
+    handle: () => [200, { data: state.dlqInvoices }],
+  },
+  {
+    method: "POST",
+    re: /^\/admin\/invoices\/([^/]+)\/requeue$/,
+    handle: (m) => {
+      const idx = state.dlqInvoices.findIndex((inv) => inv.id === m[1]);
+      if (idx !== -1) state.dlqInvoices.splice(idx, 1);
+      return [200, { data: { status: "requeued" } }];
+    },
+  },
+  {
+    method: "POST",
+    re: /^\/admin\/invoices\/([^/]+)\/force-acked$/,
+    handle: (m) => {
+      const idx = state.dlqInvoices.findIndex((inv) => inv.id === m[1]);
+      if (idx !== -1) state.dlqInvoices.splice(idx, 1);
+      return [200, { data: { status: "force_acked" } }];
+    },
+  },
+  {
+    method: "GET",
+    re: /^\/admin\/system\/daraja-ips$/,
+    handle: () => [200, { data: { cidrs: state.darajaIps } }],
+  },
+  {
+    method: "POST",
+    re: /^\/admin\/system\/daraja-ips$/,
+    handle: (_m, body) => {
+      state.darajaIps = Array.isArray(body) ? body : body?.cidrs || [];
+      return [200, { data: { status: "ok", cidrs: state.darajaIps } }];
+    },
+  },
+  {
+    method: "GET",
+    re: /^\/admin\/webhooks$/,
+    handle: () => [200, { data: state.webhooks }],
+  },
+  {
+    method: "POST",
+    re: /^\/admin\/webhooks\/([^/]+)\/replay$/,
+    handle: () => [200, { data: { status: "replayed" } }],
   },
 ];
 
@@ -250,7 +442,7 @@ const server = http.createServer(async (req, res) => {
   }
   const handler = routes[`${req.method} ${url.pathname}`];
   if (!handler) {
-    res.writeHead(404).end(JSON.stringify({ error: { code: "not_found", message: "No receipt with that code." } }));
+    res.writeHead(404).end(JSON.stringify({ error: { code: "not_found", message: "Not found" } }));
     return;
   }
   const [status, body] = handler(req);

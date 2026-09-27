@@ -1184,10 +1184,10 @@ const setInvoiceState = `-- name: SetInvoiceState :one
 UPDATE invoices
 SET state = $2,
     attempt = COALESCE($3, attempt),
-    next_attempt_at = $4,
-    last_error = $5,
+    next_attempt_at = $5,
+    last_error = $6,
     submitted_at = CASE WHEN $2 = 'SUBMITTED' THEN now() ELSE submitted_at END
-WHERE id = $1
+WHERE id = $1 AND state = $4
 RETURNING id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at
 `
 
@@ -1195,6 +1195,7 @@ type SetInvoiceStateParams struct {
 	ID            uuid.UUID
 	State         string
 	Attempt       *int32
+	ExpectedState string
 	NextAttemptAt *time.Time
 	LastError     *string
 }
@@ -1204,6 +1205,7 @@ func (q *Queries) SetInvoiceState(ctx context.Context, arg SetInvoiceStateParams
 		arg.ID,
 		arg.State,
 		arg.Attempt,
+		arg.ExpectedState,
 		arg.NextAttemptAt,
 		arg.LastError,
 	)
@@ -1328,4 +1330,58 @@ func (q *Queries) VATPosition(ctx context.Context, arg VATPositionParams) (VATPo
 		&i.CreditNotes,
 	)
 	return i, err
+}
+
+const listStaleSubmittedInvoices = `-- name: ListStaleSubmittedInvoices :many
+SELECT id, org_id, sale_id, payment_id, kind, parent_invoice_id, state, attempt, next_attempt_at, buyer_pin_enc, buyer_pin_hash, buyer_name, kra_invoice_no, kra_signature, kra_qr_payload, receipt_code, subtotal_cents, tax_cents, total_cents, issued_at, submitted_at, acked_at, last_error, created_at, updated_at, superseded_by_id, superseded_at FROM invoices
+WHERE state = 'SUBMITTED' AND updated_at < NOW() - INTERVAL '15 minutes'
+ORDER BY updated_at ASC
+`
+
+func (q *Queries) ListStaleSubmittedInvoices(ctx context.Context) ([]Invoice, error) {
+	rows, err := q.db.Query(ctx, listStaleSubmittedInvoices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Invoice{}
+	for rows.Next() {
+		var i Invoice
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.SaleID,
+			&i.PaymentID,
+			&i.Kind,
+			&i.ParentInvoiceID,
+			&i.State,
+			&i.Attempt,
+			&i.NextAttemptAt,
+			&i.BuyerPinEnc,
+			&i.BuyerPinHash,
+			&i.BuyerName,
+			&i.KraInvoiceNo,
+			&i.KraSignature,
+			&i.KraQrPayload,
+			&i.ReceiptCode,
+			&i.SubtotalCents,
+			&i.TaxCents,
+			&i.TotalCents,
+			&i.IssuedAt,
+			&i.SubmittedAt,
+			&i.AckedAt,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SupersededByID,
+			&i.SupersededAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

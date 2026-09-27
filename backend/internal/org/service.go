@@ -785,7 +785,7 @@ func (s *Service) ListAccountantClients(ctx context.Context, userID uuid.UUID) (
 			}
 			if len(org.KraPinEnc) > 0 {
 				if pin, err := s.Keys.DecryptString(org.KraPinEnc); err == nil {
-					client.KRAPin = pin
+					client.KRAPin = plog.MaskPIN(pin)
 				}
 			}
 

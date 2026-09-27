@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -60,7 +61,13 @@ func (f *fakeIngester) IngestReversal(_ context.Context, origTransID, reason str
 func newServer(t *testing.T, ing Ingester) *httptest.Server {
 	t.Helper()
 	r := chi.NewRouter()
-	h := &Webhooks{Token: "t0k3n", Ingest: ing, Log: slog.New(slog.NewTextHandler(os.Stderr, nil))}
+	fixedNow, _ := ParseTransTime("20260902121500")
+	h := &Webhooks{
+		Token:  "t0k3n",
+		Ingest: ing,
+		Log:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		Now:    func() time.Time { return fixedNow.Add(10 * time.Minute) },
+	}
 	r.Route("/webhooks", h.Mount)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
@@ -160,6 +167,59 @@ func TestConfirmation_IngestErrorStill200(t *testing.T) {
 	status, ack := post(t, srv.URL+"/webhooks/daraja/c2b/confirmation/t0k3n", fixture(t, "c2b_confirmation.json"))
 	if status != http.StatusOK || ack.ResultCode != 0 {
 		t.Fatalf("status=%d ack=%+v", status, ack)
+	}
+}
+
+func TestConfirmation_StaleWebhookRejected(t *testing.T) {
+	ing := &fakeIngester{}
+	r := chi.NewRouter()
+	fixedNow, _ := ParseTransTime("20260902121500")
+	// Server clock is 48 hours after transaction time
+	h := &Webhooks{
+		Token:  "t0k3n",
+		Ingest: ing,
+		Log:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		Now:    func() time.Time { return fixedNow.Add(48 * time.Hour) },
+	}
+	r.Route("/webhooks", h.Mount)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	body := fixture(t, "c2b_confirmation.json")
+	url := srv.URL + "/webhooks/daraja/c2b/confirmation/t0k3n"
+
+	status, ack := post(t, url, body)
+	if status != http.StatusOK || ack.ResultCode != 0 {
+		t.Fatalf("status=%d ack=%+v, want 200 OK Accepted", status, ack)
+	}
+	if len(ing.c2b) != 0 {
+		t.Fatalf("expected 0 ingested payments for stale webhook, got %d", len(ing.c2b))
+	}
+}
+
+func TestConfirmation_StaleWebhookRejected_RealClock(t *testing.T) {
+	ing := &fakeIngester{}
+	r := chi.NewRouter()
+	// Real-time default (Now == nil) with a 2-year old transaction
+	h := &Webhooks{
+		Token:  "t0k3n",
+		Ingest: ing,
+		Log:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
+	}
+	r.Route("/webhooks", h.Mount)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	body := fixture(t, "c2b_confirmation.json")
+	body = bytes.Replace(body, []byte("20260902121500"), []byte("20220101121500"), 1)
+	url := srv.URL + "/webhooks/daraja/c2b/confirmation/t0k3n"
+
+	status, ack := post(t, url, body)
+	if status != http.StatusOK || ack.ResultCode != 0 {
+		t.Fatalf("status=%d ack=%+v, want 200 OK Accepted", status, ack)
+	}
+	if len(ing.c2b) != 0 {
+		t.Fatalf("expected 0 ingested payments for 2-year old replay, got %d", len(ing.c2b))
 	}
 }
 

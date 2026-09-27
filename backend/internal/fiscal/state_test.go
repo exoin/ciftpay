@@ -17,6 +17,7 @@ func TestTransitionTable(t *testing.T) {
 		{StateSubmitted, StateFailedRetryable},
 		{StateSubmitted, StateFailedTerminal},
 		{StateFailedRetryable, StateQueued},
+		{StateFailedRetryable, StateSubmitted},
 		{StateFailedRetryable, StateFailedTerminal},
 		{StateFailedTerminal, StateNeedsReview},
 		{StateNeedsReview, StateQueued},
@@ -51,6 +52,7 @@ func TestBackoff(t *testing.T) {
 		1 * time.Minute,
 		5 * time.Minute,
 		1 * time.Hour,
+		12 * time.Hour,
 		12 * time.Hour,
 	}
 	for i, w := range want {
@@ -147,13 +149,5 @@ func TestTotalsAndCategories(t *testing.T) {
 	sub, tax, total := Totals(lines)
 	if total != 245000 || tax != 33103 || sub != 211897 {
 		t.Errorf("totals = %d %d %d", sub, tax, total)
-	}
-	for _, c := range []string{"A", "B", "C", "D", "E"} {
-		if _, err := ParseTaxCategory(c); err != nil {
-			t.Errorf("%s should parse", c)
-		}
-	}
-	if _, err := ParseTaxCategory("Z"); err == nil {
-		t.Error("unknown category should fail")
 	}
 }

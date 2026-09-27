@@ -50,6 +50,7 @@ type Provider struct {
 	failures  map[string]int
 	now       func() time.Time
 	Calls     int
+	LookupErr error
 }
 
 // New returns a Provider in the given fail mode.
@@ -99,6 +100,29 @@ func (p *Provider) SubmitInvoice(ctx context.Context, inv fiscal.Invoice) (fisca
 		return fiscal.Ack{}, err
 	}
 	return p.submit(ctx, inv.ID, "KRACU0100000001/", inv.TotalCents)
+}
+
+// SetAck preloads an ack for an invoice ID (tests).
+func (p *Provider) SetAck(id string, ack fiscal.Ack) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.acks[id] = ack
+}
+
+// LookupInvoice implements fiscal.Provider.
+func (p *Provider) LookupInvoice(ctx context.Context, invoiceID string) (fiscal.Ack, error) {
+	if err := ctx.Err(); err != nil {
+		return fiscal.Ack{}, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.LookupErr != nil {
+		return fiscal.Ack{}, p.LookupErr
+	}
+	if ack, ok := p.acks[invoiceID]; ok {
+		return ack, nil
+	}
+	return fiscal.Ack{}, fiscal.ErrNotFound
 }
 
 // SubmitCreditNote implements fiscal.Provider.

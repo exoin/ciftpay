@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { TopBar } from "@/components/shell/TopBar";
@@ -79,6 +80,45 @@ export default function OpsPage() {
       <TopBar title={t("title")} />
       <p className="mb-6 text-sm text-ink-2">{t("lead")}</p>
 
+      {/* Ops-Core Quick Navigation Grid */}
+      <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link
+          href="/ops/safaricom"
+          className="rounded-lg border border-gray-200 bg-white p-4 shadow-xs hover:border-gray-400 hover:shadow-sm transition-all"
+        >
+          <div className="text-2xl mb-1">🛰️</div>
+          <h3 className="text-sm font-bold text-gray-900">Safaricom Pipeline</h3>
+          <p className="text-xs text-gray-500 mt-1">Manage Daraja statuses and batch email export.</p>
+        </Link>
+
+        <Link
+          href="/ops/merchants"
+          className="rounded-lg border border-gray-200 bg-white p-4 shadow-xs hover:border-gray-400 hover:shadow-sm transition-all"
+        >
+          <div className="text-2xl mb-1">🏢</div>
+          <h3 className="text-sm font-bold text-gray-900">Merchant CRM</h3>
+          <p className="text-xs text-gray-500 mt-1">Search orgs, update subscription tiers & send SMS/email.</p>
+        </Link>
+
+        <Link
+          href="/ops/kra-dlq"
+          className="rounded-lg border border-gray-200 bg-white p-4 shadow-xs hover:border-gray-400 hover:shadow-sm transition-all"
+        >
+          <div className="text-2xl mb-1">⚡</div>
+          <h3 className="text-sm font-bold text-gray-900">KRA Fiscal DLQ</h3>
+          <p className="text-xs text-gray-500 mt-1">Stuck invoice inspection, raw JSON, Re-queue & Force ACKED.</p>
+        </Link>
+
+        <Link
+          href="/ops/system"
+          className="rounded-lg border border-gray-200 bg-white p-4 shadow-xs hover:border-gray-400 hover:shadow-sm transition-all"
+        >
+          <div className="text-2xl mb-1">🛠️</div>
+          <h3 className="text-sm font-bold text-gray-900">Engineering Health</h3>
+          <p className="text-xs text-gray-500 mt-1">Dynamic IP allowlist updates and webhook replay.</p>
+        </Link>
+      </section>
+
       {/* M-Pesa Shortcodes Pending Authorization Queue (ADR-0008) */}
       <section className="mb-10 rounded-r2 border border-hairline bg-paper p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
@@ -118,65 +158,49 @@ export default function OpsPage() {
           {shortcodes.isPending ? (
             <LoadingRows rows={3} label={tc("loading")} />
           ) : !shortcodes.data || shortcodes.data.data.length === 0 ? (
-            <EmptyState>{t("emptyShortcodes")}</EmptyState>
+            <EmptyState>{t("empty")}</EmptyState>
           ) : (
-            <ul className="divide-y divide-hairline">
+            <ul className="ruled text-sm">
               {shortcodes.data.data.map((sc) => (
-                <li key={sc.id} className="flex flex-wrap items-center justify-between gap-4 py-3">
-                  <div className="min-w-0 space-y-1">
+                <li key={sc.id} className="flex min-h-16 flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-ink">{sc.shortcode}</span>
-                      <span className="text-xs uppercase text-muted font-mono">({sc.kind})</span>
-                      <StatusChip
-                        tone={
-                          sc.status === "verified"
-                            ? "acked"
-                            : sc.status === "rejected"
-                            ? "failed"
-                            : "pending"
-                        }
-                      >
-                        {sc.status}
-                      </StatusChip>
+                      <span className="font-semibold text-ink">{sc.org_name}</span>
+                      <span className="font-mono text-xs text-muted">({sc.org_kra_pin_masked})</span>
                     </div>
-                    <div className="text-xs text-ink-2">
-                      <span className="font-medium text-ink">{sc.org_name}</span> · PIN: {sc.org_kra_pin_masked}
-                      {sc.label ? ` · ${sc.label}` : ""}
+                    <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-xs text-ink-2">
+                      <span className="rounded bg-paper-2 px-1.5 py-0.5 uppercase">{sc.kind}</span>
+                      <span className="font-semibold">{sc.shortcode}</span>
+                      {sc.label && <span>— {sc.label}</span>}
+                      {sc.authorization_letter_uploaded ? (
+                        <a
+                          href={`/api/proxy/admin/shortcodes/${sc.id}/authorization`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-green underline hover:text-green-2"
+                        >
+                          {t("viewLetter")}
+                        </a>
+                      ) : (
+                        <span className="text-muted">{t("noLetter")}</span>
+                      )}
                     </div>
-                    {sc.authorization_submitted_at && (
-                      <div className="text-[11px] text-muted">
-                        Submitted: {formatDateTime(sc.authorization_submitted_at)}
-                      </div>
-                    )}
-                    {sc.rejection_reason && (
-                      <div className="text-xs text-red">Rejection: {sc.rejection_reason}</div>
-                    )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    {sc.authorization_letter_uploaded ? (
-                      <a
-                        href={`/api/proxy/admin/shortcodes/${sc.id}/authorization`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded border border-hairline bg-paper-2 px-3 py-1.5 text-xs font-medium text-ink hover:bg-paper-3"
-                      >
-                        {t("viewLetterBtn")}
-                      </a>
-                    ) : (
-                      <span className="text-xs text-muted">{t("noLetter")}</span>
-                    )}
-
-                    {sc.status !== "verified" && (
+                  <div className="flex items-center gap-2">
+                    <StatusChip tone={sc.status === "verified" ? "acked" : sc.status === "rejected" ? "failed" : "neutral"}>
+                      {sc.status}
+                    </StatusChip>
+                    {sc.status === "pending_authorization" && (
                       <Button
                         size="sm"
+                        variant="primary"
                         loading={verifyMut.isPending}
                         onClick={() => verifyMut.mutate(sc.id)}
                       >
                         {t("verifyBtn")}
                       </Button>
                     )}
-
                     {sc.status !== "rejected" && (
                       <Button
                         size="sm"

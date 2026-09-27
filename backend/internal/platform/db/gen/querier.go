@@ -100,6 +100,7 @@ type Querier interface {
 	ListShortcodes(ctx context.Context, orgID uuid.UUID) ([]MpesaShortcode, error)
 	// Runs under app.scope = 'admin' (db.WithAdmin): the operator queue.
 	ListShortcodesByStatus(ctx context.Context, arg ListShortcodesByStatusParams) ([]ListShortcodesByStatusRow, error)
+	ListStaleSubmittedInvoices(ctx context.Context) ([]Invoice, error)
 	ListUnprocessedWebhookEvents(ctx context.Context, limit int32) ([]WebhookEvent, error)
 	MarkNotificationDelivered(ctx context.Context, providerMessageID *string) error
 	MarkNotificationFailed(ctx context.Context, id uuid.UUID) error

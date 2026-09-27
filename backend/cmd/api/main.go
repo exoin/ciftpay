@@ -143,13 +143,29 @@ func run() error {
 		PublicBaseURL: cfg.PublicBaseURL,
 	}
 	reportsH := &reports.Handler{S: reports.New(d.DB, d.Keys)}
-	adminH := &admin.Handler{S: admin.New(d.DB), Shortcodes: &admin.Shortcodes{
-		DB: d.DB, Keys: d.Keys, Files: files, Daraja: daraja, WebhookBaseURL: cfg.WebhookBaseURL, Log: log,
-	}}
-	receiptH := &publicapi.Handler{S: publicapi.New(d.DB, d.Keys, ledgerSvc), Log: log}
-	webhooks := &mpesa.Webhooks{Token: cfg.Daraja.WebhookToken, Ingest: ledgerSvc, Log: log}
+
+	var initialAllowlist []string
 	if !cfg.IsLocal() {
-		webhooks.IPAllowlist = cfg.Daraja.IPAllowlist
+		initialAllowlist = cfg.Daraja.IPAllowlist
+	}
+	darajaAllowlist := httpx.NewDynamicAllowlist(initialAllowlist)
+
+	adminH := &admin.Handler{
+		S: admin.New(d.DB),
+		Shortcodes: &admin.Shortcodes{
+			DB: d.DB, Keys: d.Keys, Files: files, Daraja: daraja, WebhookBaseURL: cfg.WebhookBaseURL, Log: log,
+		},
+		DarajaAllowlist: darajaAllowlist,
+		Keys:            d.Keys,
+		Notifier:        notifier,
+		Ingest:          ledgerSvc,
+	}
+	receiptH := &publicapi.Handler{S: publicapi.New(d.DB, d.Keys, ledgerSvc), Log: log}
+	webhooks := &mpesa.Webhooks{
+		Token:     cfg.Daraja.WebhookToken,
+		Allowlist: darajaAllowlist,
+		Ingest:    ledgerSvc,
+		Log:       log,
 	}
 	atH := &notify.DeliveryWebhook{DB: d.DB, Log: log}
 

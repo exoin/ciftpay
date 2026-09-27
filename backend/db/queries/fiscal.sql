@@ -95,8 +95,13 @@ SET state = $2,
     next_attempt_at = sqlc.narg('next_attempt_at'),
     last_error = sqlc.narg('last_error'),
     submitted_at = CASE WHEN $2 = 'SUBMITTED' THEN now() ELSE submitted_at END
-WHERE id = $1
+WHERE id = $1 AND state = $4
 RETURNING *;
+
+-- name: ListStaleSubmittedInvoices :many
+SELECT * FROM invoices
+WHERE state = 'SUBMITTED' AND updated_at < NOW() - INTERVAL '15 minutes'
+ORDER BY updated_at ASC;
 
 -- name: AckInvoice :one
 UPDATE invoices

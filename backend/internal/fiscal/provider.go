@@ -21,6 +21,9 @@ type Provider interface {
 	SubmitInvoice(ctx context.Context, inv Invoice) (Ack, error)
 	// SubmitCreditNote sends a credit note that reverses an acked invoice.
 	SubmitCreditNote(ctx context.Context, cn CreditNote) (Ack, error)
+	// LookupInvoice queries the fiscal backend for an invoice by its internal ID.
+	// Used for response-loss recovery before retrying a submission.
+	LookupInvoice(ctx context.Context, invoiceID string) (Ack, error)
 	// LookupItemCodes searches the KRA item classification list.
 	LookupItemCodes(ctx context.Context, q string) ([]ItemCode, error)
 	// Health reports whether the backend is reachable.
@@ -137,4 +140,11 @@ var (
 	// ErrLookupUnavailable means the checker could not be asked; callers
 	// proceed with the PIN unverified (orgs.kra_pin_verified_at stays NULL).
 	ErrLookupUnavailable = errors.New("fiscal: PIN lookup unavailable")
+
+	// ErrLookupNotSupported is returned when the adapter does not support querying
+	// an invoice by the client's internal reference ID.
+	ErrLookupNotSupported = errors.New("kra oscu does not support client id lookup")
+
+	// ErrNotFound is returned when an invoice lookup confirms the invoice does not exist.
+	ErrNotFound = errors.New("fiscal: invoice not found")
 )

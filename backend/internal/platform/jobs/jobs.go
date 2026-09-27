@@ -73,6 +73,12 @@ type PullTransactionsArgs struct{}
 // Kind implements river.JobArgs.
 func (PullTransactionsArgs) Kind() string { return "mpesa.pull_transactions" }
 
+// RescueStaleInvoicesArgs is the periodic watchdog sweep to rescue stuck SUBMITTED invoices.
+type RescueStaleInvoicesArgs struct{}
+
+// Kind implements river.JobArgs.
+func (RescueStaleInvoicesArgs) Kind() string { return "fiscal.rescue_stale_invoices" }
+
 // Client wraps the River client for the api (insert-only) and worker.
 type Client struct {
 	River *river.Client[pgx.Tx]
@@ -110,6 +116,11 @@ func New(pool *pgxpool.Pool, workers *river.Workers) (*Client, error) {
 				river.PeriodicInterval(24*time.Hour),
 				func() (river.JobArgs, *river.InsertOpts) { return PullTransactionsArgs{}, nil },
 				&river.PeriodicJobOpts{RunOnStart: false},
+			),
+			river.NewPeriodicJob(
+				river.PeriodicInterval(5*time.Minute),
+				func() (river.JobArgs, *river.InsertOpts) { return RescueStaleInvoicesArgs{}, nil },
+				&river.PeriodicJobOpts{RunOnStart: true},
 			),
 		},
 	})

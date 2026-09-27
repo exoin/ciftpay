@@ -28,15 +28,29 @@ type Ingester interface {
 type Webhooks struct {
 	Token       string
 	IPAllowlist []string
+	Allowlist   *httpx.DynamicAllowlist
 	Ingest      Ingester
 	Log         *slog.Logger
+	Now         func() time.Time
+}
+
+func (h *Webhooks) now() time.Time {
+	if h.Now != nil {
+		return h.Now()
+	}
+	return time.Now()
 }
 
 // Mount registers the routes on r. The {token} segment is a shared secret in
 // the URL because Daraja does not sign callbacks.
 func (h *Webhooks) Mount(r chi.Router) {
+	al := h.Allowlist
+	if al == nil {
+		al = httpx.NewDynamicAllowlist(h.IPAllowlist)
+		h.Allowlist = al
+	}
 	r.Group(func(r chi.Router) {
-		r.Use(httpx.IPAllowlist(h.IPAllowlist))
+		r.Use(al.Middleware())
 		r.Use(httpx.RateLimit(600, time.Minute, func(r *http.Request) string { return "webhook:" + httpx.ClientIP(r) }))
 		r.Use(h.requireToken)
 		r.Post("/daraja/c2b/validation/{token}", h.validation)
@@ -85,6 +99,11 @@ func (h *Webhooks) confirmation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := ToC2BInput(p, raw)
+	if !in.PaidAt.IsZero() && h.now().Sub(in.PaidAt) > 24*time.Hour {
+		h.Log.Warn("stale c2b confirmation ignored", "trans_id", p.TransID, "paid_at", in.PaidAt)
+		httpx.JSON(w, http.StatusOK, Accepted)
+		return
+	}
 	res, err := h.Ingest.IngestC2B(r.Context(), in)
 	switch {
 	case errors.Is(err, ledger.ErrUnknownShortcode):

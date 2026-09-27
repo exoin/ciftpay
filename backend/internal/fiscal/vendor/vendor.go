@@ -153,6 +153,11 @@ func (p *Provider) submit(ctx context.Context, w wireInvoice) (fiscal.Ack, error
 	return fiscal.Ack{KRAInvoiceNo: out.InvoiceNo, Signature: out.Signature, QRPayload: out.QRPayload, ReceivedAt: received, Raw: raw}, nil
 }
 
+// LookupInvoice implements fiscal.Provider.
+func (p *Provider) LookupInvoice(ctx context.Context, invoiceID string) (fiscal.Ack, error) {
+	return fiscal.Ack{}, fiscal.ErrLookupNotSupported
+}
+
 // LookupItemCodes implements fiscal.Provider.
 func (p *Provider) LookupItemCodes(ctx context.Context, q string) ([]fiscal.ItemCode, error) {
 	var out []struct {

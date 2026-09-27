@@ -5,10 +5,11 @@ package httpx
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
-	"net/url"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -204,36 +205,122 @@ func RateLimit(limit int, window time.Duration, key func(*http.Request) string) 
 	}
 }
 
-// IPAllowlist rejects requests whose client IP is outside the list. An empty
-// list disables the check (local development).
-func IPAllowlist(cidrs []string) func(http.Handler) http.Handler {
-	var nets []*net.IPNet
+// DynamicAllowlist is a thread-safe container for IP CIDR filters protected by a sync.RWMutex.
+// When empty, it disables IP filtering (allowing all requests, e.g. in local development).
+type DynamicAllowlist struct {
+	mu    sync.RWMutex
+	cidrs []string
+	nets  []*net.IPNet
+}
+
+// NewDynamicAllowlist constructs a DynamicAllowlist initialized with cidrs.
+func NewDynamicAllowlist(cidrs []string) *DynamicAllowlist {
+	al := &DynamicAllowlist{}
+	_ = al.Set(cidrs)
+	return al
+}
+
+// Set validates and atomically updates the CIDR allowlist.
+// If any CIDR string in the list is invalid, an error is returned and no changes are made.
+func (al *DynamicAllowlist) Set(cidrs []string) error {
+	var parsedNets []*net.IPNet
+	var cleanCIDRs []string
+
 	for _, c := range cidrs {
 		c = strings.TrimSpace(c)
 		if c == "" {
 			continue
 		}
-		if !strings.Contains(c, "/") {
-			c += "/32"
+		cidr := c
+		if !strings.Contains(cidr, "/") {
+			cidr += "/32"
 		}
-		if _, n, err := net.ParseCIDR(c); err == nil {
-			nets = append(nets, n)
+		_, n, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("httpx: invalid CIDR format %q: %w", c, err)
+		}
+		parsedNets = append(parsedNets, n)
+		cleanCIDRs = append(cleanCIDRs, c)
+	}
+
+	al.mu.Lock()
+	defer al.mu.Unlock()
+	al.cidrs = cleanCIDRs
+	al.nets = parsedNets
+	return nil
+}
+
+// Get returns a copy of the current CIDR strings.
+func (al *DynamicAllowlist) Get() []string {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+	if al.cidrs == nil {
+		return []string{}
+	}
+	out := make([]string, len(al.cidrs))
+	copy(out, al.cidrs)
+	return out
+}
+
+// IsEmpty reports whether the allowlist has no subnets configured.
+func (al *DynamicAllowlist) IsEmpty() bool {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+	return len(al.nets) == 0
+}
+
+// Allows checks whether the given IP is permitted by the allowlist.
+// If the allowlist is empty, all IPs are permitted.
+func (al *DynamicAllowlist) Allows(ip net.IP) bool {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+	if len(al.nets) == 0 {
+		return true
+	}
+	if ip == nil {
+		return false
+	}
+	for _, n := range al.nets {
+		if n.Contains(ip) {
+			return true
 		}
 	}
+	return false
+}
+
+// Middleware returns an HTTP middleware reading from this thread-safe allowlist on every request.
+func (al *DynamicAllowlist) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		if len(nets) == 0 {
-			return next
-		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if al.IsEmpty() {
+				next.ServeHTTP(w, r)
+				return
+			}
 			ip := net.ParseIP(ClientIP(r))
-			for _, n := range nets {
-				if ip != nil && n.Contains(ip) {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if al.Allows(ip) {
+				next.ServeHTTP(w, r)
+				return
 			}
 			Fail(w, http.StatusForbidden, "forbidden", "Source address not allowed")
 		})
+	}
+}
+
+// IPAllowlist rejects requests whose client IP is outside the list.
+// It accepts either a *DynamicAllowlist or []string.
+// When given a *DynamicAllowlist, it dynamically reads the allowlist state on each request.
+// An empty list disables the check (local development).
+func IPAllowlist(source any) func(http.Handler) http.Handler {
+	switch v := source.(type) {
+	case *DynamicAllowlist:
+		if v == nil {
+			return NewDynamicAllowlist(nil).Middleware()
+		}
+		return v.Middleware()
+	case []string:
+		return NewDynamicAllowlist(v).Middleware()
+	default:
+		return NewDynamicAllowlist(nil).Middleware()
 	}
 }
 

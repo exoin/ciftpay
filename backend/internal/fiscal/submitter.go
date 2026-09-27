@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +17,32 @@ import (
 	"github.com/exoin/ciftpay/internal/platform/db"
 	"github.com/exoin/ciftpay/internal/platform/db/gen"
 	"github.com/exoin/ciftpay/internal/platform/jobs"
+	plog "github.com/exoin/ciftpay/internal/platform/log"
 )
+
+func isNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrNotFound) {
+		return true
+	}
+	var ve *ValidationError
+	if errors.As(err, &ve) {
+		code := strings.ToLower(ve.Code)
+		if code == "not_found" || code == "invoice_not_found" || strings.Contains(strings.ToLower(ve.Message), "not found") {
+			return true
+		}
+	}
+	var te *TransientError
+	if errors.As(err, &te) {
+		code := strings.ToLower(te.Code)
+		if code == "not_found" || code == "invoice_not_found" || strings.Contains(strings.ToLower(te.Message), "not found") {
+			return true
+		}
+	}
+	return false
+}
 
 // Submitter drives invoices through the state machine using a Provider. It is
 // the body of the fiscal.submit_invoice River job (cmd/worker).
@@ -56,29 +82,76 @@ type profile struct {
 func (s *Submitter) Submit(ctx context.Context, orgID, invoiceID uuid.UUID) (Result, error) {
 	res := Result{InvoiceID: invoiceID}
 
-	// 1. Claim: QUEUED → SUBMITTED, attempt+1, build the adapter document.
+	// 1. Claim: QUEUED/FAILED_RETRYABLE → SUBMITTED, attempt+1, build the adapter document.
 	var doc Invoice
 	var kind string
 	var parentKRANo string
+	var isRetry bool
 	err := s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
 		inv, err := tx.GetInvoice(ctx, invoiceID)
 		if err != nil {
 			return err
 		}
-		if State(inv.State) != StateQueued {
-			res.Skipped, res.State = true, State(inv.State)
+		state := State(inv.State)
+		if state != StateQueued && state != StateFailedRetryable {
+			res.Skipped, res.State = true, state
 			return nil
 		}
-		if inv.NextAttemptAt != nil && inv.NextAttemptAt.After(s.Now()) {
+		if state == StateQueued && inv.NextAttemptAt != nil && inv.NextAttemptAt.After(s.Now()) {
 			res.Skipped, res.State, res.RetryIn = true, StateQueued, time.Until(*inv.NextAttemptAt)
 			return nil
 		}
-		next, err := Transition(State(inv.State), StateSubmitted)
+		if state == StateFailedRetryable {
+			errStr := ""
+			if inv.LastError != nil {
+				errStr = *inv.LastError
+			}
+			outcome := Resolve(int(inv.Attempt), errors.New(errStr))
+			if outcome.Next == StateFailedTerminal {
+				if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+					ID:            invoiceID,
+					State:         string(StateFailedTerminal),
+					ExpectedState: string(StateFailedRetryable),
+					LastError:     inv.LastError,
+				}); err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						res.Skipped = true
+						return nil
+					}
+					return err
+				}
+				if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+					ID:            invoiceID,
+					State:         string(StateNeedsReview),
+					ExpectedState: string(StateFailedTerminal),
+					LastError:     inv.LastError,
+				}); err != nil {
+					return err
+				}
+				res.State = StateNeedsReview
+				return nil
+			}
+		}
+
+		if (state == StateFailedRetryable || state == StateQueued) && inv.Attempt > 0 {
+			isRetry = true
+		}
+
+		next, err := Transition(state, StateSubmitted)
 		if err != nil {
 			return err
 		}
 		attempt := inv.Attempt + 1
-		if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{ID: inv.ID, State: string(next), Attempt: &attempt}); err != nil {
+		if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+			ID:            inv.ID,
+			State:         string(next),
+			Attempt:       &attempt,
+			ExpectedState: inv.State,
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				res.Skipped = true
+				return nil
+			}
 			return err
 		}
 		res.Attempt, res.State, kind = int(attempt), next, inv.Kind
@@ -101,24 +174,57 @@ func (s *Submitter) Submit(ctx context.Context, orgID, invoiceID uuid.UUID) (Res
 		return res, err
 	}
 
-	// 2. Call KRA (through the adapter) outside any transaction.
+	// 2. Call KRA (through the adapter) outside any transaction with raw PINs.
 	var ack Ack
 	var subErr error
-	reqJSON, _ := json.Marshal(doc)
-	if kind == "CREDIT_NOTE" {
-		total := doc.TotalCents
-		if total > 0 {
-			total = -total
+	var recovered bool
+
+	if isRetry {
+		lookupAck, lookupErr := s.Provider.LookupInvoice(ctx, doc.ID)
+		if lookupErr == nil && lookupAck.KRAInvoiceNo != "" {
+			ack = lookupAck
+			recovered = true
+			if s.Log != nil {
+				s.Log.Info("recovered invoice ack via lookup", "invoice_id", doc.ID, "kra_invoice_no", ack.KRAInvoiceNo)
+			}
+		} else if errors.Is(lookupErr, ErrLookupNotSupported) || isNotFound(lookupErr) {
+			if s.Log != nil {
+				s.Log.Info("lookup invoice not supported or not found, falling back to submit", "invoice_id", doc.ID, "err", lookupErr)
+			}
+		} else if lookupErr != nil {
+			if s.Log != nil {
+				s.Log.Warn("lookup invoice failed with error", "invoice_id", doc.ID, "err", lookupErr)
+			}
+			subErr = lookupErr
 		}
-		ack, subErr = s.Provider.SubmitCreditNote(ctx, CreditNote{
-			ID: doc.ID, OrgID: doc.OrgID, OriginalKRANo: parentKRANo, OriginalInvoice: doc,
-			Reason: "Cancellation / Return", ReasonCode: "01", Lines: doc.Lines, TotalCents: total, DeviceProfile: doc.DeviceProfile,
-		})
-	} else {
-		ack, subErr = s.Provider.SubmitInvoice(ctx, doc)
+	}
+
+	if !recovered && subErr == nil {
+		if kind == "CREDIT_NOTE" {
+			total := doc.TotalCents
+			if total > 0 {
+				total = -total
+			}
+			ack, subErr = s.Provider.SubmitCreditNote(ctx, CreditNote{
+				ID: doc.ID, OrgID: doc.OrgID, OriginalKRANo: parentKRANo, OriginalInvoice: doc,
+				Reason: "Cancellation / Return", ReasonCode: "01", Lines: doc.Lines, TotalCents: total, DeviceProfile: doc.DeviceProfile,
+			})
+		} else {
+			ack, subErr = s.Provider.SubmitInvoice(ctx, doc)
+		}
 	}
 	outcome := Resolve(res.Attempt, subErr)
 	res.Err, res.RetryIn = subErr, outcome.RetryIn
+
+	// Mask KRA PINs before saving request audit to fiscal_submissions (ADR-0002).
+	auditDoc := doc
+	if auditDoc.SellerPIN != "" {
+		auditDoc.SellerPIN = plog.MaskPIN(auditDoc.SellerPIN)
+	}
+	if auditDoc.BuyerPIN != "" {
+		auditDoc.BuyerPIN = plog.MaskPIN(auditDoc.BuyerPIN)
+	}
+	reqJSON, _ := json.Marshal(auditDoc)
 
 	// 3. Persist the outcome and schedule what follows.
 	err = s.DB.WithOrg(ctx, orgID, func(ctx context.Context, tx db.Tx) error {
@@ -158,21 +264,42 @@ func (s *Submitter) Submit(ctx context.Context, orgID, invoiceID uuid.UUID) (Res
 
 		case StateQueued:
 			// SUBMITTED → FAILED_RETRYABLE → QUEUED with next_attempt_at.
-			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{ID: invoiceID, State: string(StateFailedRetryable), LastError: errStr}); err != nil {
+			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+				ID:            invoiceID,
+				State:         string(StateFailedRetryable),
+				ExpectedState: string(StateSubmitted),
+				LastError:     errStr,
+			}); err != nil {
 				return err
 			}
 			nextAt := s.Now().Add(outcome.RetryIn)
-			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{ID: invoiceID, State: string(StateQueued), NextAttemptAt: &nextAt, LastError: errStr}); err != nil {
+			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+				ID:            invoiceID,
+				State:         string(StateQueued),
+				ExpectedState: string(StateFailedRetryable),
+				NextAttemptAt: &nextAt,
+				LastError:     errStr,
+			}); err != nil {
 				return err
 			}
 			res.State = StateQueued
 			return nil
 
 		default: // StateFailedTerminal → NEEDS_REVIEW
-			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{ID: invoiceID, State: string(StateFailedTerminal), LastError: errStr}); err != nil {
+			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+				ID:            invoiceID,
+				State:         string(StateFailedTerminal),
+				ExpectedState: string(StateSubmitted),
+				LastError:     errStr,
+			}); err != nil {
 				return err
 			}
-			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{ID: invoiceID, State: string(StateNeedsReview), LastError: errStr}); err != nil {
+			if _, err := tx.SetInvoiceState(ctx, gen.SetInvoiceStateParams{
+				ID:            invoiceID,
+				State:         string(StateNeedsReview),
+				ExpectedState: string(StateFailedTerminal),
+				LastError:     errStr,
+			}); err != nil {
 				return err
 			}
 			res.State = StateNeedsReview
@@ -265,7 +392,7 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[jobs.SubmitInvoiceArgs
 		return river.JobSnooze(res.RetryIn)
 	case res.State == StateNeedsReview:
 		w.S.Log.Error("fiscal submit needs review", "invoice", res.InvoiceID, "attempt", res.Attempt, "err", res.Err)
-		return nil
+		return river.JobSnooze(0)
 	}
 	w.S.Log.Info("fiscal submit acked", "invoice", res.InvoiceID, "attempt", res.Attempt, "adapter", w.S.Provider.Name())
 	return nil

@@ -100,8 +100,8 @@ func TestAccountantInvitationLifecycle(t *testing.T) {
 	if clients[0].Name != "Acme Groceries Ltd" {
 		t.Errorf("expected client name 'Acme Groceries Ltd', got %q", clients[0].Name)
 	}
-	if clients[0].KRAPin != "P051234567A" {
-		t.Errorf("expected client KRA PIN 'P051234567A', got %q", clients[0].KRAPin)
+	if clients[0].KRAPin != "P05•••••67A" {
+		t.Errorf("expected client KRA PIN 'P05•••••67A', got %q", clients[0].KRAPin)
 	}
 	if clients[0].Role != RoleAccountant {
 		t.Errorf("expected role 'accountant', got %q", clients[0].Role)
@@ -127,7 +127,6 @@ func TestAccountantInvitationLifecycle(t *testing.T) {
 		t.Fatal("expected error accepting already rejected invite, got nil")
 	}
 }
-
 
 func TestCreateAccountantOrg(t *testing.T) {
 	d := dbtest.Open(t)

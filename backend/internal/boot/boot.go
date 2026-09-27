@@ -31,15 +31,15 @@ type Deps struct {
 // Files opens the upload store (UPLOAD_DIR) for authorization letters.
 func (d *Deps) Files() (storage.Store, error) { return storage.NewLocal(d.Cfg.UploadDir) }
 
-// Load reads config, opens the database and builds the keyring.
+// Load reads config, opens the database and builds the keyring using SecretProvider.
 func Load(ctx context.Context) (*Deps, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 	log := plog.New(cfg.AppEnv)
-	key, _ := cfg.MasterKey()
-	keys, err := crypto.New(key, cfg.HashPepper)
+	sp := &crypto.EnvSecretProvider{EnvVar: "MASTER_KEY_B64", DefaultKeyB64: cfg.MasterKeyB64}
+	keys, err := crypto.NewKeyring(ctx, sp, cfg.HashPepper)
 	if err != nil {
 		return nil, err
 	}
