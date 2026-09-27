@@ -10,6 +10,7 @@ import (
 
 	"github.com/exoin/ciftpay/internal/fiscal"
 	"github.com/exoin/ciftpay/internal/fiscal/mock"
+	kragw "github.com/exoin/ciftpay/internal/kra/gateway"
 	"github.com/exoin/ciftpay/internal/platform/crypto"
 	"github.com/exoin/ciftpay/internal/platform/db"
 	"github.com/exoin/ciftpay/internal/platform/db/dbtest"
@@ -56,6 +57,45 @@ func TestFiscalPINChecker(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGatewayPINChecker(t *testing.T) {
+	ctx := context.Background()
+	gwMock := kragw.NewClient(kragw.Config{
+		UseMockGateway: true,
+		IsProduction:   false,
+	}, nil)
+
+	checker := NewGatewayPINChecker(gwMock)
+
+	t.Run("valid active company pin", func(t *testing.T) {
+		err := checker.CheckPIN(ctx, "A012345678Z")
+		if err != nil {
+			t.Fatalf("CheckPIN expected nil, got %v", err)
+		}
+	})
+
+	t.Run("reserved unknown pin", func(t *testing.T) {
+		err := checker.CheckPIN(ctx, kragw.UnknownPIN)
+		if !errors.Is(err, ErrPINUnknown) {
+			t.Fatalf("CheckPIN expected ErrPINUnknown, got %v", err)
+		}
+	})
+
+	t.Run("malformed pin", func(t *testing.T) {
+		err := checker.CheckPIN(ctx, "invalid-pin")
+		if !errors.Is(err, ErrBadPIN) {
+			t.Fatalf("CheckPIN expected ErrBadPIN, got %v", err)
+		}
+	})
+
+	t.Run("nil gateway client", func(t *testing.T) {
+		nilChecker := NewGatewayPINChecker(nil)
+		err := nilChecker.CheckPIN(ctx, "A012345678Z")
+		if !errors.Is(err, fiscal.ErrLookupUnavailable) {
+			t.Fatalf("CheckPIN expected ErrLookupUnavailable, got %v", err)
+		}
+	})
 }
 
 func newTestService(t *testing.T, d *db.DB, pin PINChecker) *Service {

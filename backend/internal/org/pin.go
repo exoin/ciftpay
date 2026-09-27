@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/exoin/ciftpay/internal/fiscal"
+	kragw "github.com/exoin/ciftpay/internal/kra/gateway"
 )
 
 // FiscalPINChecker asks the fiscal provider whether KRA knows a PIN. When the
@@ -54,4 +55,37 @@ func adapterName(p fiscal.Provider) string {
 		return "none"
 	}
 	return p.Name()
+}
+
+// GatewayPINChecker asks the KRA developer/gateway client whether KRA knows a PIN.
+// If the gateway reports ErrPINNotFound, ErrPINUnknown is returned.
+// Any upstream or network failure returns ErrLookupUnavailable.
+type GatewayPINChecker struct {
+	Client *kragw.Client
+}
+
+// NewGatewayPINChecker wraps a KRA Gateway client.
+func NewGatewayPINChecker(client *kragw.Client) *GatewayPINChecker {
+	return &GatewayPINChecker{Client: client}
+}
+
+// CheckPIN implements PINChecker.
+func (c *GatewayPINChecker) CheckPIN(ctx context.Context, pin string) error {
+	if !PINRe.MatchString(pin) {
+		return ErrBadPIN
+	}
+	if c.Client == nil {
+		return fmt.Errorf("%w: gateway client is nil", fiscal.ErrLookupUnavailable)
+	}
+	_, err := c.Client.CheckPIN(ctx, pin)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, kragw.ErrPINNotFound):
+		return ErrPINUnknown
+	case errors.Is(err, kragw.ErrPINInvalid):
+		return ErrBadPIN
+	default:
+		return fmt.Errorf("%w: %w", fiscal.ErrLookupUnavailable, err)
+	}
 }

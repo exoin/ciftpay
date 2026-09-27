@@ -110,15 +110,15 @@ func TestLookupPIN(t *testing.T) {
 	ctx := context.Background()
 	var p fiscal.PINLookup = mock.New(mock.FailNone)
 
-	tp, err := p.LookupPIN(ctx, " a012345678z ")
-	if err != nil || tp.PIN != "A012345678Z" || !tp.VATRegistered || tp.Name == "" {
+	tp, err := p.LookupPIN(ctx, " p012345678q ")
+	if err != nil || tp.PIN != "P012345678Q" || !tp.VATRegistered || tp.Name == "" {
 		t.Fatalf("company pin: got %+v, %v", tp, err)
 	}
-	again, _ := p.LookupPIN(ctx, "A012345678Z")
+	again, _ := p.LookupPIN(ctx, "P012345678Q")
 	if again.Name != tp.Name {
 		t.Fatalf("name must be deterministic: %q vs %q", again.Name, tp.Name)
 	}
-	if tp, err := p.LookupPIN(ctx, "P012345678Q"); err != nil || tp.VATRegistered {
+	if tp, err := p.LookupPIN(ctx, "A012345678Z"); err != nil || tp.VATRegistered {
 		t.Fatalf("individual pin: got %+v, %v", tp, err)
 	}
 	if _, err := p.LookupPIN(ctx, mock.UnknownPIN); !errors.Is(err, fiscal.ErrPINUnknown) {

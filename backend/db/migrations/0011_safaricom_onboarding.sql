@@ -17,12 +17,9 @@ CREATE POLICY invoices_admin_update ON invoices
 CREATE POLICY fiscal_submissions_admin ON fiscal_submissions
   FOR SELECT USING (current_scope() = 'admin');
 
--- Subscriptions cross-tenant select and update for tier management
-CREATE POLICY subscriptions_admin_select ON subscriptions
-  FOR SELECT USING (current_scope() = 'admin');
-
-CREATE POLICY subscriptions_admin_update ON subscriptions
-  FOR UPDATE USING (current_scope() = 'admin') WITH CHECK (current_scope() = 'admin');
+-- Subscriptions cross-tenant select, insert, update for tier management
+CREATE POLICY subscriptions_admin ON subscriptions
+  FOR ALL USING (current_scope() = 'admin') WITH CHECK (current_scope() = 'admin');
 
 -- Notifications cross-tenant insert/select for merchant CRM alerts
 CREATE POLICY notifications_admin ON notifications
@@ -34,6 +31,7 @@ CREATE POLICY notifications_admin ON notifications
 -- +goose StatementBegin
 
 DROP POLICY IF EXISTS notifications_admin ON notifications;
+DROP POLICY IF EXISTS subscriptions_admin ON subscriptions;
 DROP POLICY IF EXISTS subscriptions_admin_update ON subscriptions;
 DROP POLICY IF EXISTS subscriptions_admin_select ON subscriptions;
 DROP POLICY IF EXISTS fiscal_submissions_admin ON fiscal_submissions;

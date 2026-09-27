@@ -24,6 +24,9 @@ var (
 	ErrNotConfigured = errors.New("kra: gateway credentials not configured")
 )
 
+// UnknownPIN is the reserved well-formed PIN used in test/mock environments.
+const UnknownPIN = "P000000000Z" 
+
 // TokenProvider returns a cached or fresh OAuth2 Bearer token.
 type TokenProvider interface {
 	Token(ctx context.Context) (string, error)
@@ -152,6 +155,9 @@ func (c *Client) CheckPIN(ctx context.Context, rawPIN string) (TaxpayerDetails, 
 	// STRICT GUARDRAIL: Only allow mock deterministic data if explicitly enabled via USE_MOCK_KRA_GATEWAY
 	// AND NOT in production.
 	if c.cfg.UseMockGateway && !c.cfg.IsProduction {
+		if pin == UnknownPIN {
+			return TaxpayerDetails{}, ErrPINNotFound
+		}
 		return mockTaxpayer(pin), nil
 	}
 
@@ -221,7 +227,7 @@ func (c *Client) CheckPIN(ctx context.Context, rawPIN string) (TaxpayerDetails, 
 		PIN:            pin,
 		TaxpayerName:   strings.TrimSpace(name),
 		TaxpayerStatus: strings.TrimSpace(status),
-		VATRegistered:  res.VATReg || pin[0] == 'A',
+		VATRegistered:  res.VATReg || pin[0] == 'P',
 		Email:          res.Email,
 	}, nil
 }
@@ -236,6 +242,9 @@ func (c *Client) FetchObligations(ctx context.Context, rawPIN string) ([]TaxObli
 	// STRICT GUARDRAIL: Only allow mock deterministic data if explicitly enabled via USE_MOCK_KRA_GATEWAY
 	// AND NOT in production.
 	if c.cfg.UseMockGateway && !c.cfg.IsProduction {
+		if pin == UnknownPIN {
+			return nil, ErrPINNotFound
+		}
 		return mockObligations(pin), nil
 	}
 
@@ -344,8 +353,8 @@ func buildTransport(resolver string) *http.Transport {
 func mockTaxpayer(pin string) TaxpayerDetails {
 	sum := sha256.Sum256([]byte(pin))
 	hexSuffix := strings.ToUpper(hex.EncodeToString(sum[:3]))
-	isCompany := pin[0] == 'A'
-	name := "TAXPAYER ENTERPRISE " + hexSuffix
+	isCompany := pin[0] == 'P'
+	name := "TAXPAYER " + hexSuffix
 	if isCompany {
 		name = "SAFARICOM COMMERCIAL PARTNER " + hexSuffix + " LTD"
 	}
@@ -359,7 +368,7 @@ func mockTaxpayer(pin string) TaxpayerDetails {
 }
 
 func mockObligations(pin string) []TaxObligation {
-	isCompany := pin[0] == 'A'
+	isCompany := pin[0] == 'P'
 	obs := []TaxObligation{
 		{
 			ObligationID:   "IT01",

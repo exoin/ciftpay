@@ -184,7 +184,7 @@ func (s *Service) VerifyOTP(ctx context.Context, msisdn, code, userAgent, ip str
 		if err != nil {
 			return err
 		}
-		sess = Session{UserID: user.ID, CSRFToken: csrf, ExpiresAt: expires, Orgs: toMemberships(ms)}
+		sess = Session{UserID: user.ID, CSRFToken: csrf, ExpiresAt: expires, MsisdnMasked: plog.MaskMSISDN(norm), Orgs: toMemberships(ms)}
 		return nil
 	})
 	if err != nil {

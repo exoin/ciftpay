@@ -62,10 +62,11 @@ type Membership struct {
 
 // Session is the response of POST /auth/otp/verify.
 type Session struct {
-	UserID    uuid.UUID    `json:"user_id"`
-	CSRFToken string       `json:"csrf_token"`
-	ExpiresAt time.Time    `json:"expires_at"`
-	Orgs      []Membership `json:"orgs"`
+	UserID       uuid.UUID    `json:"user_id"`
+	CSRFToken    string       `json:"csrf_token"`
+	ExpiresAt    time.Time    `json:"expires_at"`
+	MsisdnMasked string       `json:"msisdn_masked,omitempty"`
+	Orgs         []Membership `json:"orgs"`
 }
 
 // Org is the API view of an organisation.

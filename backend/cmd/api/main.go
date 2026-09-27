@@ -91,15 +91,6 @@ func run() error {
 	// Services.
 	ledgerSvc := ledger.New(d.DB, jc, d.Keys, log)
 	notifier := d.Notifier()
-	pinChecker := org.NewFiscalPINChecker(provider, time.Duration(cfg.Fiscal.TimeoutSeconds)*time.Second)
-	orgSvc := org.New(d.DB, d.Keys, notifier, pinChecker, cfg.SessionSecret, cfg.Fiscal.Adapter, cfg.IsLocal(), log)
-	submitter := fiscal.NewSubmitter(d.DB, jc, d.Keys, provider, log)
-	billingSvc := billing.New(d.DB)
-	daraja := mpesa.NewClient(cfg.Daraja)
-	files, err := d.Files()
-	if err != nil {
-		return err
-	}
 
 	// KRA Gateway Client & Handler
 	var tp kragw.TokenProvider
@@ -118,6 +109,22 @@ func run() error {
 	}, tp)
 	kraGatewayH := &kragw.Handler{Client: kraGatewayClient}
 	ledgerSvc.TaxpayerResolver = kraGatewayClient
+
+	var pinChecker org.PINChecker
+	if cfg.Fiscal.Adapter == "oscu" {
+		pinChecker = org.NewGatewayPINChecker(kraGatewayClient)
+	} else {
+		pinChecker = org.NewFiscalPINChecker(provider, time.Duration(cfg.Fiscal.TimeoutSeconds)*time.Second)
+	}
+
+	orgSvc := org.New(d.DB, d.Keys, notifier, pinChecker, cfg.SessionSecret, cfg.Fiscal.Adapter, cfg.IsLocal(), log)
+	submitter := fiscal.NewSubmitter(d.DB, jc, d.Keys, provider, log)
+	billingSvc := billing.New(d.DB)
+	daraja := mpesa.NewClient(cfg.Daraja)
+	files, err := d.Files()
+	if err != nil {
+		return err
+	}
 
 	// Tax Settings (ADR-0009): the org service needs the live fiscal provider
 	// only for ConfigureEtims; wired here rather than through org.New so every

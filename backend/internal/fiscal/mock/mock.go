@@ -177,8 +177,8 @@ func (p *Provider) submit(ctx context.Context, id, prefix string, total int64) (
 const UnknownPIN = "P000000000Z"
 
 // LookupPIN implements fiscal.PINLookup: every well-formed PIN except
-// UnknownPIN is known, with a deterministic taxpayer name. A-PINs (companies)
-// are reported VAT registered, P-PINs (individuals) are not.
+// UnknownPIN is known, with a deterministic taxpayer name. P-PINs (companies)
+// are reported VAT registered, A-PINs (individuals) are not.
 func (p *Provider) LookupPIN(ctx context.Context, pin string) (fiscal.Taxpayer, error) {
 	if err := ctx.Err(); err != nil {
 		return fiscal.Taxpayer{}, err
@@ -193,7 +193,7 @@ func (p *Provider) LookupPIN(ctx context.Context, pin string) (fiscal.Taxpayer, 
 	return fiscal.Taxpayer{
 		PIN:           pin,
 		Name:          "TAXPAYER " + strings.ToUpper(shortHash(pin)[:6]),
-		VATRegistered: pin[0] == 'A',
+		VATRegistered: pin[0] == 'P',
 	}, nil
 }
 

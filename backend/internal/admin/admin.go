@@ -108,7 +108,7 @@ func New(d *db.DB) *Service { return &Service{DB: d} }
 // Orgs lists recent organisations with daraja_status, tier, and KRA status.
 func (s *Service) Orgs(ctx context.Context, limit int32) ([]OrgRow, error) {
 	var out []OrgRow
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		rows, err := tx.Tx.Query(ctx,
 			`SELECT
 			   o.id,
@@ -156,7 +156,7 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, darajaStatus, tie
 		}
 	}
 
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		if darajaStatus != "" {
 			ct, err := tx.Tx.Exec(ctx, "UPDATE orgs SET daraja_status = $2, updated_at = now() WHERE id = $1", id, darajaStatus)
 			if err != nil {
@@ -183,7 +183,7 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, darajaStatus, tie
 	}
 
 	var row OrgRow
-	err = s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		return tx.Tx.QueryRow(ctx,
 			`SELECT
 			   o.id,
@@ -205,7 +205,7 @@ func (s *Service) UpdateOrg(ctx context.Context, id uuid.UUID, darajaStatus, tie
 // BatchSafaricomExport fetches all ready_for_safaricom orgs and their authorization letters.
 func (s *Service) BatchSafaricomExport(ctx context.Context) ([]SafaricomExportRow, error) {
 	var out []SafaricomExportRow
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		rows, err := tx.Tx.Query(ctx,
 			`SELECT
 			   o.id,
@@ -239,7 +239,7 @@ func (s *Service) BatchSafaricomExport(ctx context.Context) ([]SafaricomExportRo
 // DLQInvoices lists stuck or failed fiscal invoices.
 func (s *Service) DLQInvoices(ctx context.Context, limit int32) ([]DLQInvoiceRow, error) {
 	var out []DLQInvoiceRow
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		rows, err := tx.Tx.Query(ctx,
 			`SELECT
 			   i.id,
@@ -286,7 +286,7 @@ func (s *Service) DLQInvoices(ctx context.Context, limit int32) ([]DLQInvoiceRow
 
 // RequeueInvoice resets stuck invoices back to QUEUED for immediate reprocessing.
 func (s *Service) RequeueInvoice(ctx context.Context, id uuid.UUID) error {
-	return s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	return s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		res, err := tx.Tx.Exec(ctx,
 			`UPDATE invoices
 			    SET state = 'QUEUED', next_attempt_at = now(), updated_at = now()
@@ -303,7 +303,7 @@ func (s *Service) RequeueInvoice(ctx context.Context, id uuid.UUID) error {
 
 // ForceAcked overrides invoice state to ACKED with operator-provided KRA signature.
 func (s *Service) ForceAcked(ctx context.Context, invoiceID uuid.UUID, rcptNo, rcptSign string) error {
-	return s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	return s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		res, err := tx.Tx.Exec(ctx,
 			`UPDATE invoices
 			    SET state = 'ACKED',
@@ -325,7 +325,7 @@ func (s *Service) ForceAcked(ctx context.Context, invoiceID uuid.UUID, rcptNo, r
 // Webhooks lists recent webhook events with optional TransID filter.
 func (s *Service) Webhooks(ctx context.Context, transID string, limit int32) ([]WebhookEventRow, error) {
 	var out []WebhookEventRow
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		var (
 			rows interface {
 				Close()
@@ -375,7 +375,7 @@ func (s *Service) ReplayWebhook(ctx context.Context, id uuid.UUID, ingest mpesa.
 		kind     string
 		payload  []byte
 	)
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		return tx.Tx.QueryRow(ctx,
 			"SELECT provider, kind, payload FROM webhook_events WHERE id = $1", id).
 			Scan(&provider, &kind, &payload)
@@ -436,7 +436,7 @@ func (s *Service) ReplayWebhook(ctx context.Context, id uuid.UUID, ingest mpesa.
 		return nil, fmt.Errorf("unsupported replay kind %q", kind)
 	}
 
-	_ = s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	_ = s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		var errMsg *string
 		if ingestErr != nil {
 			s := ingestErr.Error()
@@ -466,7 +466,7 @@ func (s *Service) NotifyMerchant(ctx context.Context, orgID uuid.UUID, message, 
 	}
 
 	var msisdnEnc []byte
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		return tx.Tx.QueryRow(ctx,
 			`SELECT u.msisdn_enc
 			   FROM memberships m
@@ -492,7 +492,7 @@ func (s *Service) NotifyMerchant(ctx context.Context, orgID uuid.UUID, message, 
 		}
 	}
 
-	_ = s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	_ = s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		_, err := tx.Tx.Exec(ctx,
 			`INSERT INTO notifications (org_id, channel, template, locale, body, status, sent_at)
 			 VALUES ($1, $2, 'admin_broadcast', 'en', $3, 'sent', now())`,
@@ -506,7 +506,7 @@ func (s *Service) NotifyMerchant(ctx context.Context, orgID uuid.UUID, message, 
 // DeadWebhooks lists webhook events that failed past their retry limit.
 func (s *Service) DeadWebhooks(ctx context.Context, limit int32) ([]DeadWebhook, error) {
 	var out []DeadWebhook
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		rows, err := tx.Tx.Query(ctx,
 			`SELECT id, provider, kind, external_id, coalesce(last_error,''), attempts, created_at
 			   FROM webhook_events
@@ -531,7 +531,7 @@ func (s *Service) DeadWebhooks(ctx context.Context, limit int32) ([]DeadWebhook,
 // Flags returns all feature flags.
 func (s *Service) Flags(ctx context.Context) ([]FlagRow, error) {
 	var out []FlagRow
-	err := s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	err := s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		rows, err := tx.Tx.Query(ctx,
 			"SELECT key, description, enabled, org_allowlist FROM feature_flags ORDER BY key")
 		if err != nil {
@@ -553,7 +553,7 @@ func (s *Service) Flags(ctx context.Context) ([]FlagRow, error) {
 // Enabled reports whether a flag is on for an org (globally or via allow-list).
 func (s *Service) Enabled(ctx context.Context, key string, orgID uuid.UUID) bool {
 	var on bool
-	_ = s.DB.Unscoped(ctx, func(ctx context.Context, tx db.Tx) error {
+	_ = s.DB.WithAdmin(ctx, func(ctx context.Context, tx db.Tx) error {
 		return tx.Tx.QueryRow(ctx,
 			"SELECT enabled OR $2 = ANY(org_allowlist) FROM feature_flags WHERE key = $1", key, orgID).Scan(&on)
 	})

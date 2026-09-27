@@ -205,8 +205,8 @@ func TestLookupPIN(t *testing.T) {
 	var lookup fiscal.PINLookup = p
 
 	t.Run("known pin", func(t *testing.T) {
-		tp, err := lookup.LookupPIN(ctx, "A012345678Z")
-		if err != nil || tp.PIN != "A012345678Z" || tp.Name == "" || !tp.VATRegistered {
+		tp, err := lookup.LookupPIN(ctx, "P051234567Z")
+		if err != nil || tp.PIN != "P051234567Z" || tp.Name == "" || !tp.VATRegistered {
 			t.Fatalf("got %+v, %v", tp, err)
 		}
 	})
