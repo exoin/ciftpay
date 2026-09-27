@@ -12,7 +12,10 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "cap:build": "next build && cap sync android"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -32,6 +35,12 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/status-bar": "^8.0.3",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@testing-library/react": "^16.3.0",

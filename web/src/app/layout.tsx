@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "@/styles/globals.css";
+import { NativeBridge } from "@/components/native/NativeBridge";
 
 const APP_NAME = "CiftPay";
 const webBase = process.env.NEXT_PUBLIC_WEB_BASE_URL ?? "http://localhost:3000";
@@ -32,6 +33,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang={locale}>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages} timeZone="Africa/Nairobi">
+          <NativeBridge />
           {children}
         </NextIntlClientProvider>
       </body>

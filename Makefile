@@ -137,3 +137,11 @@ lint-web: ## tsc + eslint
 .PHONY: fmt
 fmt: ## gofmt the backend
 	cd $(BACKEND) && gofmt -l -w .
+
+.PHONY: android-sync
+android-sync: ## Sync web build assets into native Android shell
+	cd web && npm run cap:sync
+
+.PHONY: android-open
+android-open: ## Open Android Studio for CiftPay native app
+	cd web && npx cap open android
