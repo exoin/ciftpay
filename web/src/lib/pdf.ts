@@ -11,19 +11,21 @@ export type PdfExportOptions = {
 };
 
 /**
- * Captures an HTML element using html2canvas with high-resolution scaling (scale 3)
+ * Captures an HTML element using html2canvas
  * and directly downloads a professional PDF using jsPDF without browser print dialogs.
  *
  * Guarantees:
  * 1. Proportional capture width (420px for thermal receipts, 800px desktop width for documents).
  * 2. Single-page constraint: strictly fits the entire rendered document into a single A4 page.
  * 3. Color safety: safely ignores unsupported CSS color spaces (e.g. oklab/oklch).
+ * 4. File-size optimization: Uses crisp JPEG encoding (0.92 quality) with balanced scale (2x)
+ *    so generated PDFs stay well under ~1 MB while remaining crystal clear for printing and OCR.
  */
 export async function exportElementToPdf(
   element: HTMLElement,
   options: PdfExportOptions = {}
 ): Promise<void> {
-  const scale = options.scale ?? 3;
+  const scale = options.scale ?? 2;
   const filename = options.filename ?? "document.pdf";
   const margin = options.marginMm ?? (options.format === "receipt" ? 4 : 10);
   const defaultCaptureWidth = options.format === "receipt" ? 420 : 800;
@@ -55,7 +57,8 @@ export async function exportElementToPdf(
     element.style.boxSizing = originalBoxSizing;
   }
 
-  const imgData = canvas.toDataURL("image/png");
+  // Use high-quality JPEG with compression (0.92) rather than uncompressed 32-bit PNG to keep PDF size under 1MB
+  const imgData = canvas.toDataURL("image/jpeg", 0.92);
 
   if (options.format === "receipt") {
     // Custom receipt thermal paper dimension: 80mm width with dynamic proportional content height
@@ -69,7 +72,7 @@ export async function exportElementToPdf(
       unit: "mm",
       format: [pdfWidth, pdfHeight],
     });
-    doc.addImage(imgData, "PNG", margin, margin, printableWidth, imgHeight);
+    doc.addImage(imgData, "JPEG", margin, margin, printableWidth, imgHeight, undefined, "FAST");
     doc.save(filename);
     return;
   }
@@ -98,6 +101,6 @@ export async function exportElementToPdf(
   const posX = margin + (maxPrintableWidth - finalImgWidth) / 2;
   const posY = margin;
 
-  doc.addImage(imgData, "PNG", posX, posY, finalImgWidth, finalImgHeight);
+  doc.addImage(imgData, "JPEG", posX, posY, finalImgWidth, finalImgHeight, undefined, "FAST");
   doc.save(filename);
 }

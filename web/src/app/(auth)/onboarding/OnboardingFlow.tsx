@@ -20,7 +20,7 @@ import { readSession, useSession } from "@/lib/auth";
  * still waiting for one, and leaves for /today once a letter is uploaded or a
  * shortcode is verified.
  */
-export function OnboardingFlow() {
+export function OnboardingFlow({ onBusinessSaved }: { onBusinessSaved?: () => void } = {}) {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const { data: session, isPending: sessionPending } = useSession();
@@ -63,7 +63,14 @@ export function OnboardingFlow() {
   return (
     <>
       <StepIndicator current={step} />
-      {step === "business" && <BusinessForm onCreated={() => setStep("shortcode")} />}
+      {step === "business" && (
+        <BusinessForm
+          onCreated={() => {
+            onBusinessSaved?.();
+            setStep("shortcode");
+          }}
+        />
+      )}
       {step === "shortcode" && (
         <div className="space-y-4">
           <ShortcodeForm

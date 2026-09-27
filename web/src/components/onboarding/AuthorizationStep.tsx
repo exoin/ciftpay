@@ -101,7 +101,7 @@ export function AuthorizationStep({
           <li>{t("steps.upload")}</li>
         </ol>
         <a
-          href={`/onboarding/letter?shortcode=${encodeURIComponent(shortcode.shortcode)}&label=${encodeURIComponent(shortcode.label ?? "")}`}
+          href={`/onboarding/letter?shortcode=${encodeURIComponent(shortcode.shortcode)}&kind=${encodeURIComponent(shortcode.kind ?? "")}&label=${encodeURIComponent(shortcode.label ?? "")}${typeof window !== "undefined" && window.sessionStorage.getItem("ciftpay.verified_phone") ? `&phone=${encodeURIComponent(window.sessionStorage.getItem("ciftpay.verified_phone")!)}` : ""}`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block text-sm font-medium text-green underline underline-offset-2"

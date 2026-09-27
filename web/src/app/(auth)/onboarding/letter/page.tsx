@@ -26,8 +26,22 @@ function Letter() {
   const t = useTranslations("onboarding.letter");
   const params = useSearchParams();
   const shortcode = params.get("shortcode") ?? "";
+  const rawKind = (params.get("kind") ?? "").toLowerCase();
   const label = params.get("label") ?? "";
+  const queryPhone = params.get("phone") ?? "";
+  const verifiedPhone = queryPhone || (typeof window !== "undefined" ? window.sessionStorage.getItem("ciftpay.verified_phone") : null) || "";
   const { data: org } = useCurrentOrg();
+
+  // Resolve classification strictly to Till or Paybill depending on user selection
+  const classification = rawKind === "paybill"
+    ? "Paybill"
+    : rawKind === "till"
+    ? "Till (Buy Goods)"
+    : label.toLowerCase().includes("paybill")
+    ? "Paybill"
+    : label.toLowerCase().includes("till")
+    ? "Till (Buy Goods)"
+    : "Till (Buy Goods)";
 
   const letterRef = useRef<HTMLDivElement>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -48,7 +62,7 @@ function Letter() {
       await exportElementToPdf(letterRef.current, {
         filename: `safaricom-authorization-letter-${shortcode || "mpesa"}.pdf`,
         format: "a4",
-        scale: 3,
+        scale: 2,
         captureWidth: 794,
         marginMm: 10,
       });
@@ -60,26 +74,31 @@ function Letter() {
   }
 
   return (
-    <div className="w-full overflow-x-auto py-6 px-4">
-      {/* Interactive Top Actions Bar */}
-      <div className="w-[794px] min-w-[794px] max-w-[794px] mx-auto mb-6 flex flex-row items-center justify-between flex-nowrap">
-        <Link
-          href="/onboarding"
-          className="text-sm font-medium text-ink-2 hover:text-ink underline underline-offset-2 shrink-0"
-        >
-          &larr; {t("backLink")}
-        </Link>
-        <div className="flex flex-row items-center gap-3 shrink-0 flex-nowrap">
-          <Button
-            size="sm"
-            variant="primary"
-            loading={isExportingPdf}
-            onClick={handleDownloadPdf}
+    <div className="w-full min-h-screen bg-paper py-4 sm:py-6 px-2 sm:px-4">
+      {/* Interactive Top Actions Bar - Sticky & responsive so download button is always immediately visible without horizontal scrolling */}
+      <header className="sticky top-0 z-30 mb-4 sm:mb-6 mx-auto max-w-[794px] rounded-r2 border border-hairline bg-paper/95 p-3 shadow-sm backdrop-blur">
+        <div className="flex flex-row items-center justify-between gap-3">
+          <Link
+            href="/onboarding"
+            className="text-sm font-medium text-ink-2 hover:text-ink underline underline-offset-2 shrink-0"
           >
-            {isExportingPdf ? t("generatingPdf") : t("downloadPdf")}
-          </Button>
+            &larr; {t("backLink")}
+          </Link>
+          <div className="flex flex-row items-center gap-3 shrink-0">
+            <Button
+              size="sm"
+              variant="primary"
+              loading={isExportingPdf}
+              onClick={handleDownloadPdf}
+            >
+              {isExportingPdf ? t("generatingPdf") : t("downloadPdf")}
+            </Button>
+          </div>
         </div>
-      </div>
+      </header>
+
+      {/* Overflow wrapper to allow horizontal swipe on mobile while keeping the document locked to exact A4 print canvas */}
+      <div className="w-full overflow-x-auto pb-8">
 
       {/* Document Sheet - Strictly locked to 794px A4 canvas */}
       <div
@@ -218,7 +237,7 @@ function Letter() {
               <tr className="border-b border-hairline/60">
                 <td className="w-1/2 p-2.5 align-top border-r border-hairline/60">
                   <span className="block text-muted text-[9.5px] uppercase font-sans">Business Name</span>
-                  <span className="block font-bold text-ink font-sans mt-0.5 truncate">{org?.name || "__________"}</span>
+                  <span className="block font-bold text-ink font-sans mt-0.5 whitespace-normal break-words leading-snug">{org?.name || "__________"}</span>
                 </td>
                 <td className="w-1/2 p-2.5 align-top">
                   <span className="block text-muted text-[9.5px] uppercase font-sans">Merchant KRA PIN</span>
@@ -232,12 +251,24 @@ function Letter() {
                 </td>
                 <td className="w-1/2 p-2.5 align-top">
                   <span className="block text-muted text-[9.5px] uppercase font-sans">Classification</span>
-                  <span className="block font-medium text-ink mt-0.5 truncate">{label || "Till (Buy Goods) / Paybill"}</span>
+                  <span className="block font-bold text-ink mt-0.5 whitespace-normal leading-snug">{classification}</span>
+                </td>
+              </tr>
+              <tr className="border-b border-hairline/60">
+                <td className="w-1/2 p-2.5 align-top border-r border-hairline/60">
+                  <span className="block text-muted text-[9.5px] uppercase font-sans">Verified Owner Phone</span>
+                  <span className="block font-mono font-bold text-ink mt-0.5 whitespace-nowrap">{verifiedPhone ? (verifiedPhone.startsWith("+") ? verifiedPhone : `+${verifiedPhone.replace(/^\+/, "")}`) : (org as unknown as { msisdn?: string; phone?: string })?.msisdn || "__________"}</span>
+                </td>
+                <td className="w-1/2 p-2.5 align-top">
+                  <span className="block text-muted text-[9.5px] uppercase font-sans">Verification Status</span>
+                  <span className="inline-flex items-center gap-1 font-sans text-[11px] font-semibold text-green mt-0.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-green" /> OTP Verified Signatory
+                  </span>
                 </td>
               </tr>
               <tr>
                 <td className="w-1/2 p-2.5 align-top border-r border-hairline/60">
-                  <span className="block text-muted text-[9.5px] uppercase font-sans">Authorized Signatory</span>
+                  <span className="block text-muted text-[9.5px] uppercase font-sans">Authorized Signatory Name</span>
                   <span className="block font-medium text-ink mt-0.5 border-b border-ink/40 pb-0.5">&nbsp;</span>
                 </td>
                 <td className="w-1/2 p-2.5 align-top">
@@ -295,6 +326,7 @@ function Letter() {
         <p className="text-xs text-muted mt-4 border-t border-hairline pt-3">
           {t("fillHint")}
         </p>
+      </div>
       </div>
     </div>
   );

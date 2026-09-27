@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -38,13 +38,28 @@ export function BusinessForm({ onCreated }: { onCreated: (org: Schemas["Org"]) =
   const [resolvedTaxpayer, setResolvedTaxpayer] = useState<string | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
 
+  // Keep track of the last taxpayer name that was auto-populated by the PIN lookup
+  const lastAutoFilledTaxpayerRef = useRef<string | null>(null);
+  const lastResolvedPinRef = useRef<string | null>(null);
+
   const watchedPin = form.watch("kra_pin");
 
   useEffect(() => {
     const cleanPin = (watchedPin || "").trim().toUpperCase();
-    if (!KRA_PIN_RE.test(cleanPin)) {
+
+    // If the merchant edits/erases the PIN so it's no longer the resolved PIN
+    if (cleanPin !== lastResolvedPinRef.current) {
       setResolvedTaxpayer(null);
       setPinError(null);
+      // If the current name field was auto-populated from the previous PIN, clear it
+      const currentName = form.getValues("name");
+      if (lastAutoFilledTaxpayerRef.current && currentName === lastAutoFilledTaxpayerRef.current) {
+        form.setValue("name", "", { shouldValidate: false });
+        lastAutoFilledTaxpayerRef.current = null;
+      }
+    }
+
+    if (!KRA_PIN_RE.test(cleanPin)) {
       return;
     }
 
@@ -56,14 +71,30 @@ export function BusinessForm({ onCreated }: { onCreated: (org: Schemas["Org"]) =
           params: { path: { pin: cleanPin } },
         });
         if (response.ok && data?.taxpayer_name) {
+          lastResolvedPinRef.current = cleanPin;
           setResolvedTaxpayer(data.taxpayer_name);
-          form.setValue("name", data.taxpayer_name, { shouldValidate: true });
+
+          // Update business name if:
+          // 1. empty
+          // 2. matches the previous auto-filled name from an earlier PIN
+          // 3. merchant has not manually typed a different custom name
+          const currentName = form.getValues("name");
+          if (!currentName || currentName === lastAutoFilledTaxpayerRef.current) {
+            form.setValue("name", data.taxpayer_name, { shouldValidate: true });
+            lastAutoFilledTaxpayerRef.current = data.taxpayer_name;
+          }
+
           if (data.vat_registered) {
             form.setValue("vat_registered", true);
           }
-        } else {
+        } else if (response.status === 404) {
+          lastResolvedPinRef.current = null;
           setResolvedTaxpayer(null);
           setPinError(t("pinUnknown"));
+        } else {
+          // If KRA lookup temporarily fails or is unavailable, do not hard-block;
+          // allow the user to continue with their trade name.
+          setResolvedTaxpayer(null);
         }
       } catch {
         setResolvedTaxpayer(null);
@@ -114,7 +145,12 @@ export function BusinessForm({ onCreated }: { onCreated: (org: Schemas["Org"]) =
         spellCheck={false}
         maxLength={11}
         mono
-        {...form.register("kra_pin")}
+        {...form.register("kra_pin", {
+          onChange: (e) => {
+            const upper = (e.target.value as string).toUpperCase();
+            form.setValue("kra_pin", upper, { shouldValidate: false });
+          },
+        })}
       />
 
       {resolvingPin && (
@@ -132,12 +168,10 @@ export function BusinessForm({ onCreated }: { onCreated: (org: Schemas["Org"]) =
 
       <Field
         label={t("name")}
-        hint={resolvedTaxpayer ? "Auto-populated from official KRA tax register" : t("nameHint")}
+        hint={resolvedTaxpayer ? "Auto-populated from official KRA tax register (editable)" : t("nameHint")}
         error={form.formState.errors.name ? t("nameInvalid") : undefined}
         autoComplete="organization"
         maxLength={80}
-        disabled={Boolean(resolvedTaxpayer)}
-        readOnly={Boolean(resolvedTaxpayer)}
         {...form.register("name")}
       />
 

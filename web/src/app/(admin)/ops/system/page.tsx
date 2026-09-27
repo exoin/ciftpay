@@ -20,7 +20,7 @@ export default function SystemHealthPage() {
   const [cidrText, setCidrText] = useState("");
   const [transIdQuery, setTransIdQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
-  const [selectedPayload, setSelectedPayload] = useState<unknown | null>(null);
+  const [selectedPayload, setSelectedPayload] = useState<Record<string, unknown> | null>(null);
   const [banner, setBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // 1. Daraja IP Allowlist
@@ -258,7 +258,7 @@ export default function SystemHealthPage() {
       </section>
 
       {/* Raw Payload Modal */}
-      {selectedPayload && (
+      {selectedPayload ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
@@ -287,7 +287,7 @@ export default function SystemHealthPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

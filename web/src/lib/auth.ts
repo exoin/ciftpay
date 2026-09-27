@@ -109,10 +109,24 @@ export function useRequestOtp() {
 export function useVerifyOtp() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { msisdn: string; code: string }) => unwrap(await api.POST("/auth/otp/verify", { body: vars })),
+    mutationFn: async (vars: { msisdn: string; code: string }) => {
+      const res = unwrap(await api.POST("/auth/otp/verify", { body: vars }));
+      if (typeof window !== "undefined" && vars.msisdn) {
+        try {
+          window.sessionStorage.setItem("ciftpay.verified_phone", vars.msisdn);
+        } catch {}
+      }
+      return res;
+    },
     onSuccess: (s) => {
       // Flush previous account state completely before establishing new session
+      const phone = typeof window !== "undefined" ? window.sessionStorage.getItem("ciftpay.verified_phone") : null;
       flushAllClientState(qc);
+      if (phone && typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem("ciftpay.verified_phone", phone);
+        } catch {}
+      }
       writeSession(s);
       qc.setQueryData(qk.session, s);
     },
