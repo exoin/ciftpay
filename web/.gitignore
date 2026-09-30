@@ -17,3 +17,5 @@ public/swe-worker-*.js
 test-results/
 playwright-report/
 blob-report/
+.vercel
+.env*

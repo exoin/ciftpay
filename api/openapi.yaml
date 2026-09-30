@@ -1605,6 +1605,8 @@ components:
           format: uuid
         csrf_token:
           type: string
+        token:
+          type: string
         expires_at:
           type: string
           format: date-time

@@ -1,3 +1,15 @@
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem("ciftpay.session");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.token || null;
+  } catch {
+    return null;
+  }
+}
+
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 
@@ -60,10 +72,13 @@ export async function fetchCsrfToken(): Promise<string | null> {
 
   csrfRefreshPromise = (async () => {
     try {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      const tok = getStoredToken();
+      if (tok) headers["Authorization"] = `Bearer ${tok}`;
       const res = await fetch(`${apiBaseUrl()}/csrf`, {
         method: "GET",
         credentials: "include",
-        headers: { Accept: "application/json" },
+        headers,
       });
       if (res.ok) {
         const body = (await res.json()) as { csrf_token?: string };
@@ -140,6 +155,10 @@ export async function resilientFetch(request: Request): Promise<Response> {
 /** Adds the session cookie, CSRF token on mutations (auto-retrieves if missing) and the active org header. */
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
+    const tok = getStoredToken();
+    if (tok && !request.headers.has("Authorization")) {
+      request.headers.set("Authorization", `Bearer ${tok}`);
+    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       let csrf = getCsrfToken();
       if (!csrf) {
@@ -173,6 +192,8 @@ export async function rawGet<T>(path: string): Promise<T> {
   const headers = new Headers();
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
+  const tok = getStoredToken();
+  if (tok && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${tok}`);
   const res = await fetch(`${apiBaseUrl()}${path}`, { credentials: "include", headers });
   return readJson<T>(res);
 }
@@ -191,6 +212,8 @@ export async function rawPatch<T>(path: string, body?: unknown): Promise<T> {
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
+  const tok = getStoredToken();
+  if (tok && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${tok}`);
   const req = new Request(`${apiBaseUrl()}${path}`, {
     method: "PATCH",
     credentials: "include",
@@ -210,6 +233,8 @@ export async function rawPost<T>(path: string, body?: unknown): Promise<T> {
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
+  const tok = getStoredToken();
+  if (tok && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${tok}`);
   const req = new Request(`${apiBaseUrl()}${path}`, {
     method: "POST",
     credentials: "include",
@@ -234,6 +259,8 @@ export async function postForm<T>(path: string, form: FormData): Promise<T> {
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const org = getActiveOrgId();
   if (org) headers.set("X-Org-Id", org);
+  const tok = getStoredToken();
+  if (tok && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${tok}`);
   const req = new Request(`${apiBaseUrl()}${path}`, {
     method: "POST",
     credentials: "include",

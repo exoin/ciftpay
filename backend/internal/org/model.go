@@ -64,6 +64,7 @@ type Membership struct {
 type Session struct {
 	UserID       uuid.UUID    `json:"user_id"`
 	CSRFToken    string       `json:"csrf_token"`
+	Token        string       `json:"token,omitempty"`
 	ExpiresAt    time.Time    `json:"expires_at"`
 	MsisdnMasked string       `json:"msisdn_masked,omitempty"`
 	Orgs         []Membership `json:"orgs"`

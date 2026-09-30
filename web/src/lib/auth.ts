@@ -6,7 +6,7 @@ import { api, getActiveOrgId, setActiveOrgId, setCsrfToken, unwrap, type Schemas
 export { getActiveOrgId, setActiveOrgId } from "./api/client";
 import { qk } from "./api/queries";
 
-export type Session = Schemas["Session"];
+export type Session = Schemas["Session"] & { token?: string };
 
 const SESSION_KEY = "ciftpay.session";
 

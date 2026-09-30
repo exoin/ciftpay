@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -60,7 +61,9 @@ func (h *Handler) MountPrivate(r chi.Router) {
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := ""
-		if c, err := r.Cookie(SessionCookie); err == nil {
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			token = strings.TrimPrefix(auth, "Bearer ")
+		} else if c, err := r.Cookie(SessionCookie); err == nil {
 			token = c.Value
 		}
 		orgReq := r.Header.Get(HeaderOrgID)
@@ -173,9 +176,14 @@ func (h *Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not sign you in")
 	default:
+		sess.Token = token
+		sameSite := http.SameSiteLaxMode
+		if h.SecureCookie {
+			sameSite = http.SameSiteNoneMode
+		}
 		http.SetCookie(w, &http.Cookie{
 			Name: SessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: h.SecureCookie,
-			SameSite: http.SameSiteLaxMode, Expires: sess.ExpiresAt,
+			SameSite: sameSite, Expires: sess.ExpiresAt,
 		})
 		httpx.JSON(w, http.StatusOK, sess)
 	}
@@ -188,7 +196,9 @@ func (h *Handler) csrf(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := ""
-	if c, err := r.Cookie(SessionCookie); err == nil {
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		token = strings.TrimPrefix(auth, "Bearer ")
+	} else if c, err := r.Cookie(SessionCookie); err == nil {
 		token = c.Value
 	}
 	if token != "" {
@@ -208,7 +218,11 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "internal", "Could not log out")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: h.SecureCookie, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	sameSite := http.SameSiteLaxMode
+	if h.SecureCookie {
+		sameSite = http.SameSiteNoneMode
+	}
+	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: h.SecureCookie, SameSite: sameSite, MaxAge: -1})
 	w.WriteHeader(http.StatusNoContent)
 }
 
