@@ -152,9 +152,10 @@ func (c *Client) CheckPIN(ctx context.Context, rawPIN string) (TaxpayerDetails, 
 		return TaxpayerDetails{}, ErrPINInvalid
 	}
 
-	// STRICT GUARDRAIL: Only allow mock deterministic data if explicitly enabled via USE_MOCK_KRA_GATEWAY
-	// AND NOT in production.
-	if c.cfg.UseMockGateway && !c.cfg.IsProduction {
+	// In sandbox environments (sbx.kra.go.ke) or when USE_MOCK_KRA_GATEWAY is set,
+	// use deterministic mock data because KRA developer sandbox does not host a taxpayer registry.
+	isSandbox := strings.Contains(c.cfg.BaseURL, "sbx.") || (c.cfg.UseMockGateway && !c.cfg.IsProduction)
+	if isSandbox {
 		if pin == UnknownPIN {
 			return TaxpayerDetails{}, ErrPINNotFound
 		}
@@ -239,9 +240,10 @@ func (c *Client) FetchObligations(ctx context.Context, rawPIN string) ([]TaxObli
 		return nil, ErrPINInvalid
 	}
 
-	// STRICT GUARDRAIL: Only allow mock deterministic data if explicitly enabled via USE_MOCK_KRA_GATEWAY
-	// AND NOT in production.
-	if c.cfg.UseMockGateway && !c.cfg.IsProduction {
+	// In sandbox environments (sbx.kra.go.ke) or when USE_MOCK_KRA_GATEWAY is set,
+	// use deterministic mock data because KRA developer sandbox does not host a taxpayer registry.
+	isSandbox := strings.Contains(c.cfg.BaseURL, "sbx.") || (c.cfg.UseMockGateway && !c.cfg.IsProduction)
+	if isSandbox {
 		if pin == UnknownPIN {
 			return nil, ErrPINNotFound
 		}
