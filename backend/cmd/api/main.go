@@ -230,13 +230,21 @@ func run() error {
 		r.With(org.RequireRole(org.RoleAdmin)).Group(adminH.Mount)
 	})
 
+	addr := cfg.HTTPAddr
+	if port := os.Getenv("PORT"); port != "" {
+		if !strings.HasPrefix(port, ":") {
+			port = ":" + port
+		}
+		addr = port
+	}
+
 	srv := &http.Server{
-		Addr: cfg.HTTPAddr, Handler: r,
+		Addr: addr, Handler: r,
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second,
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("api listening", "addr", cfg.HTTPAddr, "env", cfg.AppEnv, "fiscal_adapter", provider.Name(), "daraja_configured", daraja.Configured())
+		log.Info("api listening", "addr", addr, "env", cfg.AppEnv, "fiscal_adapter", provider.Name(), "daraja_configured", daraja.Configured())
 		errCh <- srv.ListenAndServe()
 	}()
 	select {

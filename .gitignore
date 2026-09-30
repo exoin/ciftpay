@@ -25,6 +25,7 @@ out/
 /tmp/
 # ide.idea/
 .idea/
+tools/heroku/
 
 # merchant uploads (UPLOAD_DIR default)
 /backend/var/
