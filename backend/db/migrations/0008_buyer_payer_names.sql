@@ -26,7 +26,7 @@ CREATE POLICY payments_public_receipt ON payments
     )
   );
 
-GRANT ALL ON sales, invoices, payments TO ciftpay;
+DO $$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ciftpay') THEN GRANT ALL ON sales, invoices, payments TO ciftpay; END IF; END $$;
 
 -- +goose StatementEnd
 

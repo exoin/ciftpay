@@ -26,7 +26,7 @@ CREATE POLICY org_invites_tenant ON org_invites
   USING (org_id = current_org())
   WITH CHECK (org_id = current_org());
 
-GRANT ALL ON org_invites TO ciftpay;
+DO $$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ciftpay') THEN GRANT ALL ON org_invites TO ciftpay; END IF; END $$;
 
 -- +goose StatementEnd
 
