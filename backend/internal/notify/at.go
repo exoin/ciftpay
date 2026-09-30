@@ -55,7 +55,7 @@ type atResponse struct {
 // SendSMS implements Sender. `to` must be in +2547... form.
 func (c *ATClient) SendSMS(ctx context.Context, to, body string) (SendResult, error) {
 	form := url.Values{"username": {c.cfg.Username}, "to": {to}, "message": {body}}
-	if c.cfg.SenderID != "" {
+	if c.cfg.SenderID != "" && c.cfg.SenderID != "none" && c.cfg.Username != "sandbox" {
 		form.Set("from", c.cfg.SenderID)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.cfg.BaseURL, "/")+"/version1/messaging", strings.NewReader(form.Encode()))
