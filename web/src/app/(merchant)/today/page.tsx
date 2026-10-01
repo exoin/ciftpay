@@ -53,7 +53,7 @@ export default function TodayPage() {
       />
 
       {/* Live receipt strip: the number first (hero card matching design-system §12). */}
-      <section aria-live="polite" className="perforated-top bg-paper-2 px-5 pb-5 pt-6">
+      <section aria-live="polite" className="rounded-r2 border border-hairline bg-paper-2 px-5 pb-5 pt-6 shadow-xs">
         <div className="receipt-head text-xs text-muted">{t("received")}</div>
         <div className="mt-1">
           <Money cents={data?.received_cents ?? 0} size="3xl" className="w-full justify-start" />

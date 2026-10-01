@@ -201,14 +201,31 @@ export default function ItemsPage() {
               key: "stock",
               header: t("stockQty"),
               numeric: true,
-              cell: (i) =>
-                i.track_stock ? (
-                  <span className="font-mono text-xs font-semibold">
+              cell: (i) => {
+                if (!i.track_stock) {
+                  return <span className="text-muted text-xs">—</span>;
+                }
+                const qty = parseFloat(i.stock_qty || "0");
+                if (qty <= 0) {
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded bg-bad-bg/80 px-2 py-0.5 font-mono text-[11px] font-semibold text-red">
+                      Out of Stock (0)
+                    </span>
+                  );
+                }
+                if (qty <= 5) {
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded bg-warn-bg px-2 py-0.5 font-mono text-[11px] font-semibold text-ochre">
+                      Low: {i.stock_qty} {i.unit}
+                    </span>
+                  );
+                }
+                return (
+                  <span className="inline-flex items-center gap-1 rounded bg-ok-bg px-2 py-0.5 font-mono text-[11px] font-semibold text-ok">
                     {i.stock_qty} {i.unit}
                   </span>
-                ) : (
-                  <span className="text-muted text-xs">—</span>
-                ),
+                );
+              },
             },
             {
               key: "price",

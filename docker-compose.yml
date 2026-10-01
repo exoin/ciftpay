@@ -113,7 +113,7 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
       API_BASE_URL: http://api:8080
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3001}:3000"
     depends_on:
       - api
 

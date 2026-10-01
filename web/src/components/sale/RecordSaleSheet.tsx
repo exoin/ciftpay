@@ -197,11 +197,18 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
               <option value="" />
               {items?.data
                 .filter((it) => it.is_active)
-                .map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
-                ))}
+                .map((it) => {
+                  let stockTag = "";
+                  if (it.track_stock) {
+                    const q = parseFloat(it.stock_qty || "0");
+                    stockTag = q <= 0 ? " [Out of Stock]" : ` [${it.stock_qty} left]`;
+                  }
+                  return (
+                    <option key={it.id} value={it.id}>
+                      {it.name}{stockTag}
+                    </option>
+                  );
+                })}
             </SelectField>
             <Field
               label={tp("qty")}
