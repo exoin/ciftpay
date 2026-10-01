@@ -31,6 +31,8 @@ const schema = z.object({
   price: z.string().optional(),
   category_preset: z.string().optional(),
   is_vat_applicable: z.boolean(),
+  track_stock: z.boolean(),
+  stock_qty: z.string(),
 });
 type Form = z.infer<typeof schema>;
 
@@ -61,6 +63,8 @@ export default function ItemsPage() {
       price: "",
       category_preset: "",
       is_vat_applicable: orgVatRegistered,
+      track_stock: false,
+      stock_qty: "0",
     },
   });
 
@@ -121,6 +125,8 @@ export default function ItemsPage() {
         tax_category: v.tax_category,
         unit: v.unit,
         price_cents: v.price ? Math.round(Number(v.price) * 100) : null,
+        track_stock: v.track_stock,
+        stock_qty: v.track_stock ? v.stock_qty : "0",
       });
       toast.push(t("saved"));
       form.reset({
@@ -131,6 +137,8 @@ export default function ItemsPage() {
         price: "",
         category_preset: "",
         is_vat_applicable: orgVatRegistered,
+        track_stock: false,
+        stock_qty: "0",
       });
       setCodeSearch("");
       setFormError(null);
@@ -189,6 +197,19 @@ export default function ItemsPage() {
             { key: "code", header: t("code"), cell: (i) => <span className="font-mono">{i.etims_class_code}</span> },
             { key: "cat", header: t("taxCategory"), cell: (i) => <span className="font-mono">{i.tax_category}</span> },
             { key: "unit", header: t("unit"), cell: (i) => <span className="font-mono">{i.unit}</span> },
+            {
+              key: "stock",
+              header: t("stockQty"),
+              numeric: true,
+              cell: (i) =>
+                i.track_stock ? (
+                  <span className="font-mono text-xs font-semibold">
+                    {i.stock_qty} {i.unit}
+                  </span>
+                ) : (
+                  <span className="text-muted text-xs">—</span>
+                ),
+            },
             {
               key: "price",
               header: "KES",
@@ -307,6 +328,33 @@ export default function ItemsPage() {
                 </option>
               ))}
             </SelectField>
+          </div>
+
+          {/* Inventory Tracking for eTIMS */}
+          <div className="rounded-r2 border border-hairline bg-paper-2 p-3 space-y-3">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.watch("track_stock")}
+                onChange={(e) => form.setValue("track_stock", e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-hairline text-ink accent-ink focus:ring-ochre"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-ink">{t("trackStock")}</span>
+                <span className="text-xs text-muted">{t("trackStockHint")}</span>
+              </div>
+            </label>
+
+            {form.watch("track_stock") && (
+              <Field
+                label={t("stockQty")}
+                hint={t("stockQtyHint")}
+                inputMode="decimal"
+                mono
+                placeholder="0"
+                {...form.register("stock_qty")}
+              />
+            )}
           </div>
 
           {/* Unit of Measure Dropdown & Price */}

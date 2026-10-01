@@ -91,11 +91,11 @@ SELECT state, count(*) AS n FROM invoices WHERE org_id = $1 GROUP BY state;
 -- name: SetInvoiceState :one
 UPDATE invoices
 SET state = $2,
-    attempt = COALESCE(sqlc.narg('attempt'), attempt),
-    next_attempt_at = sqlc.narg('next_attempt_at'),
-    last_error = sqlc.narg('last_error'),
+    attempt = COALESCE(sqlc.narg('attempt')::int, attempt),
+    next_attempt_at = sqlc.narg('next_attempt_at')::timestamptz,
+    last_error = sqlc.narg('last_error')::text,
     submitted_at = CASE WHEN $2 = 'SUBMITTED' THEN now() ELSE submitted_at END
-WHERE id = $1 AND state = $4
+WHERE id = $1 AND state = sqlc.arg('expected_state')::text
 RETURNING *;
 
 -- name: ListStaleSubmittedInvoices :many

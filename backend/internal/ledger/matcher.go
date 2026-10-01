@@ -12,12 +12,16 @@ import (
 // STKWindow is how far back rule 2 looks for a pending request-to-pay.
 const STKWindow = 10 * time.Minute
 
+// CounterWindow is how far back rule 2b looks for an open sale awaiting payment at the counter.
+const CounterWindow = 5 * time.Minute
+
 // Rule names stored in payments.match_rule.
 const (
-	RuleBillRef     = "bill_ref"
-	RuleSTKWindow   = "stk_window"
-	RuleAutoInvoice = "auto_invoice"
-	RuleManual      = "manual"
+	RuleBillRef       = "bill_ref"
+	RuleSTKWindow     = "stk_window"
+	RuleCounterWindow = "counter_window"
+	RuleAutoInvoice   = "auto_invoice"
+	RuleManual        = "manual"
 )
 
 // Payment statuses stored in payments.status.
@@ -59,8 +63,10 @@ type ShortcodeRule struct {
 // Lookups are the read-only questions the matcher may ask. Nil funcs mean
 // "no such data".
 type Lookups struct {
-	OpenSaleByRef func(ref string) (OpenSale, bool)
-	PendingSTK    func(msisdnHash []byte, amountCents int64, since time.Time) (PendingSTK, bool)
+	OpenSaleByRef      func(ref string) (OpenSale, bool)
+	PendingSTK         func(msisdnHash []byte, amountCents int64, since time.Time) (PendingSTK, bool)
+	OpenSaleByCustomer func(msisdnHash []byte, since time.Time) (OpenSale, bool)
+	OpenSaleByAmount   func(amountCents int64, since time.Time) (OpenSale, bool)
 }
 
 // Decision is the outcome. Exactly one of SaleID / CreateCashSale is set when
@@ -105,6 +111,24 @@ func Match(in Incoming, sc ShortcodeRule, lk Lookups) Decision {
 				d.Status, d.CreateCashSale = StatusCashSale, true
 			}
 			return d
+		}
+	}
+	if len(in.MSISDNHash) > 0 && lk.OpenSaleByCustomer != nil {
+		if s, ok := lk.OpenSaleByCustomer(in.MSISDNHash, in.PaidAt.Add(-CounterWindow)); ok {
+			d := Decision{Rule: RuleCounterWindow, SaleID: ptr(s.ID)}
+			switch {
+			case in.AmountCents >= s.TotalCents:
+				d.Status = StatusMatched
+			default:
+				d.Status = StatusPartial
+				d.Reason = "amount below sale total"
+			}
+			return d
+		}
+	}
+	if lk.OpenSaleByAmount != nil {
+		if s, ok := lk.OpenSaleByAmount(in.AmountCents, in.PaidAt.Add(-CounterWindow)); ok {
+			return Decision{Status: StatusMatched, Rule: RuleCounterWindow, SaleID: ptr(s.ID)}
 		}
 	}
 	if sc.AutoInvoice && sc.DefaultItemID != nil {

@@ -1,6 +1,6 @@
 -- name: CreateItem :one
-INSERT INTO items (org_id, name, etims_class_code, tax_category, unit, price_cents)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO items (org_id, name, etims_class_code, tax_category, unit, price_cents, track_stock, stock_qty)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetItem :one
@@ -16,9 +16,16 @@ SET name = COALESCE(sqlc.narg('name'), name),
     tax_category = COALESCE(sqlc.narg('tax_category'), tax_category),
     unit = COALESCE(sqlc.narg('unit'), unit),
     price_cents = COALESCE(sqlc.narg('price_cents'), price_cents),
-    is_active = COALESCE(sqlc.narg('is_active'), is_active)
+    is_active = COALESCE(sqlc.narg('is_active'), is_active),
+    track_stock = COALESCE(sqlc.narg('track_stock'), track_stock),
+    stock_qty = COALESCE(sqlc.narg('stock_qty'), stock_qty)
 WHERE id = $1
 RETURNING *;
+
+-- name: DecrementItemStock :exec
+UPDATE items
+SET stock_qty = stock_qty - $2
+WHERE id = $1 AND track_stock = true;
 
 -- name: UpsertCustomerByMSISDN :one
 INSERT INTO customers (org_id, name, msisdn_enc, msisdn_hash)
@@ -39,6 +46,19 @@ SELECT * FROM sales WHERE id = $1;
 
 -- name: GetOpenSaleByRef :one
 SELECT * FROM sales WHERE org_id = $1 AND status = 'open' AND upper(ref) = upper($2);
+
+-- name: FindRecentOpenSaleByAmount :one
+SELECT * FROM sales
+WHERE org_id = $1 AND status = 'open' AND total_cents = $2 AND created_at >= $3
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: FindRecentOpenSaleByCustomer :one
+SELECT s.* FROM sales s
+JOIN customers c ON s.customer_id = c.id
+WHERE s.org_id = $1 AND s.status = 'open' AND c.msisdn_hash = $2 AND s.created_at >= $3
+ORDER BY s.created_at DESC
+LIMIT 1;
 
 -- name: ListSales :many
 SELECT * FROM sales
@@ -89,6 +109,12 @@ ORDER BY paid_at DESC LIMIT $2 OFFSET $3;
 
 -- name: AttachPaymentToSale :exec
 UPDATE payments SET sale_id = $2, status = $3, match_rule = $4 WHERE id = $1;
+
+-- name: ListPaymentsForSale :many
+SELECT * FROM payments WHERE sale_id = $1 ORDER BY paid_at ASC;
+
+-- name: UpdatePaymentStatus :exec
+UPDATE payments SET status = $2 WHERE id = $1;
 
 -- name: MarkPaymentReversed :exec
 UPDATE payments SET status = 'reversed', reversed_at = now() WHERE id = $1;

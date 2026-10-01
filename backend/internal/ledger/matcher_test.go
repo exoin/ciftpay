@@ -13,8 +13,10 @@ func TestMatch(t *testing.T) {
 	saleID := uuid.New()
 	stkID := uuid.New()
 	stkSale := uuid.New()
+	counterSale := uuid.New()
 	item := uuid.New()
 	payer := []byte("hash-of-254708374149")
+	counterPayer := []byte("hash-of-254711223344")
 
 	openSales := map[string]OpenSale{"S-260902-0001": {ID: saleID, TotalCents: 240000}}
 	lookups := Lookups{
@@ -28,6 +30,18 @@ func TestMatch(t *testing.T) {
 				return PendingSTK{ID: stkID, SaleID: &stkSale, CreatedAt: created}, true
 			}
 			return PendingSTK{}, false
+		},
+		OpenSaleByAmount: func(amount int64, since time.Time) (OpenSale, bool) {
+			if amount == 350000 {
+				return OpenSale{ID: counterSale, TotalCents: 350000}, true
+			}
+			return OpenSale{}, false
+		},
+		OpenSaleByCustomer: func(h []byte, since time.Time) (OpenSale, bool) {
+			if bytes.Equal(h, counterPayer) {
+				return OpenSale{ID: counterSale, TotalCents: 150000}, true
+			}
+			return OpenSale{}, false
 		},
 	}
 	auto := ShortcodeRule{AutoInvoice: true, DefaultItemID: &item}
@@ -98,6 +112,18 @@ func TestMatch(t *testing.T) {
 			in:   Incoming{AmountCents: 240000, PaidAt: now},
 			sc:   ShortcodeRule{AutoInvoice: true}, lk: lookups,
 			want: Decision{Status: StatusUnmatched, Reason: "shortcode has no default item"},
+		},
+		{
+			name: "counter window match by exact amount",
+			in:   Incoming{AmountCents: 350000, PaidAt: now},
+			sc:   auto, lk: lookups,
+			want: Decision{Status: StatusMatched, Rule: RuleCounterWindow, SaleID: &counterSale},
+		},
+		{
+			name: "counter window match by customer phone",
+			in:   Incoming{AmountCents: 150000, MSISDNHash: counterPayer, PaidAt: now},
+			sc:   auto, lk: lookups,
+			want: Decision{Status: StatusMatched, Rule: RuleCounterWindow, SaleID: &counterSale},
 		},
 		{
 			name: "nil lookups are tolerated",

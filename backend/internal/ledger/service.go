@@ -195,6 +195,20 @@ func (s *Service) applyPayment(ctx context.Context, tx db.Tx, sc gen.ResolveShor
 				}
 				return PendingSTK{ID: r.ID, SaleID: r.SaleID, CreatedAt: r.CreatedAt}, true
 			},
+			OpenSaleByCustomer: func(h []byte, since time.Time) (OpenSale, bool) {
+				sale, err := tx.FindRecentOpenSaleByCustomer(ctx, gen.FindRecentOpenSaleByCustomerParams{OrgID: sc.OrgID, MsisdnHash: h, CreatedAt: since})
+				if err != nil {
+					return OpenSale{}, false
+				}
+				return OpenSale{ID: sale.ID, TotalCents: sale.TotalCents}, true
+			},
+			OpenSaleByAmount: func(amount int64, since time.Time) (OpenSale, bool) {
+				sale, err := tx.FindRecentOpenSaleByAmount(ctx, gen.FindRecentOpenSaleByAmountParams{OrgID: sc.OrgID, TotalCents: amount, CreatedAt: since})
+				if err != nil {
+					return OpenSale{}, false
+				}
+				return OpenSale{ID: sale.ID, TotalCents: sale.TotalCents}, true
+			},
 		},
 	)
 	res.Status, res.Rule = decision.Status, decision.Rule
@@ -340,6 +354,18 @@ func (s *Service) CreateInvoiceForSale(ctx context.Context, tx db.Tx, orgID, sal
 			return gen.Invoice{}, err
 		}
 	}
+	// Decrement item stock for tracked inventory items
+	if saleItems, err := tx.ListSaleItems(ctx, saleID); err == nil {
+		for _, si := range saleItems {
+			if si.ItemID != nil {
+				_ = tx.DecrementItemStock(ctx, gen.DecrementItemStockParams{
+					ID:       *si.ItemID,
+					StockQty: si.Qty,
+				})
+			}
+		}
+	}
+
 	if state == fiscal.StateQueued {
 		if err := s.Jobs.EnqueueTx(ctx, tx.Tx, jobs.SubmitInvoiceArgs{OrgID: orgID, InvoiceID: inv.ID}, nil); err != nil {
 			return gen.Invoice{}, err

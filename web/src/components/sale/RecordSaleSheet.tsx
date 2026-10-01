@@ -30,6 +30,7 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
   const [buyerPin, setBuyerPin] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [paymentMode, setPaymentMode] = useState<"mpesa" | "cash">("mpesa");
 
   const totalCents = useMemo(() => {
     return lines.reduce((sum, l) => {
@@ -70,9 +71,10 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
       normPhone = n;
     }
 
+    const isMpesa = paymentMode === "mpesa";
     try {
       await create.mutateAsync({
-        kind: "cash",
+        kind: isMpesa ? "open" : "cash",
         lines: lines.map((l) => {
           const item = items?.data.find((i) => i.id === l.item_id);
           const priceCents = l.unit_price ? Math.round(Number(l.unit_price) * 100) : (item?.price_cents ?? 0);
@@ -88,7 +90,7 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
         ...(buyerPin.trim() ? { buyer_pin: buyerPin.trim().toUpperCase() } : {}),
         client_ref: generateUUID(),
       });
-      toast.push(t("queued"));
+      toast.push(isMpesa ? t("mpesaQueued") : t("queued"));
       setLines([{ item_id: "", qty: "1", unit_price: "" }]);
       setBuyerPhone("");
       setBuyerName("");
@@ -147,11 +149,42 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             </div>
           )}
           <Button block disabled={!canSubmit || create.isPending} loading={create.isPending} onClick={submit}>
-            {t("submit")}
+            {paymentMode === "mpesa" ? t("submitMpesa") : t("submitCash")}
           </Button>
         </div>
       }
     >
+      <div className="mb-5 rounded-r2 border border-hairline bg-subtle p-3 space-y-2">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted">
+          {t("tenderLabel")}
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setPaymentMode("mpesa")}
+            className={`rounded-r2 border p-3 text-left transition ${
+              paymentMode === "mpesa"
+                ? "border-accent bg-accent/10 text-ink-1 ring-1 ring-accent"
+                : "border-hairline bg-surface hover:bg-subtle text-muted"
+            }`}
+          >
+            <div className="text-sm font-semibold">{t("tenderMpesaTitle")}</div>
+            <div className="mt-1 text-xs text-muted leading-tight">{t("tenderMpesaDesc")}</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentMode("cash")}
+            className={`rounded-r2 border p-3 text-left transition ${
+              paymentMode === "cash"
+                ? "border-accent bg-accent/10 text-ink-1 ring-1 ring-accent"
+                : "border-hairline bg-surface hover:bg-subtle text-muted"
+            }`}
+          >
+            <div className="text-sm font-semibold">{t("tenderCashTitle")}</div>
+            <div className="mt-1 text-xs text-muted leading-tight">{t("tenderCashDesc")}</div>
+          </button>
+        </div>
+      </div>
       <p className="text-sm text-ink-2">{t("lead")}</p>
       <div className="mt-4 space-y-5">
         {lines.map((l, i) => (

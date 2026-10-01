@@ -26,7 +26,8 @@
     "offline": "Hauko mtandaoni. Tunaonyesha tuliyohifadhi mara ya mwisho.",
     "signedOut": "Kipindi chako kimeisha. Ingia tena kuendelea.",
     "errorGeneric": "Hiyo haikufaulu. {message}",
-    "noConnection": "Hatuwezi kufikia CiftPay sasa. Angalia mtandao wako ujaribu tena."
+    "noConnection": "Hatuwezi kufikia CiftPay sasa. Angalia mtandao wako ujaribu tena.",
+    "exactMatch": "Kiasi kamili"
   },
   "status": {
     "acked": "KRA imethibitisha",
@@ -186,7 +187,9 @@
     "netSalesHint": "Baada ya makato ya ada za M-Pesa",
     "vatLiability": "Makadirio ya VAT kwa KRA",
     "vatLiabilityHint": "Kodi ya kulipwa kwa KRA kutoka risiti zilizothibitishwa",
-    "darajaFees": "Ada za M-Pesa"
+    "darajaFees": "Ada za M-Pesa",
+    "settleCash": "Pokea Fedha Taslimu & Toa Risiti",
+    "counterOrdersTitle": "Maagizo ya Kaunta Yanayosubiri Malipo"
   },
   "payments": {
     "title": "Malipo",
@@ -229,7 +232,15 @@
     "accPrefix": "Akaunti",
     "unmatchedBadge": "Haijalinganishwa",
     "statusHeader": "Hali",
-    "amountHeader": "KES"
+    "amountHeader": "KES",
+    "tabItems": "Chagua Bidhaa / Kikapu",
+    "tabLinkOrder": "Unganisha na Agizo Lililopo",
+    "openOrdersEmpty": "Hakuna maagizo yasiyolipwa kwa sasa.",
+    "linkOrderSubmit": "Unganisha na Agizo & Toa Risiti",
+    "selectOrderPrompt": "Chagua agizo lililopo hapa chini:",
+    "settleBalance": "Pokea Baki ya Fedha Taslimu",
+    "settleConfirm": "Thibitisha Kupokea Pesa & Toa Risiti",
+    "settleRemaining": "Baki Iliyosalia: KES {amount}"
   },
   "invoices": {
     "title": "Invoice",
@@ -310,7 +321,11 @@
     "vatRegisteredNotice": "VAT 16% inatozwa (Biashara imesajiliwa kwa VAT).",
     "vatExemptNotice": "Bila VAT / Imesamehewa kodi.",
     "isVatApplicable": "Inatozwa VAT 16%",
-    "isVatApplicableHint": "Weka alama ikiwa bidhaa hii inatozwa VAT ya 16%."
+    "isVatApplicableHint": "Weka alama ikiwa bidhaa hii inatozwa VAT ya 16%.",
+    "trackStock": "Fuatilia Hesabu ya Bidhaa (eTIMS)",
+    "trackStockHint": "Punguza idadi ya bidhaa kiotomatiki risiti inapoidhinishwa na KRA.",
+    "stockQty": "Idadi ya Sasa Stooni",
+    "stockQtyHint": "Kiasi cha bidhaa kilichopo dukani au stooni."
   },
   "settings": {
     "title": "Mipangilio",
@@ -395,7 +410,15 @@
     "buyerPhoneHint": "Tutamtumia mteja kiungo cha risiti ya KRA kwa SMS moja kwa moja kwa nambari hii.",
     "buyerName": "Jina la mteja (si lazima)",
     "customerSection": "Mteja na Uwasilishaji wa Risiti kwa SMS",
-    "invalidPhone": "Tafadhali weka nambari sahihi ya simu ya Kenya (mfano 0712 345 678)"
+    "invalidPhone": "Tafadhali weka nambari sahihi ya simu ya Kenya (mfano 0712 345 678)",
+    "tenderLabel": "Njia ya Malipo",
+    "tenderMpesaTitle": "Inasubiri M-Pesa Till",
+    "tenderMpesaDesc": "Inalinganishwa kiotomatiki mteja akilipa Till ndani ya dk 5",
+    "tenderCashTitle": "Pesa Taslimu (Cash)",
+    "tenderCashDesc": "Inawasilishwa mara moja KRA kama mauzo ya pesa taslimu",
+    "submitMpesa": "Subiri Malipo ya M-Pesa",
+    "submitCash": "Wasilisha Mauzo ya Pesa Taslimu KRA",
+    "mpesaQueued": "Agizo limehifadhiwa. Inasubiri malipo ya M-Pesa kwenye Till yako..."
   },
   "accountant": {
     "title": "Mashirika",

@@ -69,6 +69,8 @@ type ItemView struct {
 	Unit           string    `json:"unit"`
 	PriceCents     int64     `json:"price_cents"`
 	IsActive       bool      `json:"is_active"`
+	TrackStock     bool      `json:"track_stock"`
+	StockQty       string    `json:"stock_qty"`
 }
 
 // SaleLineView is the SaleLine schema.
@@ -89,6 +91,7 @@ type SaleView struct {
 	Kind          string         `json:"kind"`
 	Status        string         `json:"status"`
 	CustomerID    *uuid.UUID     `json:"customer_id"`
+	BuyerName     string         `json:"buyer_name,omitempty"`
 	SubtotalCents int64          `json:"subtotal_cents"`
 	TaxCents      int64          `json:"tax_cents"`
 	TotalCents    int64          `json:"total_cents"`
@@ -186,7 +189,17 @@ func toPayment(k *crypto.Keyring, p gen.Payment, invoiceID *uuid.UUID) PaymentVi
 }
 
 func toItem(i gen.Item) ItemView {
-	return ItemView{ID: i.ID, Name: i.Name, EtimsClassCode: i.EtimsClassCode, TaxCategory: i.TaxCategory, Unit: i.Unit, PriceCents: i.PriceCents, IsActive: i.IsActive}
+	return ItemView{
+		ID:             i.ID,
+		Name:           i.Name,
+		EtimsClassCode: i.EtimsClassCode,
+		TaxCategory:    i.TaxCategory,
+		Unit:           i.Unit,
+		PriceCents:     i.PriceCents,
+		IsActive:       i.IsActive,
+		TrackStock:     i.TrackStock,
+		StockQty:       i.StockQty,
+	}
 }
 
 func toLines(items []gen.SaleItem) []SaleLineView {
@@ -199,7 +212,7 @@ func toLines(items []gen.SaleItem) []SaleLineView {
 }
 
 func toSale(s gen.Sale, lines []gen.SaleItem) SaleView {
-	v := SaleView{ID: s.ID, Ref: s.Ref, Kind: s.Kind, Status: s.Status, CustomerID: s.CustomerID, SubtotalCents: s.SubtotalCents,
+	v := SaleView{ID: s.ID, Ref: s.Ref, Kind: s.Kind, Status: s.Status, CustomerID: s.CustomerID, BuyerName: s.BuyerName, SubtotalCents: s.SubtotalCents,
 		TaxCents: s.TaxCents, TotalCents: s.TotalCents, ClientRef: s.ClientRef, PaidAt: s.PaidAt, CreatedAt: s.CreatedAt}
 	if lines != nil {
 		v.Lines = toLines(lines)

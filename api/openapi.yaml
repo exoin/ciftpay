@@ -603,13 +603,17 @@ paths:
           application/json:
             schema:
               type: object
-              required: [lines]
               properties:
                 lines:
                   type: array
-                  minItems: 1
                   items:
                     $ref: "#/components/schemas/SaleLineInput"
+                sale_id:
+                  type: string
+                  format: uuid
+                item_id:
+                  type: string
+                  format: uuid
                 buyer_pin:
                   $ref: "#/components/schemas/KraPin"
                 buyer_name:
@@ -745,6 +749,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Sale"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /sales/{id}/settle:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [sales]
+      operationId: settleSale
+      summary: Settle an open or partially paid sale with cash balance and issue final KRA invoice
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cash_cents:
+                  type: integer
+                  format: int64
+      responses:
+        "200":
+          description: Sale settled and invoice issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
         default:
           $ref: "#/components/responses/Error"
 
@@ -1859,6 +1889,13 @@ components:
         price_cents:
           type: [integer, "null"]
           format: int64
+        track_stock:
+          type: boolean
+          default: false
+        stock_qty:
+          allOf:
+            - $ref: "#/components/schemas/Quantity"
+          default: "0"
 
     Item:
       allOf:
@@ -1987,6 +2024,8 @@ components:
         total_cents:
           type: integer
           format: int64
+        buyer_name:
+          type: string
         invoice_id:
           type: [string, "null"]
           format: uuid

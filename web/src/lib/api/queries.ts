@@ -240,11 +240,44 @@ export function useCreateCreditNote() {
 export function useConvertPayment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { id: string; body: { lines: Schemas["SaleLineInput"][]; buyer_pin?: string; buyer_name?: string } }) =>
+    mutationFn: async (vars: {
+      id: string;
+      body: {
+        lines?: Schemas["SaleLineInput"][];
+        sale_id?: string;
+        item_id?: string;
+        buyer_pin?: string;
+        buyer_name?: string;
+      };
+    }) =>
       unwrap(await api.POST("/payments/{id}/convert", { params: { path: { id: vars.id } }, body: vars.body })),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["payments"] });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: ["sales"] });
+      void qc.invalidateQueries({ queryKey: qk.attention });
+      void qc.invalidateQueries({ queryKey: qk.today });
+    },
+  });
+}
+
+export function useOpenSales() {
+  return useQuery({
+    queryKey: ["sales", "open"],
+    queryFn: async () => unwrap(await api.GET("/sales", { params: { query: { status: "open" } } })),
+    staleTime: 5_000,
+  });
+}
+
+export function useSettleSale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, cash_cents }: { id: string; cash_cents?: number }) =>
+      unwrap(await api.POST("/sales/{id}/settle", { params: { path: { id } }, body: { cash_cents } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["sales"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: ["payments"] });
       void qc.invalidateQueries({ queryKey: qk.attention });
       void qc.invalidateQueries({ queryKey: qk.today });
     },

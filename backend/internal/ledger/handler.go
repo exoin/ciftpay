@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/exoin/ciftpay/internal/fiscal"
 	"github.com/exoin/ciftpay/internal/platform/crypto"
@@ -94,6 +95,7 @@ func (h *Handler) Mount(r chi.Router) {
 		mr.Post("/items", h.createItem)
 		mr.Patch("/items/{id}", h.updateItem)
 		mr.Post("/sales", h.createSale)
+		mr.Post("/sales/{id}/settle", h.settleSale)
 		mr.Post("/invoices/{id}/retry", h.retryInvoice)
 		mr.Post("/invoices/{id}/reissue", h.reissueInvoice)
 		mr.Post("/invoices/{id}/resend", h.resendInvoice)
@@ -442,6 +444,159 @@ func (h *Handler) invoiceIDForSale(ctx context.Context, tx db.Tx, saleID *uuid.U
 
 // convertPayment turns an unmatched payment into a cash sale + invoice, using
 // the given item (or the shortcode default).
+func (h *Handler) createSaleFromLines(
+	ctx context.Context, tx db.Tx, orgID uuid.UUID, userID *uuid.UUID,
+	linesInput []saleLineInput, paidAt time.Time,
+	buyerPIN, buyerName, payerName string,
+	msisdnHash, msisdnEnc []byte,
+) (gen.Sale, error) {
+	var customerID *uuid.UUID
+	pin := strings.ToUpper(strings.TrimSpace(buyerPIN))
+	name := strings.TrimSpace(buyerName)
+	if name == "" {
+		name = payerName
+	}
+	var encPIN, hashPIN []byte
+	if pin != "" {
+		if !pinRe.MatchString(pin) {
+			return gen.Sale{}, invalid("buyer_pin must be a valid KRA PIN")
+		}
+		if h.S.TaxpayerResolver != nil {
+			if tp, err := h.S.TaxpayerResolver.CheckPIN(ctx, pin); err == nil && tp.TaxpayerName != "" {
+				name = tp.TaxpayerName
+			}
+		}
+		enc, err := h.Keys.EncryptString(pin)
+		if err != nil {
+			return gen.Sale{}, err
+		}
+		encPIN = enc
+		hashPIN = h.Keys.Hash(pin)
+	}
+
+	var cid uuid.UUID
+	var found bool
+	if len(hashPIN) > 0 {
+		err := tx.Tx.QueryRow(ctx, `SELECT id FROM customers WHERE org_id = $1 AND kra_pin_hash = $2`, orgID, hashPIN).Scan(&cid)
+		if err == nil {
+			found = true
+			if name != "" {
+				_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND (name = '' OR name IS NULL)`, name, cid)
+			}
+		}
+	}
+	if !found && len(msisdnHash) > 0 {
+		err := tx.Tx.QueryRow(ctx, `SELECT id FROM customers WHERE org_id = $1 AND msisdn_hash = $2`, orgID, msisdnHash).Scan(&cid)
+		if err == nil {
+			found = true
+			if name != "" {
+				_, _ = tx.Tx.Exec(ctx, `UPDATE customers SET name = $1 WHERE id = $2 AND (name = '' OR name IS NULL)`, name, cid)
+			}
+		}
+	}
+	if !found && (len(hashPIN) > 0 || len(msisdnHash) > 0) {
+		err := tx.Tx.QueryRow(ctx, `INSERT INTO customers (org_id, name, msisdn_enc, msisdn_hash, kra_pin_enc, kra_pin_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+			orgID, name, msisdnEnc, msisdnHash, encPIN, hashPIN).Scan(&cid)
+		if err == nil {
+			found = true
+		}
+	}
+	if found {
+		customerID = &cid
+	}
+
+	type line struct {
+		saleLineInput
+		item     *gen.Item
+		cat      fiscal.TaxCategory
+		qty      int64
+		total    int64
+		tax      int64
+		position int32
+	}
+	lines := make([]line, 0, len(linesInput))
+	var subtotal, tax int64
+	for i, l := range linesInput {
+		ln := line{saleLineInput: l, position: int32(i)}
+		if l.ItemID != nil {
+			it, err := tx.GetItem(ctx, *l.ItemID)
+			if err != nil {
+				return gen.Sale{}, invalid("lines[%d].item_id does not exist", i)
+			}
+			ln.item = &it
+			if l.Description == "" {
+				ln.Description = it.Name
+			}
+			if l.TaxCategory == "" {
+				ln.TaxCategory = it.TaxCategory
+			}
+			if l.UnitPriceCents == 0 {
+				ln.UnitPriceCents = it.PriceCents
+			}
+			if l.EtimsClassCode == "" {
+				ln.EtimsClassCode = it.EtimsClassCode
+			}
+		}
+		if ln.Description == "" {
+			return gen.Sale{}, invalid("lines[%d].description is required", i)
+		}
+		if ln.EtimsClassCode == "" {
+			return gen.Sale{}, invalid("lines[%d].etims_class_code is required when item_id is not given", i)
+		}
+		cat, err := fiscal.ParseTaxCategory(ln.TaxCategory)
+		if err != nil {
+			return gen.Sale{}, invalid("lines[%d].tax_category must be one of A, B, C, D, E", i)
+		}
+		ln.cat = cat
+		if ln.Qty == "" {
+			ln.Qty = "1"
+		}
+		q, err := strconv.ParseInt(ln.Qty, 10, 64)
+		if err != nil || q <= 0 {
+			return gen.Sale{}, invalid("lines[%d].qty must be a positive whole number", i)
+		}
+		if ln.UnitPriceCents <= 0 {
+			return gen.Sale{}, invalid("lines[%d].unit_price_cents must be > 0", i)
+		}
+		ln.qty, ln.total = q, q*ln.UnitPriceCents
+		ln.tax = fiscal.LineTax(ln.total, cat.RateBP())
+		subtotal += ln.total - ln.tax
+		tax += ln.tax
+		lines = append(lines, ln)
+	}
+
+	ref, err := tx.NextSaleRef(ctx, orgID)
+	if err != nil {
+		return gen.Sale{}, err
+	}
+	sale, err := tx.CreateSale(ctx, gen.CreateSaleParams{
+		OrgID: orgID, Ref: ref, Kind: "cash", Status: "paid", CustomerID: customerID,
+		SubtotalCents: subtotal, TaxCents: tax, TotalCents: subtotal + tax,
+		CreatedBy: userID, PaidAt: &paidAt, BuyerName: name,
+	})
+	if err != nil {
+		return gen.Sale{}, err
+	}
+	for _, ln := range lines {
+		unit := "PCS"
+		if ln.item != nil {
+			unit = ln.item.Unit
+		}
+		_, err := tx.CreateSaleItem(ctx, gen.CreateSaleItemParams{
+			OrgID: orgID, SaleID: sale.ID, ItemID: ln.ItemID, Description: ln.Description,
+			EtimsClassCode: ln.EtimsClassCode, Unit: unit, Qty: strconv.FormatInt(ln.qty, 10),
+			UnitPriceCents: ln.UnitPriceCents, TaxCategory: string(ln.cat), TaxRateBp: int32(ln.cat.RateBP()),
+			LineTotalCents: ln.total, LineTaxCents: ln.tax, Position: ln.position,
+		})
+		if err != nil {
+			return gen.Sale{}, err
+		}
+	}
+	return sale, nil
+}
+
+// convertPayment turns an unmatched payment into a cash sale + invoice, using
+// the given item (or the shortcode default), or links to an open sale.
 func (h *Handler) convertPayment(w http.ResponseWriter, r *http.Request) {
 	orgID, userID := org(r)
 	id, ok := idParam(w, r)
@@ -449,12 +604,15 @@ func (h *Handler) convertPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		ItemID *uuid.UUID `json:"item_id"`
-		SaleID *uuid.UUID `json:"sale_id"`
+		ItemID    *uuid.UUID      `json:"item_id"`
+		SaleID    *uuid.UUID      `json:"sale_id"`
+		Lines     []saleLineInput `json:"lines"`
+		BuyerPIN  string          `json:"buyer_pin"`
+		BuyerName string          `json:"buyer_name"`
 	}
 	if r.ContentLength != 0 {
 		if err := httpx.Decode(r, &in); err != nil {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must be {item_id?} or {sale_id?}")
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Body must be {item_id?}, {sale_id?}, or {lines?}")
 			return
 		}
 	}
@@ -477,6 +635,13 @@ func (h *Handler) convertPayment(w http.ResponseWriter, r *http.Request) {
 			}
 			paidAt := p.PaidAt
 			if err := tx.MarkSalePaid(ctx, gen.MarkSalePaidParams{ID: sale.ID, PaidAt: &paidAt}); err != nil {
+				return err
+			}
+			saleID = sale.ID
+		} else if len(in.Lines) > 0 {
+			status = StatusMatched
+			sale, err := h.createSaleFromLines(ctx, tx, orgID, &userID, in.Lines, p.PaidAt, in.BuyerPIN, in.BuyerName, p.PayerName, p.MsisdnHash, p.MsisdnEnc)
+			if err != nil {
 				return err
 			}
 			saleID = sale.ID
@@ -516,6 +681,65 @@ func (h *Handler) convertPayment(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusCreated, toInvoice(h.Keys, h.PublicBaseURL, inv))
 }
 
+// settleSale completes an open or partially paid sale (e.g. balance paid in cash)
+// and emits the final KRA invoice.
+func (h *Handler) settleSale(w http.ResponseWriter, r *http.Request) {
+	orgID, userID := org(r)
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		CashCents int64 `json:"cash_cents"`
+	}
+	if r.ContentLength != 0 {
+		_ = httpx.Decode(r, &in)
+	}
+	var inv gen.Invoice
+	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
+		sale, err := tx.GetSale(ctx, id)
+		if err != nil {
+			return err
+		}
+		if sale.Status != "open" {
+			return fmt.Errorf("%w: sale is already %s", ErrDuplicate, sale.Status)
+		}
+		payments, err := tx.ListPaymentsForSale(ctx, &sale.ID)
+		if err != nil {
+			return err
+		}
+		var paidCents int64
+		var lastPaymentID *uuid.UUID
+		for _, p := range payments {
+			paidCents += p.AmountCents
+			lastPaymentID = &p.ID
+		}
+		now := h.S.Now()
+		if err := tx.MarkSalePaid(ctx, gen.MarkSalePaidParams{ID: sale.ID, PaidAt: &now}); err != nil {
+			return err
+		}
+		for _, p := range payments {
+			if p.Status == StatusPartial {
+				_ = tx.UpdatePaymentStatus(ctx, gen.UpdatePaymentStatusParams{ID: p.ID, Status: StatusMatched})
+			}
+		}
+		inv, err = h.S.CreateInvoiceForSale(ctx, tx, orgID, sale.ID, lastPaymentID, now)
+		if err != nil {
+			return err
+		}
+		actor := userID.String()
+		return tx.AppendAudit(ctx, gen.AppendAuditParams{
+			OrgID: orgID, ActorType: "user", ActorID: &actor,
+			Action: "sale.settled", Entity: "sale", EntityID: sale.ID.String(),
+		})
+	})
+	if err != nil {
+		fail(w, err, "Could not settle the sale")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, toInvoice(h.Keys, h.PublicBaseURL, inv))
+}
+
 // -------------------------------------------------------------- items
 
 func (h *Handler) listItems(w http.ResponseWriter, r *http.Request) {
@@ -542,6 +766,8 @@ type itemInput struct {
 	Unit           *string `json:"unit"`
 	PriceCents     *int64  `json:"price_cents"`
 	IsActive       *bool   `json:"is_active"`
+	TrackStock     *bool   `json:"track_stock"`
+	StockQty       *string `json:"stock_qty"`
 }
 
 func (in itemInput) validate(creating bool) error {
@@ -580,10 +806,22 @@ func (h *Handler) createItem(w http.ResponseWriter, r *http.Request) {
 	if in.PriceCents != nil {
 		price = *in.PriceCents
 	}
+	trackStock := false
+	if in.TrackStock != nil {
+		trackStock = *in.TrackStock
+	}
+	stockQty := "0"
+	if in.StockQty != nil && *in.StockQty != "" {
+		stockQty = *in.StockQty
+	}
 	var out gen.Item
 	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		out, err = tx.CreateItem(ctx, gen.CreateItemParams{OrgID: orgID, Name: strings.TrimSpace(*in.Name), EtimsClassCode: *in.EtimsClassCode, TaxCategory: *in.TaxCategory, Unit: unit, PriceCents: price})
+		out, err = tx.CreateItem(ctx, gen.CreateItemParams{
+			OrgID: orgID, Name: strings.TrimSpace(*in.Name), EtimsClassCode: *in.EtimsClassCode,
+			TaxCategory: *in.TaxCategory, Unit: unit, PriceCents: price,
+			TrackStock: trackStock, StockQty: stockQty,
+		})
 		return err
 	})
 	if err != nil {
@@ -608,10 +846,18 @@ func (h *Handler) updateItem(w http.ResponseWriter, r *http.Request) {
 		fail(w, err, "")
 		return
 	}
+	var stockNumeric pgtype.Numeric
+	if in.StockQty != nil {
+		_ = stockNumeric.Scan(*in.StockQty)
+	}
 	var out gen.Item
 	err := h.S.DB.WithOrg(r.Context(), orgID, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		out, err = tx.UpdateItem(ctx, gen.UpdateItemParams{ID: id, Name: in.Name, EtimsClassCode: in.EtimsClassCode, TaxCategory: in.TaxCategory, Unit: in.Unit, PriceCents: in.PriceCents, IsActive: in.IsActive})
+		out, err = tx.UpdateItem(ctx, gen.UpdateItemParams{
+			ID: id, Name: in.Name, EtimsClassCode: in.EtimsClassCode,
+			TaxCategory: in.TaxCategory, Unit: in.Unit, PriceCents: in.PriceCents,
+			IsActive: in.IsActive, TrackStock: in.TrackStock, StockQty: stockNumeric,
+		})
 		return err
 	})
 	if err != nil {

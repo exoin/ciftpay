@@ -286,7 +286,7 @@ func seed(ctx context.Context, d *boot.Deps) error {
 		if len(items) > 0 {
 			item = items[0]
 		} else {
-			item, err = tx.CreateItem(ctx, gen.CreateItemParams{OrgID: org.ID, Name: "General goods", EtimsClassCode: "5020230000", TaxCategory: "B", Unit: "PCS", PriceCents: 0})
+			item, err = tx.CreateItem(ctx, gen.CreateItemParams{OrgID: org.ID, Name: "General goods", EtimsClassCode: "5020230000", TaxCategory: "B", Unit: "PCS", PriceCents: 0, TrackStock: false, StockQty: "0"})
 			if err != nil {
 				return err
 			}

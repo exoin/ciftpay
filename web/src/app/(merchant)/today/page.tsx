@@ -10,7 +10,8 @@ import { LoadingRows } from "@/components/ui/LoadingRows";
 import { Money } from "@/components/ui/Money";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { Tabs } from "@/components/ui/Tabs";
-import { useAnalyticsSummary, useToday } from "@/lib/api/queries";
+import { useAnalyticsSummary, useToday, useOpenSales, useSettleSale } from "@/lib/api/queries";
+import { useToast } from "@/components/ui/Toast";
 import type { Schemas } from "@/lib/api/client";
 import { formatTime } from "@/lib/format";
 import { paymentChip } from "@/lib/status";
@@ -25,6 +26,18 @@ export default function TodayPage() {
   const { data, isPending } = useToday();
   const { data: analytics } = useAnalyticsSummary(period);
   const [saleOpen, setSaleOpen] = useState(false);
+  const toast = useToast();
+  const { data: openSales } = useOpenSales();
+  const settle = useSettleSale();
+
+  async function handleSettle(id: string) {
+    try {
+      await settle.mutateAsync({ id });
+      toast.push(tc("saved"));
+    } catch {
+      toast.push(tc("noConnection"), "error");
+    }
+  }
 
   const hasNoActivity = (data?.payments_count ?? 0) === 0 && (data?.received_cents ?? 0) === 0;
 
@@ -62,6 +75,40 @@ export default function TodayPage() {
           )}
         </div>
       </section>
+
+      {/* Counter Orders Awaiting Settlement */}
+      {openSales?.data && openSales.data.length > 0 && (
+        <section className="mt-3 rounded-r1 border border-accent/40 bg-accent/5 p-3.5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-accent">
+              {t("counterOrdersTitle")} ({openSales.data.length})
+            </h3>
+          </div>
+          <div className="mt-2.5 divide-y divide-accent/15">
+            {openSales.data.map((sale) => (
+              <div key={sale.id} className="flex items-center justify-between py-2 text-xs">
+                <div>
+                  <span className="font-mono font-bold text-ink">{sale.ref}</span>
+                  {sale.buyer_name && <span className="ml-2 text-ink-2">· {sale.buyer_name}</span>}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono font-semibold">
+                    <Money cents={sale.total_cents} />
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={settle.isPending}
+                    onClick={() => handleSettle(sale.id)}
+                  >
+                    {t("settleCash")}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Thin Analytics Strip below the hero receipt */}
       <section className="mt-3 rounded-r1 border border-hairline bg-paper-2 p-3 text-xs">
