@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Trash2, User } from "lucide-react";
+import { UserPlus, Trash2, User, ShieldCheck, Volume2, BellRing, Printer } from "lucide-react";
 import { TopBar } from "@/components/shell/TopBar";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -50,7 +50,45 @@ export default function SettingsPage() {
   const removeMember = useRemoveMember();
 
   const membership = useActiveMembership();
-  const isAccountant = membership?.role === "accountant";
+  const currentRole = membership?.role ?? "owner";
+  const isAccountant = currentRole === "accountant";
+  const isOwnerOrAdmin = currentRole === "owner" || currentRole === "admin";
+
+  // POS Store Preferences State (persisted to localStorage)
+  const [lowStockAlert, setLowStockAlert] = useState(true);
+  const [lowStockThreshold, setLowStockThreshold] = useState("5");
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
+  const [audioFeedback, setAudioFeedback] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedLowStock = window.localStorage.getItem("ciftpay.pref.lowStockAlert");
+        if (storedLowStock !== null) setLowStockAlert(storedLowStock === "true");
+
+        const storedThreshold = window.localStorage.getItem("ciftpay.pref.lowStockThreshold");
+        if (storedThreshold !== null) setLowStockThreshold(storedThreshold);
+
+        const storedAutoPrint = window.localStorage.getItem("ciftpay.pref.autoPrintReceipt");
+        if (storedAutoPrint !== null) setAutoPrintReceipt(storedAutoPrint === "true");
+
+        const storedAudio = window.localStorage.getItem("ciftpay.pref.audioFeedback");
+        if (storedAudio !== null) setAudioFeedback(storedAudio === "true");
+      } catch {}
+    }
+  }, []);
+
+  function handleSavePreferences() {
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("ciftpay.pref.lowStockAlert", String(lowStockAlert));
+        window.localStorage.setItem("ciftpay.pref.lowStockThreshold", lowStockThreshold);
+        window.localStorage.setItem("ciftpay.pref.autoPrintReceipt", String(autoPrintReceipt));
+        window.localStorage.setItem("ciftpay.pref.audioFeedback", String(audioFeedback));
+      } catch {}
+    }
+    toast.push(t("prefSaved"));
+  }
 
   // The add/letter sheet for shortcodes
   const [sheet, setSheet] = useState<{ mode: "add" } | { mode: "letter"; shortcode: Schemas["Shortcode"] } | null>(null);
@@ -130,35 +168,122 @@ export default function SettingsPage() {
     <>
       <TopBar title={t("title")} />
       <div className="space-y-10">
+        {/* Business Profile */}
         <Section title={t("business")}>
           <dl className="font-mono text-sm">
             <div className="flex justify-between gap-4 py-2">
               <dt className="text-muted">{t("business")}</dt>
-              <dd>{org?.name ?? "—"}</dd>
+              <dd className="font-medium text-ink">{org?.name ?? "—"}</dd>
             </div>
             <div className="flex justify-between gap-4 py-2">
               <dt className="text-muted">{t("kraPin")}</dt>
-              <dd>{org?.kra_pin_masked ?? "—"}</dd>
+              <dd className="text-ink">{org?.kra_pin_masked ?? "—"}</dd>
             </div>
-            {isAccountant && (
-              <div className="flex justify-between gap-4 py-2">
-                <dt className="text-muted">Role</dt>
-                <dd>
-                  <StatusChip tone="neutral">{t("readOnlyBadge")}</StatusChip>
-                </dd>
-              </div>
-            )}
+            <div className="flex justify-between gap-4 py-2">
+              <dt className="text-muted">{t("currentRoleBadge", { role: "" }).replace(":", "")}</dt>
+              <dd>
+                <StatusChip tone={isAccountant ? "neutral" : "acked"}>
+                  {currentRole.toUpperCase()}
+                </StatusChip>
+              </dd>
+            </div>
           </dl>
-          <div className="lg:hidden">
+          <div className="lg:hidden mt-2">
             <OrgSwitcher />
           </div>
         </Section>
+
+        {/* Store & Checkout Preferences (Toggles & Low Stock Configuration) */}
+        {!isAccountant && (
+          <Section title={t("preferences")}>
+            <div className="space-y-4 rounded-r2 border border-hairline bg-surface p-4">
+              <p className="text-xs text-muted leading-relaxed">{t("prefLead")}</p>
+
+              <div className="space-y-3 pt-2">
+                {/* Low Stock Counter Warning Toggle */}
+                <div className="flex items-center justify-between gap-4 py-2 border-b border-hairline">
+                  <div className="flex items-start gap-2.5">
+                    <BellRing className="size-4 text-ochre mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium text-ink">{t("lowStockAlert")}</div>
+                      <div className="text-xs text-muted">{t("lowStockAlertDesc")}</div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={lowStockAlert}
+                    onChange={(e) => setLowStockAlert(e.target.checked)}
+                    className="size-5 rounded border-hairline text-green focus:ring-ochre cursor-pointer"
+                  />
+                </div>
+
+                {/* Warning Threshold input */}
+                {lowStockAlert && (
+                  <div className="flex items-center justify-between gap-4 py-2 pl-6 border-b border-hairline">
+                    <div>
+                      <div className="text-sm font-medium text-ink">{t("lowStockThreshold")}</div>
+                      <div className="text-xs text-muted">{t("lowStockThresholdDesc")}</div>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={999}
+                      value={lowStockThreshold}
+                      onChange={(e) => setLowStockThreshold(e.target.value)}
+                      className="w-20 rounded border border-hairline bg-paper px-2.5 py-1 text-center font-mono text-sm text-ink focus:border-ochre focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* Auto Receipt Trigger */}
+                <div className="flex items-center justify-between gap-4 py-2 border-b border-hairline">
+                  <div className="flex items-start gap-2.5">
+                    <Printer className="size-4 text-ink-2 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium text-ink">{t("autoPrintReceipt")}</div>
+                      <div className="text-xs text-muted">{t("autoPrintReceiptDesc")}</div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={autoPrintReceipt}
+                    onChange={(e) => setAutoPrintReceipt(e.target.checked)}
+                    className="size-5 rounded border-hairline text-green focus:ring-ochre cursor-pointer"
+                  />
+                </div>
+
+                {/* Audio Alert on Matched Payment */}
+                <div className="flex items-center justify-between gap-4 py-2">
+                  <div className="flex items-start gap-2.5">
+                    <Volume2 className="size-4 text-ink-2 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium text-ink">{t("audioFeedback")}</div>
+                      <div className="text-xs text-muted">{t("audioFeedbackDesc")}</div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={audioFeedback}
+                    onChange={(e) => setAudioFeedback(e.target.checked)}
+                    className="size-5 rounded border-hairline text-green focus:ring-ochre cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button size="sm" variant="secondary" onClick={handleSavePreferences}>
+                  {t("savePreferences")}
+                </Button>
+              </div>
+            </div>
+          </Section>
+        )}
 
         {/* Team & Accountant Invites Section (Only owners & admins can invite) */}
         <Section
           title={t("team")}
           action={
-            !isAccountant ? (
+            isOwnerOrAdmin ? (
               <Button size="sm" variant="secondary" onClick={() => setInviteOpen(true)}>
                 <span className="flex items-center gap-1.5">
                   <UserPlus className="size-4" />
@@ -188,7 +313,7 @@ export default function SettingsPage() {
                         </div>
                         {m.phone_masked && <div className="font-mono text-xs text-muted pl-6">{m.phone_masked}</div>}
                       </div>
-                      {!isAccountant && m.role !== "owner" && (
+                      {isOwnerOrAdmin && m.role !== "owner" && (
                         <button
                           type="button"
                           onClick={() => handleRemoveMember(m.user_id)}
@@ -205,7 +330,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Pending Invites List */}
-            {!isAccountant && invites.length > 0 && (
+            {isOwnerOrAdmin && invites.length > 0 && (
               <div className="pt-3 border-t border-hairline">
                 <h3 className="text-xs font-semibold uppercase text-muted mb-2">{t("pendingInvites")}</h3>
                 <ul className="ruled">
@@ -215,7 +340,7 @@ export default function SettingsPage() {
                         <span className="font-mono text-sm text-ink">{inv.phone || inv.email}</span>
                         <div className="flex items-center gap-2 mt-0.5">
                           <StatusChip tone="pending">{inv.status}</StatusChip>
-                          <span className="text-xs text-muted">Role: {inv.role}</span>
+                          <span className="text-xs text-muted">{t("inviteRole")}: {inv.role}</span>
                         </div>
                       </div>
                       <Button
@@ -233,11 +358,56 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        {/* Shortcodes section: read-only for accountants */}
+        {/* Role-Based Access Control (RBAC) Matrix Reference */}
+        <Section title={t("roleMatrixTitle")}>
+          <div className="space-y-3 rounded-r2 border border-hairline bg-surface p-4">
+            <div className="flex items-center gap-2 text-ink font-medium text-sm">
+              <ShieldCheck className="size-4 text-green" />
+              <span>{t("roleMatrixTitle")}</span>
+            </div>
+            <p className="text-xs text-muted leading-relaxed">{t("roleMatrixDesc")}</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+              <div className="rounded border border-hairline bg-paper p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between font-semibold text-ink">
+                  <span>Owner</span>
+                  <StatusChip tone="acked">Full Access</StatusChip>
+                </div>
+                <p className="text-muted leading-relaxed">{t("roleOwnerDesc")}</p>
+              </div>
+
+              <div className="rounded border border-hairline bg-paper p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between font-semibold text-ink">
+                  <span>Admin</span>
+                  <StatusChip tone="acked">Management</StatusChip>
+                </div>
+                <p className="text-muted leading-relaxed">{t("roleAdminDesc")}</p>
+              </div>
+
+              <div className="rounded border border-hairline bg-paper p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between font-semibold text-ink">
+                  <span>Staff</span>
+                  <StatusChip tone="pending">POS Only</StatusChip>
+                </div>
+                <p className="text-muted leading-relaxed">{t("roleStaffDesc")}</p>
+              </div>
+
+              <div className="rounded border border-hairline bg-paper p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between font-semibold text-ink">
+                  <span>Accountant</span>
+                  <StatusChip tone="neutral">Auditor</StatusChip>
+                </div>
+                <p className="text-muted leading-relaxed">{t("roleAccountantDesc")}</p>
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* Shortcodes section: read-only for accountants and staff */}
         <Section
           title={t("shortcodes")}
           action={
-            !isAccountant ? (
+            isOwnerOrAdmin ? (
               <Button size="sm" variant="secondary" onClick={() => setSheet({ mode: "add" })}>
                 {t("addAction")}
               </Button>
@@ -265,7 +435,7 @@ export default function SettingsPage() {
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
                       <StatusChip tone={chip.tone}>{ts(chip.key)}</StatusChip>
-                      {!isAccountant && action === "upload" && (
+                      {isOwnerOrAdmin && action === "upload" && (
                         <Button size="sm" variant="secondary" onClick={() => setSheet({ mode: "letter", shortcode: s })}>
                           {t("uploadLetter")}
                         </Button>
@@ -278,11 +448,11 @@ export default function SettingsPage() {
           )}
         </Section>
 
-        {/* KRA Connection section: read-only note for accountants */}
+        {/* KRA Connection section: read-only note for non-owners/admins */}
         <Section title={t("etims.title")}>
-          {isAccountant ? (
+          {!isOwnerOrAdmin ? (
             <p className="text-sm text-muted">
-              Accountants have read-only access to view tax status. KRA device settings can only be altered by business owners or admins.
+              {t("etims.pendingNote")}
             </p>
           ) : (
             <EtimsSection />

@@ -67,7 +67,10 @@
     "signUpLead": "Sajili nambari yako ya simu. Tutakutumia msimbo wa tarakimu 6 ili kuthibitisha.",
     "switchModeSignIn": "Je, tayari una akaunti? Ingia",
     "switchModeSignUp": "Mgeni kwenye CiftPay? Fungua akaunti",
-    "verifySignUp": "Fungua akaunti"
+    "verifySignUp": "Fungua akaunti",
+    "resendOtp": "Tuma Tena Msimbo",
+    "resendCooldown": "Tuma tena baada ya sekunde {seconds}",
+    "otpResent": "Msimbo mpya wa uthibitisho umetumwa kwa SMS."
   },
   "onboarding": {
     "title": "Sajili biashara yako",
@@ -396,7 +399,26 @@
     "inviteSuccess": "Mwaliko umetumwa kikamilifu.",
     "revokeSuccess": "Mwaliko umefutwa.",
     "removeSuccess": "Mwanachama ameondolewa.",
-    "readOnlyBadge": "Kusoma Tu"
+    "readOnlyBadge": "Kusoma Tu",
+    "preferences": "Mipangilio ya Duka na Mauzo",
+    "prefLead": "Weka tabia za kaunta ya mauzo na vidhibiti vya kiutendaji kwa wafanyakazi.",
+    "lowStockAlert": "Onyo la Bidhaa Kupungua Kaunta",
+    "lowStockAlertDesc": "Onyesha onyo kwa mtunza fedha wakati bidhaa zinapopungua wakati wa mauzo.",
+    "lowStockThreshold": "Kiwango cha Onyo (Idadi)",
+    "lowStockThresholdDesc": "Washa kiashirio cha bidhaa chache idadi inapofikia au kuwa chini ya nambari hii.",
+    "autoPrintReceipt": "Kuanzisha Risiti / SMS Kiotomatiki",
+    "autoPrintReceiptDesc": "Fungua kiungo cha risiti ya mnunuzi moja kwa moja malipo ya M-Pesa yanapothibitishwa.",
+    "audioFeedback": "Mlio na Tahadhari za Sauti",
+    "audioFeedbackDesc": "Toa mlio wa uthibitisho kwenye simu au kompyuta wakati malipo yanapopokelewa.",
+    "savePreferences": "Hifadhi Mipangilio",
+    "prefSaved": "Mipangilio ya duka imehifadhiwa kikamilifu.",
+    "roleMatrixTitle": "Majukumu na Idhini za Wafanyakazi (RBAC)",
+    "roleMatrixDesc": "Uchanganuzi wa idhini kwa kila nafasi ya mfanyakazi katika biashara.",
+    "roleOwnerDesc": "Udhibiti kamili wa biashara, usajili wa kodi, muunganisho wa Daraja, na bili.",
+    "roleAdminDesc": "Usimamizi wa orodha ya bidhaa, kualika wafanyakazi, na kusawazisha mauzo ya kila siku.",
+    "roleStaffDesc": "Kurekodi mauzo ya pesa taslimu/M-Pesa kaunta na kutoa risiti kwa wateja.",
+    "roleAccountantDesc": "Kusoma na kukagua leja ya mauzo, ankara za wateja, na kupakua ripoti za VAT za iTax.",
+    "currentRoleBadge": "Nafasi Yako ya Sasa: {role}"
   },
   "sale": {
     "title": "Andika mauzo",

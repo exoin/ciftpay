@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocale, useTranslations } from "next-intl";
+import { RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { useToast } from "@/components/ui/Toast";
 import { readSession, useRequestOtp, useVerifyOtp } from "@/lib/auth";
 import { ApiRequestError } from "@/lib/api/client";
 import { maskMsisdn, normaliseMsisdn } from "@/lib/format";
@@ -20,6 +22,7 @@ type AuthMode = "signin" | "signup";
 export function LoginForm() {
   const t = useTranslations("login");
   const tc = useTranslations("common");
+  const toast = useToast();
   const locale = useLocale() as "en" | "sw";
   const router = useRouter();
   const params = useSearchParams();
@@ -29,30 +32,60 @@ export function LoginForm() {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [msisdn, setMsisdn] = useState<string | null>(null);
   const [expires, setExpires] = useState(300);
+  const [cooldown, setCooldown] = useState(30);
+
   const request = useRequestOtp();
   const verify = useVerifyOtp();
 
-  const routePostLogin = (orgs: { role?: string }[] | undefined) => {
-    if (!orgs || orgs.length === 0) {
-      router.replace("/onboarding");
-    } else if (orgs.some((o) => o.role === "merchant" || o.role === "owner" || o.role === "admin" || o.role === "staff")) {
-      router.replace(next && next !== "/clients" ? next : "/today");
-    } else if (orgs.some((o) => o.role === "accountant")) {
-      router.replace("/clients");
-    } else {
-      router.replace("/onboarding");
-    }
-  };
+  // Cooldown countdown timer when OTP is sent or resent
+  useEffect(() => {
+    if (!msisdn || cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [msisdn, cooldown]);
+
+  const routePostLogin = useCallback(
+    (orgs: { role?: string }[] | undefined) => {
+      if (!orgs || orgs.length === 0) {
+        router.replace("/onboarding");
+      } else if (orgs.some((o) => o.role === "merchant" || o.role === "owner" || o.role === "admin" || o.role === "staff")) {
+        router.replace(next && next !== "/clients" ? next : "/today");
+      } else if (orgs.some((o) => o.role === "accountant")) {
+        router.replace("/clients");
+      } else {
+        router.replace("/onboarding");
+      }
+    },
+    [router, next],
+  );
 
   useEffect(() => {
     const s = readSession();
     if (s) {
       routePostLogin(s.orgs);
     }
-  }, [router, next]);
+  }, [routePostLogin]);
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({ resolver: zodResolver(phoneSchema), defaultValues: { phone: "" } });
   const codeForm = useForm<z.infer<typeof codeSchema>>({ resolver: zodResolver(codeSchema), defaultValues: { code: "" } });
+
+  async function handleResendCode() {
+    if (!msisdn || cooldown > 0 || request.isPending) return;
+    try {
+      const res = await request.mutateAsync({ msisdn, locale });
+      setExpires(res.expires_in_seconds);
+      setCooldown(30);
+      toast.push(t("otpResent"));
+    } catch (err: unknown) {
+      if (err instanceof ApiRequestError) {
+        toast.push(tc("errorGeneric", { message: err.message }), "error");
+      } else {
+        toast.push(tc("noConnection"), "error");
+      }
+    }
+  }
 
   if (!msisdn) {
     return (
@@ -103,6 +136,7 @@ export function LoginForm() {
             const n = normaliseMsisdn(phone)!;
             const res = await request.mutateAsync({ msisdn: n, locale });
             setExpires(res.expires_in_seconds);
+            setCooldown(30);
             setMsisdn(n);
           })}
         >
@@ -173,12 +207,34 @@ export function LoginForm() {
           {verify.error instanceof ApiRequestError && verify.error.status === 401 ? t("wrongCode") : errorText(verify.error, tc)}
         </p>
       )}
+
+      {/* Primary Action Button */}
       <Button type="submit" block loading={verify.isPending}>
         {mode === "signup" ? t("verifySignUp") : t("verify")}
       </Button>
-      <Button type="button" variant="ghost" block onClick={() => setMsisdn(null)}>
-        {t("changeNumber")}
-      </Button>
+
+      {/* Resend OTP button with rate-limiting countdown */}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          type="button"
+          disabled={cooldown > 0 || request.isPending}
+          onClick={handleResendCode}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-2 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <RotateCw className={`size-3.5 ${request.isPending ? "animate-spin" : ""}`} />
+          {cooldown > 0
+            ? t("resendCooldown", { seconds: cooldown })
+            : t("resendOtp")}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMsisdn(null)}
+          className="text-xs text-muted hover:text-ink transition-colors"
+        >
+          {t("changeNumber")}
+        </button>
+      </div>
     </form>
   );
 }

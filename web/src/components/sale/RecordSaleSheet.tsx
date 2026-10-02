@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, SelectField } from "@/components/ui/Field";
 import { Leader } from "@/components/ui/Leader";
@@ -14,6 +14,26 @@ import { ApiRequestError } from "@/lib/api/client";
 import { generateUUID, normaliseMsisdn } from "@/lib/format";
 
 type LineDraft = { item_id: string; qty: string; unit_price: string };
+
+function getLowStockThreshold(): number {
+  if (typeof window === "undefined") return 5;
+  try {
+    const raw = window.localStorage.getItem("ciftpay.pref.lowStockThreshold");
+    return raw ? parseInt(raw, 10) : 5;
+  } catch {
+    return 5;
+  }
+}
+
+function isLowStockAlertEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem("ciftpay.pref.lowStockAlert");
+    return raw !== null ? raw === "true" : true;
+  } catch {
+    return true;
+  }
+}
 
 /** "Record a sale": cash sale for a payment CiftPay didn't see. Files with KRA immediately. */
 export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -31,6 +51,9 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [paymentMode, setPaymentMode] = useState<"mpesa" | "cash">("mpesa");
+
+  const lowStockThreshold = getLowStockThreshold();
+  const lowStockAlertEnabled = isLowStockAlertEnabled();
 
   const totalCents = useMemo(() => {
     return lines.reduce((sum, l) => {
@@ -139,14 +162,11 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
       closeLabel={tc("close")}
       footer={
         <div className="space-y-3">
-          <Leader strong label={t("total")} amount={<Money cents={totalCents} size="lg" />} />
+          <Leader label={t("total")} amount={<Money cents={totalCents} />} />
           {formError && (
-            <div
-              role="alert"
-              className="rounded-r2 border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger"
-            >
+            <p role="alert" className="text-xs text-red">
               {formError}
-            </div>
+            </p>
           )}
           <Button block disabled={!canSubmit || create.isPending} loading={create.isPending} onClick={submit}>
             {paymentMode === "mpesa" ? t("submitMpesa") : t("submitCash")}
@@ -187,65 +207,88 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
       </div>
       <p className="text-sm text-ink-2">{t("lead")}</p>
       <div className="mt-4 space-y-5">
-        {lines.map((l, i) => (
-          <fieldset key={i} className="grid grid-cols-[1fr_72px_100px_auto] items-end gap-2 border-b border-dashed border-hairline pb-4 sm:gap-3">
-            <SelectField
-              label={tp("item")}
-              value={l.item_id}
-              onChange={(e) => handleItemChange(i, e.target.value)}
-            >
-              <option value="" />
-              {items?.data
-                .filter((it) => it.is_active)
-                .map((it) => {
-                  let stockTag = "";
-                  if (it.track_stock) {
-                    const q = parseFloat(it.stock_qty || "0");
-                    stockTag = q <= 0 ? " [Out of Stock]" : ` [${it.stock_qty} left]`;
-                  }
-                  return (
-                    <option key={it.id} value={it.id}>
-                      {it.name}{stockTag}
-                    </option>
-                  );
-                })}
-            </SelectField>
-            <Field
-              label={tp("qty")}
-              inputMode="numeric"
-              mono
-              value={l.qty}
-              onChange={(e) => {
-                if (formError) setFormError(null);
-                setLines((cur) => cur.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)));
-              }}
-            />
-            <Field
-              label={ti("price")}
-              inputMode="decimal"
-              mono
-              placeholder="0"
-              value={l.unit_price}
-              onChange={(e) => {
-                if (formError) setFormError(null);
-                setLines((cur) => cur.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)));
-              }}
-            />
-            {lines.length > 1 ? (
-              <button
-                type="button"
-                className="mb-1 rounded p-1.5 text-ink-3 hover:text-ink transition-colors"
-                onClick={() => removeLine(i)}
-                aria-label={tc("close")}
-                title={tc("close")}
-              >
-                <X className="size-4" aria-hidden="true" />
-              </button>
-            ) : (
-              <div className="w-0" />
-            )}
-          </fieldset>
-        ))}
+        {lines.map((l, i) => {
+          const selectedItem = items?.data.find((it) => it.id === l.item_id);
+          const stockNum = selectedItem?.track_stock ? parseFloat(selectedItem.stock_qty || "0") : null;
+          const isLowStock = stockNum !== null && stockNum <= lowStockThreshold;
+          const isOutOfStock = stockNum !== null && stockNum <= 0;
+
+          return (
+            <div key={i} className="space-y-1.5 border-b border-dashed border-hairline pb-4">
+              <fieldset className="grid grid-cols-[1fr_72px_100px_auto] items-end gap-2 sm:gap-3">
+                <SelectField
+                  label={tp("item")}
+                  value={l.item_id}
+                  onChange={(e) => handleItemChange(i, e.target.value)}
+                >
+                  <option value="" />
+                  {items?.data
+                    .filter((it) => it.is_active)
+                    .map((it) => {
+                      let stockTag = "";
+                      if (it.track_stock) {
+                        const q = parseFloat(it.stock_qty || "0");
+                        stockTag = q <= 0 ? " [Out of Stock]" : ` [${it.stock_qty} left]`;
+                      }
+                      return (
+                        <option key={it.id} value={it.id}>
+                          {it.name}{stockTag}
+                        </option>
+                      );
+                    })}
+                </SelectField>
+                <Field
+                  label={tp("qty")}
+                  inputMode="numeric"
+                  mono
+                  value={l.qty}
+                  onChange={(e) => {
+                    if (formError) setFormError(null);
+                    setLines((cur) => cur.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)));
+                  }}
+                />
+                <Field
+                  label={ti("price")}
+                  inputMode="decimal"
+                  mono
+                  placeholder="0"
+                  value={l.unit_price}
+                  onChange={(e) => {
+                    if (formError) setFormError(null);
+                    setLines((cur) => cur.map((x, j) => (j === i ? { ...x, unit_price: e.target.value } : x)));
+                  }}
+                />
+                {lines.length > 1 ? (
+                  <button
+                    type="button"
+                    className="mb-1 rounded p-1.5 text-ink-3 hover:text-ink transition-colors"
+                    onClick={() => removeLine(i)}
+                    aria-label={tc("close")}
+                    title={tc("close")}
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <div className="w-0" />
+                )}
+              </fieldset>
+
+              {/* Real-time low stock warning indicator banner */}
+              {lowStockAlertEnabled && selectedItem && isLowStock && (
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-mono ${
+                  isOutOfStock ? "bg-red/10 text-red border border-red/20" : "bg-ochre/10 text-ochre border border-ochre/20"
+                }`}>
+                  <AlertCircle className="size-3.5 shrink-0" />
+                  <span>
+                    {isOutOfStock
+                      ? `Warning: ${selectedItem.name} is currently out of stock (0 left).`
+                      : `Low stock warning: only ${selectedItem.stock_qty} units left on shelf.`}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
         <Button
           variant="secondary"
           size="sm"
@@ -273,32 +316,28 @@ export function RecordSaleSheet({ open, onClose }: { open: boolean; onClose: () 
             mono
             value={buyerPhone}
             onChange={(e) => {
-              setBuyerPhone(e.target.value);
               if (phoneError) setPhoneError(null);
-              if (formError) setFormError(null);
+              setBuyerPhone(e.target.value);
             }}
           />
 
           <Field
             label={t("buyerName")}
-            placeholder="Jane Doe"
+            autoComplete="name"
+            placeholder="e.g. John Kamau"
             value={buyerName}
-            onChange={(e) => {
-              setBuyerName(e.target.value);
-              if (formError) setFormError(null);
-            }}
+            onChange={(e) => setBuyerName(e.target.value)}
           />
 
           <Field
             label={tp("buyerPin")}
             hint={tp("buyerPinHint")}
+            autoCapitalize="characters"
+            maxLength={11}
             mono
-            placeholder="A123456789B"
+            placeholder="A012345678X"
             value={buyerPin}
-            onChange={(e) => {
-              setBuyerPin(e.target.value);
-              if (formError) setFormError(null);
-            }}
+            onChange={(e) => setBuyerPin(e.target.value)}
           />
         </div>
       </div>

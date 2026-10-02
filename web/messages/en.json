@@ -67,7 +67,10 @@
     "signUpLead": "Register your Kenyan mobile number. We will send you a 6-digit code to verify.",
     "switchModeSignIn": "Already have an account? Sign in",
     "switchModeSignUp": "New to CiftPay? Create an account",
-    "verifySignUp": "Create account"
+    "verifySignUp": "Create account",
+    "resendOtp": "Resend Code",
+    "resendCooldown": "Resend code in {seconds}s",
+    "otpResent": "New verification code sent via SMS."
   },
   "onboarding": {
     "title": "Set up your business",
@@ -394,7 +397,26 @@
     "inviteSuccess": "Invitation sent successfully.",
     "revokeSuccess": "Invitation revoked.",
     "removeSuccess": "Member removed.",
-    "readOnlyBadge": "Read-Only"
+    "readOnlyBadge": "Read-Only",
+    "preferences": "Store & Checkout Preferences",
+    "prefLead": "Configure point-of-sale behavior and staff operational controls.",
+    "lowStockAlert": "Low Stock Counter Warnings",
+    "lowStockAlertDesc": "Highlight low stock warnings to cashiers when selecting items during a sale.",
+    "lowStockThreshold": "Warning Threshold (Units)",
+    "lowStockThresholdDesc": "Trigger low stock indicator when quantity drops to or below this number.",
+    "autoPrintReceipt": "Auto-trigger Receipt / SMS",
+    "autoPrintReceiptDesc": "Automatically prompt buyer receipt download immediately upon M-Pesa match.",
+    "audioFeedback": "Sound & Audio Alerts",
+    "audioFeedbackDesc": "Play audible chime on the counter terminal when an incoming payment is acknowledged.",
+    "savePreferences": "Save Preferences",
+    "prefSaved": "Store preferences saved successfully.",
+    "roleMatrixTitle": "Role-Based Access Control (RBAC) Permissions",
+    "roleMatrixDesc": "Explicit privilege breakdown per assigned staff role.",
+    "roleOwnerDesc": "Full organizational control, tax registration, Daraja linking, bank payouts, and billing.",
+    "roleAdminDesc": "Catalog and item management, staff invitations, and daily reconciliation.",
+    "roleStaffDesc": "Point-of-sale cash/M-Pesa register, order creation, and receipt dispatch.",
+    "roleAccountantDesc": "Read-only access to sales ledgers, customer receipts, and monthly iTax VAT returns.",
+    "currentRoleBadge": "Your Active Role: {role}"
   },
   "sale": {
     "title": "Record a sale",
